@@ -1,7 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<?xml version="1.0" encoding="UTF-8" ?>
+<project
+    xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+>
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
@@ -15,7 +17,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <jpackage.type>DEB</jpackage.type>
-    <jpackage.destSuffix></jpackage.destSuffix>
+    <jpackage.destSuffix />
     <app.jpackage.name>DictionaryEditor</app.jpackage.name>
   </properties>
 
@@ -36,25 +38,21 @@
       <groupId>org.openjfx</groupId>
       <artifactId>javafx-base</artifactId>
       <version>${javafx.version}</version>
-      <classifier>${javafx.platform}</classifier>
     </dependency>
     <dependency>
       <groupId>org.openjfx</groupId>
       <artifactId>javafx-controls</artifactId>
       <version>${javafx.version}</version>
-      <classifier>${javafx.platform}</classifier>
     </dependency>
     <dependency>
       <groupId>org.openjfx</groupId>
       <artifactId>javafx-fxml</artifactId>
       <version>${javafx.version}</version>
-      <classifier>${javafx.platform}</classifier>
     </dependency>
     <dependency>
       <groupId>org.openjfx</groupId>
       <artifactId>javafx-graphics</artifactId>
       <version>${javafx.version}</version>
-      <classifier>${javafx.platform}</classifier>
     </dependency>
   </dependencies>
 
@@ -65,7 +63,8 @@
         <artifactId>javafx-maven-plugin</artifactId>
         <version>0.0.8</version>
         <configuration>
-          <mainClass>fr.cnrs.lacito.liftgui/fr.cnrs.lacito.liftgui.MainApp</mainClass>
+          <mainClass
+                    >fr.cnrs.lacito.liftgui/fr.cnrs.lacito.liftgui.MainApp</mainClass>
         </configuration>
       </plugin>
     </plugins>
@@ -91,7 +90,8 @@
                   <noHeaderFiles>true</noHeaderFiles>
                   <noManPages>true</noManPages>
                   <compress>zip-6</compress>
-                  <outputDirectoryImage>${project.build.directory}/maven-jlink</outputDirectoryImage>
+                  <outputDirectoryImage
+                                    >${project.build.directory}/maven-jlink</outputDirectoryImage>
                   <includeLocales>
                     <includeLocale>en</includeLocale>
                     <includeLocale>fr</includeLocale>
@@ -101,7 +101,8 @@
                     <addModule>jdk.localedata</addModule>
                   </addModules>
                   <launchers>
-                    <launcher>${app.jpackage.name}=fr.cnrs.lacito.liftgui/fr.cnrs.lacito.liftgui.MainApp</launcher>
+                    <launcher
+                                        >${app.jpackage.name}=fr.cnrs.lacito.liftgui/fr.cnrs.lacito.liftgui.MainApp</launcher>
                   </launchers>
                 </configuration>
               </execution>
@@ -114,10 +115,13 @@
               <name>${app.jpackage.name}</name>
               <appVersion>1.0.0</appVersion>
               <vendor>CNRS LACITO</vendor>
-              <destination>${project.build.directory}/jpackage${jpackage.destSuffix}</destination>
+              <destination
+                            >${project.build.directory}/jpackage${jpackage.destSuffix}</destination>
               <removeDestination>true</removeDestination>
-              <module>fr.cnrs.lacito.liftgui/fr.cnrs.lacito.liftgui.MainApp</module>
-              <runtimeImage>${project.build.directory}/maven-jlink/default</runtimeImage>
+              <module
+                            >fr.cnrs.lacito.liftgui/fr.cnrs.lacito.liftgui.MainApp</module>
+              <runtimeImage
+                            >${project.build.directory}/maven-jlink/default</runtimeImage>
               <type>${jpackage.type}</type>
               <winMenu>true</winMenu>
               <winMenuGroup>${app.jpackage.name}</winMenuGroup>

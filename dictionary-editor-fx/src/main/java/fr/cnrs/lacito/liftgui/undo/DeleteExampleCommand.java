@@ -1,7 +1,7 @@
 package fr.cnrs.lacito.liftgui.undo;
 
 import fr.cnrs.lacito.liftapi.model.LiftExample;
-import fr.cnrs.lacito.liftapi.model.LiftFactory;
+import fr.cnrs.lacito.liftapi.xml.LiftXMLFactory;
 import fr.cnrs.lacito.liftapi.model.LiftSense;
 
 import java.util.function.Supplier;
@@ -13,12 +13,12 @@ public final class DeleteExampleCommand implements UndoableCommand {
     private final LiftExample example;
     private final LiftSense parent;
     private final int parentIndex;
-    private final Supplier<LiftFactory> factorySupplier;
+    private final Supplier<LiftXMLFactory> factorySupplier;
     private final Runnable onUndoRefresh;
     private final Runnable onRedoRefresh;
 
     public DeleteExampleCommand(LiftExample example, LiftSense parent, int parentIndex,
-                                Supplier<LiftFactory> factorySupplier,
+                                Supplier<LiftXMLFactory> factorySupplier,
                                 Runnable onUndoRefresh, Runnable onRedoRefresh) {
         this.example = example;
         this.parent = parent;
@@ -30,7 +30,7 @@ public final class DeleteExampleCommand implements UndoableCommand {
 
     @Override
     public void undo() {
-        LiftFactory factory = factorySupplier.get();
+        LiftXMLFactory factory = factorySupplier.get();
         if (factory != null) factory.getAllExamples().add(example);
         parent.getExamples().add(Math.min(parentIndex, parent.getExamples().size()), example);
         if (onUndoRefresh != null) onUndoRefresh.run();
@@ -38,7 +38,7 @@ public final class DeleteExampleCommand implements UndoableCommand {
 
     @Override
     public void redo() {
-        LiftFactory factory = factorySupplier.get();
+        LiftXMLFactory factory = factorySupplier.get();
         if (factory != null) factory.getAllExamples().remove(example);
         parent.getExamples().remove(example);
         if (onRedoRefresh != null) onRedoRefresh.run();

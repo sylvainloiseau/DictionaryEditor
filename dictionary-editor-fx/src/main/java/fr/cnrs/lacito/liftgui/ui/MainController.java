@@ -11,8 +11,8 @@ package fr.cnrs.lacito.liftgui.ui;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.*;
+import fr.cnrs.lacito.liftapi.xml.LiftXMLFactory;
 import fr.cnrs.lacito.liftgui.core.DictionaryService;
-
 import fr.cnrs.lacito.liftgui.ui.controls.*;
 import fr.cnrs.lacito.liftgui.undo.*;
 import java.io.*;
@@ -103,7 +103,7 @@ public final class MainController {
         recentMenu.getItems().clear();
         List<String> recents = loadRecentFiles();
         if (recents.isEmpty()) {
-            MenuItem empty = new MenuItem(I18n.get("menu.file.noRecent"));
+            MenuItem empty = new MenuItem(I18n.get(Keys.MENU_FILE_NO_RECENT));
             empty.setDisable(true);
             recentMenu.getItems().add(empty);
             return;
@@ -124,7 +124,7 @@ public final class MainController {
                         ex
                     );
                     showError(
-                        I18n.get("error.open"),
+                        I18n.get(Keys.ERROR_OPEN),
                         I18n.formatErrorMessage("error.open.detail", ex)
                     );
                 }
@@ -417,13 +417,13 @@ public final class MainController {
         if (undoButton != null) {
             undoButton.setGraphic(Icons.undoIcon());
             undoButton.setTooltip(
-                new Tooltip(I18n.get("menu.edit.undo") + " (Ctrl+Z)")
+                new Tooltip(I18n.get(Keys.MENU_EDIT_UNDO) + " (Ctrl+Z)")
             );
         }
         if (redoButton != null) {
             redoButton.setGraphic(Icons.redoIcon());
             redoButton.setTooltip(
-                new Tooltip(I18n.get("menu.edit.redo") + " (Ctrl+Y)")
+                new Tooltip(I18n.get(Keys.MENU_EDIT_REDO) + " (Ctrl+Y)")
             );
         }
         if (undoButton != null) undoButton
@@ -492,10 +492,10 @@ public final class MainController {
     private void buildNavTree() {
         navKeyMap.clear();
 
-        TreeItem<String> root = new TreeItem<>(I18n.get("nav.dictionary"));
+        TreeItem<String> root = new TreeItem<>(I18n.get(Keys.NAV_DICTIONARY));
         root.setExpanded(true);
 
-        TreeItem<String> objects = new TreeItem<>(I18n.get("nav.objects"));
+        TreeItem<String> objects = new TreeItem<>(I18n.get(Keys.NAV_OBJECTS));
         objects.setExpanded(true);
         objects
             .getChildren()
@@ -510,13 +510,13 @@ public final class MainController {
                 navItem(NAV_FIELDS)
             );
 
-        TreeItem<String> langs = new TreeItem<>(I18n.get("nav.languages"));
+        TreeItem<String> langs = new TreeItem<>(I18n.get(Keys.NAV_LANGUAGES));
         langs.setExpanded(true);
         langs
             .getChildren()
             .addAll(navItem(NAV_OBJ_LANGS), navItem(NAV_META_LANGS));
 
-        TreeItem<String> cats = new TreeItem<>(I18n.get("nav.categories"));
+        TreeItem<String> cats = new TreeItem<>(I18n.get(Keys.NAV_CATEGORIES));
         cats.setExpanded(true);
         cats.getChildren().addAll(
             navItem(NAV_GRAM_INFO),
@@ -528,7 +528,7 @@ public final class MainController {
             navItem(NAV_FIELD_TYPES)
         );
 
-        headerCfgNode = new TreeItem<>(I18n.get("nav.headerConfig"));
+        headerCfgNode = new TreeItem<>(I18n.get(Keys.NAV_HEADER_CONFIG));
         headerCfgNode.setExpanded(true);
         rebuildHeaderCfgChildren();
 
@@ -558,7 +558,9 @@ public final class MainController {
                 }
             };
             ContextMenu ctx = new ContextMenu();
-            MenuItem createItem = new MenuItem(I18n.get("btn.createObject"));
+            MenuItem createItem = new MenuItem(
+                I18n.get(Keys.BTN_CREATE_OBJECT)
+            );
             createItem.setOnAction(e -> onCreateNewObject());
             ctx.getItems().add(createItem);
             cell.setContextMenu(ctx);
@@ -606,7 +608,9 @@ public final class MainController {
         headerCfgNode.getChildren().add(navItem(NAV_CFG_MANAGE_RELATION_TYPES));
 
         // Second group: Ranges (Taxinomies) - parent node with dynamic range entries as children
-        TreeItem<String> rangesNode = new TreeItem<>(I18n.get("nav.cfgRanges"));
+        TreeItem<String> rangesNode = new TreeItem<>(
+            I18n.get(Keys.NAV_CFG_RANGES)
+        );
         rangesNode.setExpanded(false);
         if (currentDictionary != null) {
             LiftHeader header = currentDictionary
@@ -661,7 +665,7 @@ public final class MainController {
         editEntryTitle.setText(I18n.get("panel.selectElement"));
         editEntryCode.setText("");
         tableContainer.getChildren().clear();
-        addButton.setText(I18n.get("btn.new"));
+        addButton.setText(I18n.get(Keys.BTN_NEW));
         boolean showAddButton =
             NAV_ENTRIES.equals(viewName) || NAV_QUICK_ENTRY.equals(viewName);
         addButton.setVisible(showAddButton);
@@ -812,7 +816,7 @@ public final class MainController {
     }
 
     private void showEntryView() {
-        addButton.setText(I18n.get("btn.newEntry"));
+        addButton.setText(I18n.get(Keys.BTN_NEW_ENTRY));
         GridPane filterRow = buildEntryFilterRow();
         String clearOption = I18n.get("filter.clear");
 
@@ -865,7 +869,7 @@ public final class MainController {
         row.setPadding(new Insets(2, 0, 2, 0));
         row.setStyle("-fx-background-color: #eef2f3;");
         row.setMinWidth(0);
-        String clearOption = I18n.get("filter.clear");
+        String clearOption = I18n.get(Keys.FILTER_CLEAR);
         List<TableColumn<LiftEntry, ?>> leaves = collectLeafColumns(entryTable);
 
         for (int i = 0; i < leaves.size(); i++) {
@@ -969,7 +973,7 @@ public final class MainController {
             .toList();
 
         TableColumn<LiftEntry, String> formGroup = new TableColumn<>(
-            I18n.get("col.form")
+            I18n.get(Keys.COL_FORM)
         );
         for (String lang : formLangs) {
             TableColumn<LiftEntry, String> c = new TableColumn<>(lang);
@@ -999,7 +1003,7 @@ public final class MainController {
 
         // ── Colonne morph-type (trait "morph-type") ──
         TableColumn<LiftEntry, String> morphCol = new TableColumn<>(
-            I18n.get("col.morphType")
+            I18n.get(Keys.COL_MORPH_TYPE)
         );
         morphCol.setMinWidth(85);
         morphCol.setPrefWidth(110);
@@ -1008,7 +1012,7 @@ public final class MainController {
             return e == null
                 ? new ReadOnlyStringWrapper("")
                 : Bindings.createStringBinding(
-                      () -> getTraitValue(e, "morph-type"),
+                      () -> getTraitValue(e, Keys.MORPH_TYPE),
                       e.traitsProperty()
                   );
         });
@@ -1018,14 +1022,14 @@ public final class MainController {
             if (e == null) return;
             e.getTraits()
                 .stream()
-                .filter(t -> "morph-type".equals(t.getName()))
+                .filter(t -> Keys.MORPH_TYPE.equals(t.getName()))
                 .findFirst()
                 .ifPresentOrElse(
                     t -> t.setValue(ev.getNewValue()),
                     () -> {
-                        LiftFactory factory = getFactory(currentDictionary);
+                        LiftXMLFactory factory = getFactory(currentDictionary);
                         if (factory != null) factory.createTrait(
-                            "morph-type",
+                            Keys.MORPH_TYPE,
                             ev.getNewValue(),
                             e
                         );
@@ -1035,7 +1039,7 @@ public final class MainController {
 
         // ── Colonne Date (lecture seule) ──
         TableColumn<LiftEntry, String> dateCol = new TableColumn<>(
-            I18n.get("col.dateCreated")
+            I18n.get(Keys.COL_DATE_CREATED)
         );
         dateCol.setMinWidth(85);
         dateCol.setPrefWidth(130);
@@ -1062,10 +1066,10 @@ public final class MainController {
 
         List<String> objLangs = getObjectLanguages();
         List<String> metaLangs = getMetaLanguages();
-        
+
         // Colonne "Entrée parente" : forme(s) de l'entrée dont c'est le sens
         TableColumn<LiftSense, String> parentEntryGroup = new TableColumn<>(
-            I18n.get("col.parentEntry")
+            I18n.get(Keys.COL_PARENT_ENTRY)
         );
         for (String l : objLangs) {
             final String lang = l;
@@ -1083,12 +1087,12 @@ public final class MainController {
             parentEntryGroup.getColumns().add(c);
         }
         TableColumn<LiftSense, String> giCol = col(
-            I18n.get("col.gramInfo"),
+            I18n.get(Keys.COL_GRAM_INFO),
             s ->
                 s.getGrammaticalInfo().map(GrammaticalInfo::getValue).orElse("")
         );
         TableColumn<LiftSense, String> glossGroup = new TableColumn<>(
-            I18n.get("col.gloss")
+            I18n.get(Keys.COL_GLOSS)
         );
         for (String l : metaLangs) {
             glossGroup
@@ -1104,7 +1108,7 @@ public final class MainController {
                 );
         }
         TableColumn<LiftSense, String> defGroup = new TableColumn<>(
-            I18n.get("col.definition")
+            I18n.get(Keys.COL_DEFINITION)
         );
         for (String l : metaLangs) {
             defGroup
@@ -1166,7 +1170,7 @@ public final class MainController {
 
         // 1. Sens parent (multitexte : glose du sens parent)
         TableColumn<LiftExample, String> parentSenseGroup = new TableColumn<>(
-            I18n.get("col.parentSense")
+            I18n.get(Keys.COL_PARENT_SENSE)
         );
         for (String l : metaLangs) {
             final String lang = l;
@@ -1197,14 +1201,14 @@ public final class MainController {
 
         // 2. Source
         TableColumn<LiftExample, String> srcCol = col(
-            I18n.get("col.source"),
+            I18n.get(Keys.COL_SOURCE),
             ex -> ex.getSource().orElse("")
         );
         exampleTable.getColumns().add(srcCol);
 
         // 3. Exemple (langues objet)
         TableColumn<LiftExample, String> exGroup = new TableColumn<>(
-            I18n.get("col.example")
+            I18n.get(Keys.COL_EXAMPLE)
         );
         for (String l : objLangs) {
             exGroup
@@ -1224,7 +1228,7 @@ public final class MainController {
         // 4. Traductions : un groupe par type de traduction, sous-colonnes par langue méta
         for (String transType : transTypes.stream().sorted().toList()) {
             TableColumn<LiftExample, String> transGroup = new TableColumn<>(
-                transType.isEmpty() ? I18n.get("col.translation") : transType
+                transType.isEmpty() ? I18n.get(Keys.COL_TRANSLATION) : transType
             );
             for (String l : metaLangs) {
                 final String lang = l;
@@ -1277,14 +1281,15 @@ public final class MainController {
         }
         List<String> metaLangs = getMetaLanguages();
         TableColumn<LiftNote, String> parentTypeCol = col(
-            I18n.get("col.parentType"),
+            I18n.get(Keys.COL_PARENT_TYPE),
             n -> describeParentType(n.getParent())
         );
-        TableColumn<LiftNote, String> typeCol = col(I18n.get("col.type"), n ->
-            n.getType().orElse("")
+        TableColumn<LiftNote, String> typeCol = col(
+            I18n.get(Keys.COL_TYPE),
+            n -> n.getType().orElse("")
         );
         TableColumn<LiftNote, String> textGroup = new TableColumn<>(
-            I18n.get("col.text")
+            I18n.get(Keys.COL_TEXT)
         );
         for (String l : metaLangs) {
             TableColumn<LiftNote, String> c = col(l, n ->
@@ -1331,7 +1336,7 @@ public final class MainController {
         }
         List<String> objLangs = getObjectLanguages();
         TableColumn<LiftVariant, String> parentFormGroup = new TableColumn<>(
-            I18n.get("col.parentEntry")
+            I18n.get(Keys.COL_PARENT_ENTRY)
         );
         for (String l : objLangs) {
             parentFormGroup
@@ -1356,11 +1361,12 @@ public final class MainController {
         TableColumn<LiftVariant, String> isPrimaryCol = col("is-primary", v ->
             getTraitValueFor(v, "is-primary")
         );
-        TableColumn<LiftVariant, String> refCol = col(I18n.get("col.ref"), v ->
-            v.getRefId().orElse("")
+        TableColumn<LiftVariant, String> refCol = col(
+            I18n.get(Keys.COL_REF),
+            v -> v.getRefId().orElse("")
         );
         TableColumn<LiftVariant, String> formGroup = new TableColumn<>(
-            I18n.get("col.forms")
+            I18n.get(Keys.COL_FORMS)
         );
         for (String l : objLangs)
             formGroup
@@ -1424,7 +1430,7 @@ public final class MainController {
             .getLiftDictionaryComponents()
             .getEntryById();
         TableColumn<LiftRelation, String> parentFormGroup = new TableColumn<>(
-            I18n.get("col.parentEntry")
+            I18n.get(Keys.COL_PARENT_ENTRY)
         );
         for (String l : objLangs) {
             parentFormGroup.getColumns().add(
@@ -1437,7 +1443,7 @@ public final class MainController {
             );
         }
         TableColumn<LiftRelation, String> typeCol = col(
-            I18n.get("col.type"),
+            I18n.get(Keys.COL_TYPE),
             (LiftRelation r) -> r.getType() != null ? r.getType() : ""
         );
         TableColumn<LiftRelation, String> refFormGroup = new TableColumn<>(
@@ -1461,7 +1467,7 @@ public final class MainController {
             );
         }
         TableColumn<LiftRelation, String> usageCol = new TableColumn<>(
-            I18n.get("col.usage")
+            I18n.get(Keys.COL_USAGE)
         );
         for (String l : metaLangs) {
             usageCol
@@ -1575,15 +1581,15 @@ public final class MainController {
         }
         List<String> objLangs = getObjectLanguages();
         TableColumn<LiftEtymology, String> typeCol = col(
-            I18n.get("col.type"),
+            I18n.get(Keys.COL_TYPE),
             (LiftEtymology e) -> e.getType() != null ? e.getType() : ""
         );
         TableColumn<LiftEtymology, String> sourceCol = col(
-            I18n.get("col.source"),
+            I18n.get(Keys.COL_SOURCE),
             (LiftEtymology e) -> e.getSource() != null ? e.getSource() : ""
         );
         TableColumn<LiftEtymology, String> formGroup = new TableColumn<>(
-            I18n.get("col.forms")
+            I18n.get(Keys.COL_FORMS)
         );
         for (String l : objLangs)
             formGroup
@@ -1683,7 +1689,7 @@ public final class MainController {
                             "pron",
                             v.getRefId().orElse("?"),
                             vp,
-                            vp.getProunciation(),
+                            vp.getPronunciation(),
                             langs
                         );
                 }
@@ -1693,7 +1699,7 @@ public final class MainController {
                         "pron",
                         eid,
                         p,
-                        p.getProunciation(),
+                        p.getPronunciation(),
                         langs
                     );
                 for (LiftSense s : entry.getSenses())
@@ -1775,7 +1781,7 @@ public final class MainController {
         }
 
         TableColumn<MultiTextField, String> parentTypeCol = new TableColumn<>(
-            I18n.get("col.parentType")
+            I18n.get(Keys.COL_PARENT_TYPE)
         );
         parentTypeCol.setCellValueFactory(cd ->
             new ReadOnlyStringWrapper(cd.getValue().parentType())
@@ -1783,7 +1789,7 @@ public final class MainController {
         parentTypeCol.setPrefWidth(100);
 
         TableColumn<MultiTextField, String> langGroup = new TableColumn<>(
-            I18n.get("nav.languages")
+            I18n.get(Keys.NAV_LANGUAGES)
         );
         for (String l : langs) {
             TableColumn<MultiTextField, String> c = new TableColumn<>(l);
@@ -1952,16 +1958,18 @@ public final class MainController {
         }
 
         TableColumn<TraitRow, String> traitFreqCol = col(
-            I18n.get("col.frequency"),
+            I18n.get(Keys.COL_FREQUENCY),
             r -> String.valueOf(r.frequency())
         );
         traitFreqCol.getProperties().put("filterMode", FILTER_MODE_TEXT);
         traitTable
             .getColumns()
             .addAll(
-                col(I18n.get("col.parentType"), (TraitRow r) -> r.parentType()),
-                col(I18n.get("col.name"), (TraitRow r) -> r.name()),
-                col(I18n.get("col.value"), (TraitRow r) -> r.value()),
+                col(I18n.get(Keys.COL_PARENT_TYPE), (TraitRow r) ->
+                    r.parentType()
+                ),
+                col(I18n.get(Keys.COL_NAME), (TraitRow r) -> r.name()),
+                col(I18n.get(Keys.COL_VALUE), (TraitRow r) -> r.value()),
                 traitFreqCol
             );
         traitTable
@@ -2010,7 +2018,7 @@ public final class MainController {
             .getAllAnnotations();
 
         TableColumn<LiftAnnotation, String> annotFreqCol = col(
-            I18n.get("col.frequency"),
+            I18n.get(Keys.COL_FREQUENCY),
             a -> {
                 long c = all
                     .stream()
@@ -2026,20 +2034,23 @@ public final class MainController {
                 return String.valueOf(c);
             }
         );
-        annotFreqCol.getProperties().put("filterMode", FILTER_MODE_TEXT);
+
         annotationTable
             .getColumns()
             .addAll(
-                col(I18n.get("col.parentType"), (LiftAnnotation a) ->
+                col(I18n.get(Keys.COL_PARENT_TYPE), (LiftAnnotation a) ->
                     describeParentType(a.getParent())
                 ),
-                col(I18n.get("col.parent"), (LiftAnnotation a) ->
+                col(I18n.get(Keys.COL_PARENT_TYPE), (LiftAnnotation a) ->
+                    describeParentType(a.getParent())
+                ),
+                col(I18n.get(Keys.COL_PARENT), (LiftAnnotation a) ->
                     describeParent(a.getParent())
                 ),
-                col(I18n.get("col.name"), LiftAnnotation::getName),
-                col(I18n.get("col.value"), a -> a.getValue().orElse("")),
-                col(I18n.get("col.who"), a -> a.getWho().orElse("")),
-                col(I18n.get("col.when"), a -> a.getWhen().orElse("")),
+                col(I18n.get(Keys.COL_NAME), LiftAnnotation::getName),
+                col(I18n.get(Keys.COL_VALUE), a -> a.getValue().orElse("")),
+                col(I18n.get(Keys.COL_WHO), a -> a.getWho().orElse("")),
+                col(I18n.get(Keys.COL_WHEN), a -> a.getWhen().orElse("")),
                 annotFreqCol
             );
         annotationTable.getItems().addAll(all);
@@ -2074,11 +2085,11 @@ public final class MainController {
         fieldTable
             .getColumns()
             .addAll(
-                col(I18n.get("col.parentType"), f ->
+                col(I18n.get(Keys.COL_PARENT_TYPE), f ->
                     describeParentType(f.getParent())
                 ),
-                col(I18n.get("col.type"), LiftField::getName),
-                col(I18n.get("col.text"), f ->
+                col(I18n.get(Keys.COL_TYPE), LiftField::getName),
+                col(I18n.get(Keys.COL_TEXT), f ->
                     f
                         .getText()
                         .getForms()
@@ -2170,7 +2181,7 @@ public final class MainController {
         );
 
         TableColumn<QuickEntryRow, String> giCol = new TableColumn<>(
-            I18n.get("col.gramCode")
+            I18n.get(Keys.COL_GRAM_CODE)
         );
         giCol.setCellValueFactory(cd -> cd.getValue().gramInfoProperty());
         giCol.setCellFactory(tc -> {
@@ -2213,7 +2224,7 @@ public final class MainController {
             .add(new QuickEntryRow());
 
         // Auto-create entry when user leaves a filled row (selection changes away from it)
-        LiftFactory factory = getFactory(currentDictionary);
+        LiftXMLFactory factory = getFactory(currentDictionary);
         quickEntryTable
             .getSelectionModel()
             .selectedIndexProperty()
@@ -2316,7 +2327,7 @@ public final class MainController {
 
         tableContainer.getChildren().setAll(quickEntryTable);
         updateCountLabel(0, 0);
-        addButton.setText(I18n.get("btn.createEntries"));
+        addButton.setText(I18n.get(Keys.BTN_CREATE_ENTRIES));
     }
 
     /* ─── Create new object (5.8 context menu) ─── */
@@ -2325,12 +2336,12 @@ public final class MainController {
     private void onCreateNewObject() {
         if (currentDictionary == null) {
             showError(
-                I18n.get("error.creation"),
-                I18n.get("error.noDictionary")
+                I18n.get(Keys.ERROR_CREATION),
+                I18n.get(Keys.ERROR_NO_DICTIONARY)
             );
             return;
         }
-        LiftFactory factory = getFactory(currentDictionary);
+        LiftXMLFactory factory = getFactory(currentDictionary);
         if (factory == null) return;
 
         switch (currentView) {
@@ -2341,7 +2352,7 @@ public final class MainController {
         }
     }
 
-    private void createNewEntry(LiftFactory factory) {
+    private void createNewEntry(LiftXMLFactory factory) {
         org.xml.sax.helpers.AttributesImpl attrs =
             new org.xml.sax.helpers.AttributesImpl();
         attrs.addAttribute(
@@ -2358,7 +2369,7 @@ public final class MainController {
         applyCurrentFilter();
     }
 
-    private void createEntriesFromQuickTable(LiftFactory factory) {
+    private void createEntriesFromQuickTable(LiftXMLFactory factory) {
         List<String> objLangs = getObjectLanguages();
         List<String> metaLangs = getMetaLanguages();
         int created = 0;
@@ -2406,8 +2417,8 @@ public final class MainController {
         }
         if (created > 0) {
             showInfo(
-                I18n.get("nav.quickEntry"),
-                I18n.get("info.quickEntryCreated", created)
+                I18n.get(Keys.NAV_QUICK_ENTRY),
+                I18n.get(Keys.INFO_QUICK_ENTRY_CREATED, created)
             );
             quickEntryTable.getItems().clear();
             for (int i = 0; i < 5; i++) quickEntryTable
@@ -2425,12 +2436,12 @@ public final class MainController {
 
             // Collect known dropdown values filtered by element type (entry)
             List<String> traitNames = getKnownTraitNamesFor(
-                FieldDefinitionTarget.ENTRY
+                LiftFieldAndTraitDefinitionTarget.ENTRY
             );
             Map<String, Set<String>> traitValues = getKnownTraitValues();
             List<String> annotationNames = getKnownAnnotationNames();
             List<String> fieldTypes = getKnownFieldTypesFor(
-                FieldDefinitionTarget.ENTRY
+                LiftFieldAndTraitDefinitionTarget.ENTRY
             );
 
             Form preferred = entry
@@ -2447,18 +2458,18 @@ public final class MainController {
             editEntryCode.setText(getTraitValue(entry, "code"));
             editorContainer.getChildren().clear();
 
-            Button deleteBtn = new Button(I18n.get("btn.delete"));
+            Button deleteBtn = new Button(I18n.get(Keys.BTN_DELETE));
             deleteBtn.getStyleClass().add("delete-btn");
             deleteBtn.setStyle(
                 "-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 7 12 7 12;"
             );
             deleteBtn.setOnAction(e -> {
                 Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-                confirm.setTitle(I18n.get("confirm.delete.title"));
+                confirm.setTitle(I18n.get(Keys.CONFIRM_DELETE_TITLE));
                 confirm.setHeaderText(null);
                 confirm.setContentText(
                     I18n.get(
-                        "confirm.delete.entry",
+                        Keys.CONFIRM_DELETE_ENTRY,
                         entry
                             .getForms()
                             .getForms()
@@ -2499,7 +2510,7 @@ public final class MainController {
             addSectionTitle(editorContainer, "editor.section.lexicalContent");
             addSection(
                 editorContainer,
-                I18n.get("editor.forms"),
+                I18n.get(Keys.EDITOR_FORMS),
                 () -> {
                     MultiTextEditor m = new MultiTextEditor();
                     m.setAvailableLanguages(objLangs);
@@ -2509,10 +2520,10 @@ public final class MainController {
                 },
                 true
             );
-            LiftFactory factory = getFactory(currentDictionary);
+            LiftXMLFactory factory = getFactory(currentDictionary);
             addListSection(
                 editorContainer,
-                I18n.get("editor.traits"),
+                I18n.get(Keys.EDITOR_TRAITS),
                 safeList(entry.getTraits()),
                 t -> {
                     TraitEditor te = new TraitEditor();
@@ -2521,15 +2532,17 @@ public final class MainController {
                         objLangs,
                         traitNames,
                         traitValues,
-                        findFieldDef(t.getName())
+                        factory != null
+                            ? findFieldDef(t.getName())
+                            : Optional.empty()
                     );
                     return te;
                 },
-                true,
+                false,
                 factory != null
                     ? () -> {
                           List<String> names = getKnownTraitNamesFor(
-                              FieldDefinitionTarget.ENTRY
+                              LiftFieldAndTraitDefinitionTarget.ENTRY
                           );
                           ChoiceDialog<String> dlg = new ChoiceDialog<>(
                               names.isEmpty() ? null : names.get(0),
@@ -2546,7 +2559,7 @@ public final class MainController {
             );
             addListSection(
                 editorContainer,
-                I18n.get("editor.pronunciations"),
+                I18n.get(Keys.EDITOR_PRONUNCIATIONS),
                 safeList(entry.getPronunciations()),
                 p -> {
                     PronunciationEditor pe = new PronunciationEditor();
@@ -2560,7 +2573,7 @@ public final class MainController {
             if (!senses.isEmpty()) {
                 addSection(
                     editorContainer,
-                    I18n.get("editor.senses") + " (" + senses.size() + ")",
+                    I18n.get(Keys.EDITOR_SENSES) + " (" + senses.size() + ")",
                     () -> {
                         VBox box = new VBox(4);
                         for (LiftSense s : senses) {
@@ -2589,7 +2602,7 @@ public final class MainController {
             );
             addListSection(
                 editorContainer,
-                I18n.get("editor.variants"),
+                I18n.get(Keys.EDITOR_VARIANTS),
                 safeList(entry.getVariants()),
                 v -> {
                     VariantEditor ve = new VariantEditor();
@@ -2615,7 +2628,7 @@ public final class MainController {
             );
             addListSection(
                 editorContainer,
-                I18n.get("editor.relations"),
+                I18n.get(Keys.EDITOR_RELATIONS),
                 safeList(entry.getRelations()),
                 r -> {
                     RelationEditor re = new RelationEditor();
@@ -2626,7 +2639,7 @@ public final class MainController {
             );
             addListSection(
                 editorContainer,
-                I18n.get("editor.etymologies"),
+                I18n.get(Keys.EDITOR_ETYMOLOGIES),
                 safeList(entry.getEtymologies()),
                 et -> {
                     EtymologyEditor ee = new EtymologyEditor();
@@ -2641,7 +2654,7 @@ public final class MainController {
             );
             addListSection(
                 editorContainer,
-                I18n.get("editor.annotations"),
+                I18n.get(Keys.EDITOR_ANNOTATIONS),
                 safeList(entry.getAnnotations()),
                 a -> {
                     AnnotationEditor ae = new AnnotationEditor();
@@ -2678,7 +2691,7 @@ public final class MainController {
             );
             addListSection(
                 editorContainer,
-                I18n.get("editor.notes"),
+                I18n.get(Keys.EDITOR_NOTES),
                 new ArrayList<>(safeMapValues(entry.getNotes())),
                 n -> {
                     NoteEditor ne = new NoteEditor();
@@ -2704,7 +2717,7 @@ public final class MainController {
             );
             addListSection(
                 editorContainer,
-                I18n.get("editor.fields"),
+                I18n.get(Keys.EDITOR_FIELDS),
                 safeList(entry.getFields()),
                 f -> {
                     FieldEditor fe = new FieldEditor();
@@ -2718,8 +2731,8 @@ public final class MainController {
                               fieldTypes.isEmpty() ? null : fieldTypes.get(0),
                               fieldTypes
                           );
-                          dlg.setTitle(I18n.get("btn.addField"));
-                          dlg.setHeaderText(I18n.get("col.type"));
+                          dlg.setTitle(I18n.get(Keys.BTN_ADD_FIELD));
+                          dlg.setHeaderText(I18n.get(Keys.COL_TYPE));
                           dlg.showAndWait().ifPresent(type -> {
                               factory.createField(type, entry);
                               populateEntryEditor(entry);
@@ -2922,17 +2935,17 @@ public final class MainController {
         );
         editorContainer.getChildren().clear();
 
-        Button deleteBtn = new Button(I18n.get("btn.delete"));
+        Button deleteBtn = new Button(I18n.get(Keys.BTN_DELETE));
         deleteBtn.getStyleClass().add("delete-btn");
         deleteBtn.setStyle(
             "-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 7 12 7 12;"
         );
         deleteBtn.setOnAction(e -> {
             Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-            confirm.setTitle(I18n.get("confirm.delete.title"));
+            confirm.setTitle(I18n.get(Keys.CONFIRM_DELETE_TITLE));
             confirm.setHeaderText(null);
             confirm.setContentText(
-                I18n.get("confirm.delete.sense", senseDisplayText(sense))
+                I18n.get(Keys.CONFIRM_DELETE_SENSE, senseDisplayText(sense))
             );
             confirm
                 .showAndWait()
@@ -2995,7 +3008,7 @@ public final class MainController {
         se.setRelationTypes(getKnownRelationTypes());
         se.setGrammaticalInfoValues(getHeaderRangeValues("grammatical-info"));
         se.setOnGramInfoChanged(() -> senseTable.refresh());
-        LiftFactory factory = getFactory(currentDictionary);
+        LiftXMLFactory factory = getFactory(currentDictionary);
         BiConsumer<String, MultiText> onAddAnnotation = (factory != null)
             ? (name, mt) -> factory.createAnnotation(name, mt)
             : null;
@@ -3126,7 +3139,6 @@ public final class MainController {
             .findFirst();
     }
 
- 
     private boolean containsSense(List<LiftSense> list, LiftSense target) {
         if (list.contains(target)) return true;
         for (LiftSense s : list) {
@@ -3165,14 +3177,14 @@ public final class MainController {
         editEntryTitle.setText(I18n.get("nav.examples"));
         editEntryCode.setText(ex.getSource().orElse(""));
         editorContainer.getChildren().clear();
-        Button deleteBtn = new Button(I18n.get("btn.delete"));
+        Button deleteBtn = new Button(I18n.get(Keys.BTN_DELETE));
         deleteBtn.getStyleClass().add("delete-btn");
         deleteBtn.setStyle(
             "-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 7 12 7 12;"
         );
         deleteBtn.setOnAction(e -> {
             Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-            confirm.setTitle(I18n.get("confirm.delete.title"));
+            confirm.setTitle(I18n.get(Keys.CONFIRM_DELETE_TITLE));
             confirm.setHeaderText(null);
             confirm.setContentText(I18n.get("confirm.delete.example"));
             confirm
@@ -3238,7 +3250,7 @@ public final class MainController {
         }
 
         ExampleEditor ee = new ExampleEditor();
-        LiftFactory factory = getFactory(currentDictionary);
+        LiftXMLFactory factory = getFactory(currentDictionary);
         BiConsumer<String, MultiText> onAddAnnotation = (factory != null)
             ? (name, mt) -> factory.createAnnotation(name, mt)
             : null;
@@ -3976,7 +3988,7 @@ public final class MainController {
     }
 
     private ExtensibleAddActions createSenseAddActions(LiftSense s) {
-        LiftFactory f = getFactory(currentDictionary);
+        LiftXMLFactory f = getFactory(currentDictionary);
         if (f == null) return null;
         return new ExtensibleAddActions() {
             @Override
@@ -4006,7 +4018,7 @@ public final class MainController {
 
             @Override
             public List<String> getKnownTraitNames() {
-                return getKnownTraitNamesFor(FieldDefinitionTarget.SENSE);
+                return getKnownTraitNamesFor(LiftFieldAndTraitDefinitionTarget.SENSE);
             }
 
             @Override
@@ -4016,7 +4028,7 @@ public final class MainController {
 
             @Override
             public List<String> getKnownFieldTypes() {
-                return getKnownFieldTypesFor(FieldDefinitionTarget.SENSE);
+                return getKnownFieldTypesFor(LiftFieldAndTraitDefinitionTarget.SENSE);
             }
 
             @Override
@@ -4027,7 +4039,7 @@ public final class MainController {
     }
 
     private ExtensibleAddActions createExampleAddActions(LiftExample ex) {
-        LiftFactory f = getFactory(currentDictionary);
+        LiftXMLFactory f = getFactory(currentDictionary);
         if (f == null) return null;
         return new ExtensibleAddActions() {
             @Override
@@ -4057,7 +4069,7 @@ public final class MainController {
 
             @Override
             public List<String> getKnownTraitNames() {
-                return getKnownTraitNamesFor(FieldDefinitionTarget.EXAMPLE);
+                return getKnownTraitNamesFor(LiftFieldAndTraitDefinitionTarget.EXAMPLE);
             }
 
             @Override
@@ -4067,7 +4079,7 @@ public final class MainController {
 
             @Override
             public List<String> getKnownFieldTypes() {
-                return getKnownFieldTypesFor(FieldDefinitionTarget.EXAMPLE);
+                return getKnownFieldTypesFor(LiftFieldAndTraitDefinitionTarget.EXAMPLE);
             }
 
             @Override
@@ -4078,7 +4090,7 @@ public final class MainController {
     }
 
     private ExtensibleAddActions createVariantAddActions(LiftVariant v) {
-        LiftFactory f = getFactory(currentDictionary);
+        LiftXMLFactory f = getFactory(currentDictionary);
         if (f == null) return null;
         return new ExtensibleAddActions() {
             @Override
@@ -4116,7 +4128,7 @@ public final class MainController {
 
             @Override
             public List<String> getKnownTraitNames() {
-                return getKnownTraitNamesFor(FieldDefinitionTarget.VARIANT);
+                return getKnownTraitNamesFor(LiftFieldAndTraitDefinitionTarget.VARIANT);
             }
 
             @Override
@@ -4126,7 +4138,7 @@ public final class MainController {
 
             @Override
             public List<String> getKnownFieldTypes() {
-                return getKnownFieldTypesFor(FieldDefinitionTarget.VARIANT);
+                return getKnownFieldTypesFor(LiftFieldAndTraitDefinitionTarget.VARIANT);
             }
 
             @Override
@@ -4445,7 +4457,7 @@ public final class MainController {
             // Colle depuis le presse-papiers comme nouvelle entrée
             String text = Clipboard.getSystemClipboard().getString();
             if (text == null || text.isBlank()) return;
-            LiftFactory factory = getFactory(currentDictionary);
+            LiftXMLFactory factory = getFactory(currentDictionary);
             if (factory == null) return;
             // Crée une entrée avec le texte collé comme forme
             org.xml.sax.helpers.AttributesImpl attrs =
@@ -4865,7 +4877,7 @@ public final class MainController {
         return false;
     }
 
-    private void showAddEtymologyDialog(LiftEntry entry, LiftFactory factory) {
+    private void showAddEtymologyDialog(LiftEntry entry, LiftXMLFactory factory) {
         Dialog<Pair<String, String>> dlg = new Dialog<>();
         dlg.setTitle(I18n.get("btn.addEtymology"));
         dlg.getDialogPane()
@@ -5697,7 +5709,7 @@ public final class MainController {
         LiftHeader header = currentDictionary
             .getLiftDictionaryComponents()
             .getHeader();
-        LiftFactory factory = getFactory(currentDictionary);
+        LiftXMLFactory factory = getFactory(currentDictionary);
         if (header == null || factory == null) {
             tableContainer
                 .getChildren()
@@ -5772,11 +5784,12 @@ public final class MainController {
             }
         });
 
-        Button deleteBtn = new Button(I18n.get("btn.delete"));
+        Button deleteBtn = new Button(I18n.get(Keys.BTN_DELETE));
         deleteBtn.setOnAction(e -> {
             TreeItem<LiftHeaderRangeElement> selItem = tree
                 .getSelectionModel()
                 .getSelectedItem();
+            if (selItem == null) return;
             if (selItem == null || selItem.getValue() == null) return;
             LiftHeaderRangeElement sel = selItem.getValue();
             long usage = countRangeElementUsage(rangeId, sel.getId());
@@ -6096,7 +6109,7 @@ public final class MainController {
                 }
             });
 
-        LiftFactory factory = getFactory(currentDictionary);
+        LiftXMLFactory factory = getFactory(currentDictionary);
         TextField newRangeField = new TextField();
         newRangeField.setPromptText(I18n.get("cfg.rangeId"));
         Button addBtn = new Button(I18n.get("cfg.addElement"));
@@ -6139,7 +6152,7 @@ public final class MainController {
         LiftHeader header = currentDictionary
             .getLiftDictionaryComponents()
             .getHeader();
-        LiftFactory factory = getFactory(currentDictionary);
+        LiftXMLFactory factory = getFactory(currentDictionary);
         if (header == null || factory == null) {
             tableContainer
                 .getChildren()
@@ -6185,7 +6198,7 @@ public final class MainController {
         Button addBtn = new Button(I18n.get("cfg.newFieldOrTrait"));
         addBtn.setOnAction(e -> showNewFieldDefDialog(header, factory, table));
 
-        Button deleteBtn = new Button(I18n.get("btn.delete"));
+        Button deleteBtn = new Button(I18n.get(Keys.BTN_DELETE));
         deleteBtn.setOnAction(e -> {
             LiftFieldAndTraitDefinition sel = table
                 .getSelectionModel()
@@ -6214,7 +6227,7 @@ public final class MainController {
 
     private void showNewFieldDefDialog(
         LiftHeader header,
-        LiftFactory factory,
+        LiftXMLFactory factory,
         TableView<LiftFieldAndTraitDefinition> table
     ) {
         Dialog<LiftFieldAndTraitDefinition> dlg = new Dialog<>();
@@ -6594,7 +6607,7 @@ public final class MainController {
 
     private void ensureHeaderComplete() {
         if (currentDictionary == null) return;
-        LiftFactory factory = getFactory(currentDictionary);
+        LiftXMLFactory factory = getFactory(currentDictionary);
         if (factory == null) return;
         var comps = currentDictionary.getLiftDictionaryComponents();
         LiftHeader header = comps.getHeader();
@@ -6729,7 +6742,7 @@ public final class MainController {
     }
 
     private static void ensureRange(
-        LiftFactory factory,
+        LiftXMLFactory factory,
         LiftHeader header,
         String rangeId,
         Set<String> values,
@@ -6960,7 +6973,7 @@ public final class MainController {
         for (Form f : entry.getForms().getForms())
             appendSep(sb, f.toPlainText());
         for (LiftPronunciation p : entry.getPronunciations())
-            for (Form f : p.getProunciation().getForms())
+            for (Form f : p.getPronunciation().getForms())
                 appendSep(sb, f.toPlainText());
         for (LiftSense s : entry.getSenses()) {
             for (Form f : s.getDefinition().getForms())
@@ -7017,18 +7030,6 @@ public final class MainController {
                   .toList();
     }
 
-    private List<String> getAllLanguages() {
-        if (currentDictionary == null) return List.of();
-        Set<String> all = new HashSet<>();
-        all.addAll(currentDictionary.getObjectLanguagesOfAllText());
-        all.addAll(currentDictionary.getMetaLanguagesOfAllText());
-        return all
-            .stream()
-            .filter(s -> s != null && !s.isBlank())
-            .sorted()
-            .toList();
-    }
-
     /* ─── Known dropdown values from header ranges ─── */
 
     private List<String> getKnownTraitNames() {
@@ -7041,7 +7042,7 @@ public final class MainController {
      * Filters via field-definition/@class: only include a trait name if its
      * LiftFieldAndTraitDefinition has no @class restriction, or if it includes {@code target}.
      */
-    private List<String> getKnownTraitNamesFor(FieldDefinitionTarget target) {
+    private List<String> getKnownTraitNamesFor(LiftFieldAndTraitDefinitionTarget target) {
         if (currentDictionary == null) return List.of();
         LiftHeader h = currentDictionary
             .getLiftDictionaryComponents()
@@ -7052,8 +7053,8 @@ public final class MainController {
                 .stream()
                 .filter(
                     fd ->
-                        fd.getKind() == FieldDefinitionKind.TRAIT ||
-                        fd.getKind() == FieldDefinitionKind.UNKNOWN
+                        fd.getKind() == LiftFieldAndTraitDefinitionKind.TRAIT ||
+                        fd.getKind() == LiftFieldAndTraitDefinitionKind.UNKNOWN
                 )
                 .filter(
                     fd ->
@@ -7131,12 +7132,8 @@ public final class MainController {
                   .toList();
     }
 
-    private List<String> getKnownFieldTypes() {
-        return getKnownFieldTypesFor(null);
-    }
-
     /** Returns field (not trait) type names allowed for the given target element type. */
-    private List<String> getKnownFieldTypesFor(FieldDefinitionTarget target) {
+    private List<String> getKnownFieldTypesFor(LiftFieldAndTraitDefinitionTarget target) {
         if (currentDictionary == null) return List.of();
         LiftHeader h = currentDictionary
             .getLiftDictionaryComponents()
@@ -7147,8 +7144,8 @@ public final class MainController {
                 .stream()
                 .filter(
                     fd ->
-                        fd.getKind() == FieldDefinitionKind.FIELD ||
-                        fd.getKind() == FieldDefinitionKind.UNKNOWN
+                        fd.getKind() == LiftFieldAndTraitDefinitionKind.FIELD ||
+                        fd.getKind() == LiftFieldAndTraitDefinitionKind.UNKNOWN
                 )
                 .filter(
                     fd ->
@@ -7669,7 +7666,7 @@ public final class MainController {
         List<ConfigRow> rows
     ) {
         if (currentDictionary == null) return;
-        LiftFactory factory = getFactory(currentDictionary);
+        LiftXMLFactory factory = getFactory(currentDictionary);
         if (factory == null) return;
         LiftHeader header = currentDictionary
             .getLiftDictionaryComponents()
@@ -7806,15 +7803,11 @@ public final class MainController {
         }
     }
 
-    private static LiftFactory getFactory(LiftDictionary d) {
+    private static LiftXMLFactory getFactory(LiftDictionary d) {
         return d != null &&
-            d.getLiftDictionaryComponents() instanceof LiftFactory lf
+            d.getLiftDictionaryComponents() instanceof LiftXMLFactory lf
             ? lf
             : null;
-    }
-
-    private static String safeTrim(String s) {
-        return s == null ? "" : s.trim();
     }
 
     private static void appendSep(StringBuilder sb, String part) {

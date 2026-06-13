@@ -27,7 +27,7 @@ import java.util.StringJoiner;
 /**
  * Editor for a single {@link LiftTrait}.
  * <p>
- * The value widget adapts to the {@link FieldDefinitionType} of the associated
+ * The value widget adapts to the {@link LiftFieldAndTraitDefinitionType} of the associated
  * {@link LiftFieldAndTraitDefinition}:
  * <ul>
  *   <li>{@code datetime} → {@link DatePicker}</li>
@@ -140,7 +140,7 @@ public final class TraitEditor extends VBox {
                                    Map<String, Set<String>> valuesForName) {
         if (defOpt.isPresent()) {
             LiftFieldAndTraitDefinition def = defOpt.get();
-            Optional<FieldDefinitionType> typeOpt = def.getDefinitionType();
+            Optional<LiftFieldAndTraitDefinitionType> typeOpt = def.getDefinitionType();
             if (typeOpt.isPresent()) {
                 return switch (typeOpt.get()) {
                     case DATETIME -> buildDatePicker(t);
@@ -186,9 +186,9 @@ public final class TraitEditor extends VBox {
      * range-elements are organised by their @parent attribute.
      * The selected abbreviation(s) are shown in a read-only label; clicking opens the picker.
      */
-    private Node buildRangePicker(LiftTrait t, LiftHeaderRange range, FieldDefinitionType type) {
-        boolean multiSelect = type == FieldDefinitionType.OPTION_COLLECTION
-                           || type == FieldDefinitionType.OPTION_SEQUENCE;
+    private Node buildRangePicker(LiftTrait t, LiftHeaderRange range, LiftFieldAndTraitDefinitionType type) {
+        boolean multiSelect = type == LiftFieldAndTraitDefinitionType.OPTION_COLLECTION
+                           || type == LiftFieldAndTraitDefinitionType.OPTION_SEQUENCE;
 
         Label displayLabel = new Label(t.getValue());
         displayLabel.setMaxWidth(Double.MAX_VALUE);

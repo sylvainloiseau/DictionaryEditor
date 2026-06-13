@@ -1,6 +1,6 @@
 package fr.cnrs.lacito.liftgui.undo;
 
-import fr.cnrs.lacito.liftapi.model.LiftFactory;
+import fr.cnrs.lacito.liftapi.xml.LiftXMLFactory;
 import fr.cnrs.lacito.liftapi.model.LiftSense;
 
 import java.util.List;
@@ -13,12 +13,12 @@ public final class DeleteSenseCommand implements UndoableCommand {
     private final LiftSense sense;
     private final List<LiftSense> parentList;
     private final int parentIndex;
-    private final Supplier<LiftFactory> factorySupplier;
+    private final Supplier<LiftXMLFactory> factorySupplier;
     private final Runnable onUndoRefresh;
     private final Runnable onRedoRefresh;
 
     public DeleteSenseCommand(LiftSense sense, List<LiftSense> parentList, int parentIndex,
-                              Supplier<LiftFactory> factorySupplier,
+                              Supplier<LiftXMLFactory> factorySupplier,
                               Runnable onUndoRefresh, Runnable onRedoRefresh) {
         this.sense = sense;
         this.parentList = parentList;
@@ -30,7 +30,7 @@ public final class DeleteSenseCommand implements UndoableCommand {
 
     @Override
     public void undo() {
-        LiftFactory factory = factorySupplier.get();
+        LiftXMLFactory factory = factorySupplier.get();
         if (factory != null) factory.getAllSenses().add(sense);
         parentList.add(Math.min(parentIndex, parentList.size()), sense);
         if (onUndoRefresh != null) onUndoRefresh.run();
@@ -38,7 +38,7 @@ public final class DeleteSenseCommand implements UndoableCommand {
 
     @Override
     public void redo() {
-        LiftFactory factory = factorySupplier.get();
+        LiftXMLFactory factory = factorySupplier.get();
         if (factory != null) factory.getAllSenses().remove(sense);
         parentList.remove(sense);
         if (onRedoRefresh != null) onRedoRefresh.run();

@@ -1,7 +1,7 @@
 package fr.cnrs.lacito.liftgui.undo;
 
 import fr.cnrs.lacito.liftapi.model.LiftEntry;
-import fr.cnrs.lacito.liftapi.model.LiftFactory;
+import fr.cnrs.lacito.liftapi.xml.LiftXMLFactory;
 import javafx.collections.ObservableList;
 
 import java.util.function.Supplier;
@@ -12,13 +12,13 @@ import java.util.function.Supplier;
 public final class DeleteEntryCommand implements UndoableCommand {
     private final LiftEntry entry;
     private final int baseEntriesIndex;
-    private final Supplier<LiftFactory> factorySupplier;
+    private final Supplier<LiftXMLFactory> factorySupplier;
     private final ObservableList<LiftEntry> baseEntries;
     private final Runnable onUndoRefresh;
     private final Runnable onRedoRefresh;
 
     public DeleteEntryCommand(LiftEntry entry, int baseEntriesIndex,
-                              Supplier<LiftFactory> factorySupplier,
+                              Supplier<LiftXMLFactory> factorySupplier,
                               ObservableList<LiftEntry> baseEntries,
                               Runnable onUndoRefresh, Runnable onRedoRefresh) {
         this.entry = entry;
@@ -31,7 +31,7 @@ public final class DeleteEntryCommand implements UndoableCommand {
 
     @Override
     public void undo() {
-        LiftFactory factory = factorySupplier.get();
+        LiftXMLFactory factory = factorySupplier.get();
         if (factory != null) {
             factory.getAllEntries().add(entry);
             factory.getAllObjectLanguagesMultiText().add(entry.getForms());
@@ -44,7 +44,7 @@ public final class DeleteEntryCommand implements UndoableCommand {
 
     @Override
     public void redo() {
-        LiftFactory factory = factorySupplier.get();
+        LiftXMLFactory factory = factorySupplier.get();
         if (factory != null) {
             factory.getAllEntries().remove(entry);
             factory.getAllObjectLanguagesMultiText().remove(entry.getForms());

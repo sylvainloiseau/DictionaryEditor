@@ -51,7 +51,7 @@ public final class PronunciationEditor extends VBox {
             return;
         }
         pronTextEditor.setAvailableLanguages(langs);
-        pronTextEditor.setMultiText(p.getProunciation());
+        pronTextEditor.setMultiText(p.getPronunciation());
         extensibleEditor.setModel(p, langs);
     }
 }
