@@ -1,5 +1,5 @@
 /**
- 
+
 * @author Inès GBADAMASSI
 * @author Maryse GOEH-AKUE
 * @author Ermeline BRESSON
@@ -10,6 +10,7 @@
 package fr.cnrs.lacito.liftgui.ui.controls;
 
 import fr.cnrs.lacito.liftapi.model.LiftEtymology;
+import java.util.Collection;
 import javafx.geometry.Insets;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
@@ -17,8 +18,6 @@ import javafx.scene.control.TitledPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-
-import java.util.Collection;
 
 /**
  * Editor for a single {@link LiftEtymology}.
@@ -31,12 +30,15 @@ public final class EtymologyEditor extends VBox {
     private final TextField sourceField = new TextField();
     private final MultiTextEditor formsEditor = new MultiTextEditor();
     private final MultiTextEditor glossesEditor = new MultiTextEditor();
-    private final ExtensibleWithFieldEditor extensibleEditor = new ExtensibleWithFieldEditor();
+    private final ExtensibleWithFieldEditor extensibleEditor =
+        new ExtensibleWithFieldEditor();
 
     public EtymologyEditor() {
         super(6);
         setPadding(new Insets(4));
-        setStyle("-fx-border-color: #abc; -fx-border-radius: 4; -fx-background-color: #f4f8fa; -fx-background-radius: 4;");
+        setStyle(
+            "-fx-border-color: #abc; -fx-border-radius: 4; -fx-background-color: #f4f8fa; -fx-background-radius: 4;"
+        );
 
         typeField.setEditable(false);
         typeField.setPromptText("type");
@@ -53,15 +55,24 @@ public final class EtymologyEditor extends VBox {
         GridPane.setHgrow(typeField, Priority.ALWAYS);
         GridPane.setHgrow(sourceField, Priority.ALWAYS);
 
-        TitledPane formsPane = new TitledPane("Formes (MultiText)", formsEditor);
+        TitledPane formsPane = new TitledPane(
+            "Formes (MultiText)",
+            formsEditor
+        );
         formsPane.setExpanded(true);
         formsPane.setAnimated(false);
 
-        TitledPane glossesPane = new TitledPane("Glosess (MultiText)", glossesEditor);
+        TitledPane glossesPane = new TitledPane(
+            "Glosess (MultiText)",
+            glossesEditor
+        );
         glossesPane.setExpanded(false);
         glossesPane.setAnimated(false);
 
-        TitledPane extPane = new TitledPane("Propriétés (dates, traits, annotations, champs)", extensibleEditor);
+        TitledPane extPane = new TitledPane(
+            "Propriétés (dates, traits, annotations, champs)",
+            extensibleEditor
+        );
         extPane.setExpanded(false);
         extPane.setAnimated(false);
 
@@ -73,7 +84,11 @@ public final class EtymologyEditor extends VBox {
      * @param objLangs   object-languages for etymology forms
      * @param metaLangs  meta-languages for glosses and inherited properties
      */
-    public void setEtymology(LiftEtymology ety, Collection<String> objLangs, Collection<String> metaLangs) {
+    public void setEtymology(
+        LiftEtymology ety,
+        Collection<String> objLangs,
+        Collection<String> metaLangs
+    ) {
         if (ety == null) {
             typeField.setText("");
             sourceField.setText("");
@@ -82,7 +97,7 @@ public final class EtymologyEditor extends VBox {
             extensibleEditor.setModel(null, metaLangs);
             return;
         }
-        typeField.setText(ety.getType() != null ? ety.getType() : "");
+        typeField.setText(ety.getType().orElse(""));
         sourceField.setText(ety.getSource() != null ? ety.getSource() : "");
         formsEditor.setAvailableLanguages(objLangs);
         formsEditor.setMultiText(ety.getForms());

@@ -1,5 +1,5 @@
 /**
- 
+
 * @author Inès GBADAMASSI
 * @author Maryse GOEH-AKUE
 * @author Ermeline BRESSON
@@ -10,6 +10,9 @@
 package fr.cnrs.lacito.liftgui.ui.controls;
 
 import fr.cnrs.lacito.liftapi.model.LiftRelation;
+import java.util.Collection;
+import java.util.List;
+import java.util.TreeSet;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -20,10 +23,6 @@ import javafx.scene.control.TitledPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-
-import java.util.Collection;
-import java.util.List;
-import java.util.TreeSet;
 
 /**
  * Editor for a single {@link LiftRelation}.
@@ -38,12 +37,15 @@ public final class RelationEditor extends VBox {
     private ChangeListener<String> refIdListener;
     private ChangeListener<String> orderListener;
     private final MultiTextEditor usageEditor = new MultiTextEditor();
-    private final ExtensibleWithFieldEditor extensibleEditor = new ExtensibleWithFieldEditor();
+    private final ExtensibleWithFieldEditor extensibleEditor =
+        new ExtensibleWithFieldEditor();
 
     public RelationEditor() {
         super(6);
         setPadding(new Insets(4));
-        setStyle("-fx-border-color: #bca; -fx-border-radius: 4; -fx-background-color: #f8faf4; -fx-background-radius: 4;");
+        setStyle(
+            "-fx-border-color: #bca; -fx-border-radius: 4; -fx-background-color: #f8faf4; -fx-background-radius: 4;"
+        );
 
         typeCombo.setEditable(false);
         typeCombo.setPromptText("type");
@@ -72,7 +74,10 @@ public final class RelationEditor extends VBox {
         usagePane.setExpanded(false);
         usagePane.setAnimated(false);
 
-        TitledPane extPane = new TitledPane("Propriétés (dates, traits, annotations, champs)", extensibleEditor);
+        TitledPane extPane = new TitledPane(
+            "Propriétés (dates, traits, annotations, champs)",
+            extensibleEditor
+        );
         extPane.setExpanded(false);
         extPane.setAnimated(false);
 
@@ -88,7 +93,11 @@ public final class RelationEditor extends VBox {
     /**
      * @param relationTypes allowed types from header range {@code lexical-relation} (non-editable combo only).
      */
-    public void setRelation(LiftRelation rel, Collection<String> langs, List<String> relationTypes) {
+    public void setRelation(
+        LiftRelation rel,
+        Collection<String> langs,
+        List<String> relationTypes
+    ) {
         if (typeListener != null) {
             typeCombo.valueProperty().removeListener(typeListener);
             typeListener = null;
@@ -98,8 +107,12 @@ public final class RelationEditor extends VBox {
             typeCombo.setValue(null);
             refIdField.setText("");
             orderField.setText("");
-            if (refIdListener != null) refIdField.textProperty().removeListener(refIdListener);
-            if (orderListener != null) orderField.textProperty().removeListener(orderListener);
+            if (refIdListener != null) refIdField
+                .textProperty()
+                .removeListener(refIdListener);
+            if (orderListener != null) orderField
+                .textProperty()
+                .removeListener(orderListener);
             refIdListener = null;
             orderListener = null;
             usageEditor.setMultiText(null);
@@ -108,7 +121,7 @@ public final class RelationEditor extends VBox {
         }
         TreeSet<String> items = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
         if (relationTypes != null) items.addAll(relationTypes);
-        String current = rel.getType() != null ? rel.getType() : "";
+        String current = rel.getType().orElse("");
         if (!current.isBlank()) items.add(current);
         typeCombo.setItems(FXCollections.observableArrayList(items));
         typeCombo.setValue(current.isBlank() ? null : current);
@@ -119,13 +132,19 @@ public final class RelationEditor extends VBox {
         typeCombo.valueProperty().addListener(typeListener);
         refIdField.setText(rel.getRefID().orElse(""));
         orderField.setText(rel.getOrder().map(String::valueOf).orElse(""));
-        if (refIdListener != null) refIdField.textProperty().removeListener(refIdListener);
-        if (orderListener != null) orderField.textProperty().removeListener(orderListener);
+        if (refIdListener != null) refIdField
+            .textProperty()
+            .removeListener(refIdListener);
+        if (orderListener != null) orderField
+            .textProperty()
+            .removeListener(orderListener);
         LiftRelation relationRef = rel;
         refIdListener = (obs, o, n) -> relationRef.setRefId(n != null ? n : "");
         orderListener = (obs, o, n) -> {
             if (n != null && !n.isBlank()) {
-                try { relationRef.setOrder(Integer.parseInt(n.trim())); } catch (NumberFormatException ignored) {}
+                try {
+                    relationRef.setOrder(Integer.parseInt(n.trim()));
+                } catch (NumberFormatException ignored) {}
             }
         };
         refIdField.textProperty().addListener(refIdListener);

@@ -1444,7 +1444,7 @@ public final class MainController {
         }
         TableColumn<LiftRelation, String> typeCol = col(
             I18n.get(Keys.COL_TYPE),
-            (LiftRelation r) -> r.getType() != null ? r.getType() : ""
+            (LiftRelation r) -> r.getType().orElse("")
         );
         TableColumn<LiftRelation, String> refFormGroup = new TableColumn<>(
             I18n.get("col.ref") + " (form)"
@@ -1522,7 +1522,7 @@ public final class MainController {
         );
         editEntryCode.setText(relation.getRefID().orElse(""));
         editorContainer.getChildren().clear();
-        AbstractExtensibleWithoutField parent = relation.getParent();
+        HasRelations parent = relation.getParent();
         if (parent instanceof LiftEntry entry) {
             String entryForm = entry
                 .getForms()
@@ -1582,7 +1582,7 @@ public final class MainController {
         List<String> objLangs = getObjectLanguages();
         TableColumn<LiftEtymology, String> typeCol = col(
             I18n.get(Keys.COL_TYPE),
-            (LiftEtymology e) -> e.getType() != null ? e.getType() : ""
+            (LiftEtymology e) -> e.getType().orElse("")
         );
         TableColumn<LiftEtymology, String> sourceCol = col(
             I18n.get(Keys.COL_SOURCE),
@@ -1622,9 +1622,7 @@ public final class MainController {
                         getMetaLanguages()
                     );
                     editEntryTitle.setText(
-                        n.getType() != null
-                            ? n.getType()
-                            : I18n.get("nav.etymologies")
+                        n.getType().orElse(I18n.get("nav.etymologies"))
                     );
                     editEntryCode.setText(
                         n.getSource() != null ? n.getSource() : ""
@@ -1856,7 +1854,7 @@ public final class MainController {
         String sid = s.getId().orElse("?");
         for (LiftExample ex : s.getExamples())
             collectMtRows(rows, "exemple", sid, ex, ex.getExample(), langs);
-        for (LiftSense sub : s.getSubSenses())
+        for (LiftSense sub : s.getSenses())
             collectObjLangRowsForSense(rows, sub, langs);
     }
 
@@ -1913,7 +1911,7 @@ public final class MainController {
                 ill.getLabel(),
                 langs
             );
-        for (LiftSense sub : s.getSubSenses())
+        for (LiftSense sub : s.getSenses())
             collectMetaLangRowsForSense(rows, sub, langs);
     }
 
@@ -3142,7 +3140,7 @@ public final class MainController {
     private boolean containsSense(List<LiftSense> list, LiftSense target) {
         if (list.contains(target)) return true;
         for (LiftSense s : list) {
-            if (containsSense(s.getSubSenses(), target)) return true;
+            if (containsSense(s.getSenses(), target)) return true;
         }
         return false;
     }
@@ -3167,7 +3165,7 @@ public final class MainController {
         int idx = list.indexOf(target);
         if (idx >= 0) return new Pair<>(list, idx);
         for (LiftSense s : list) {
-            var sub = findInList(s.getSubSenses(), target);
+            var sub = findInList(s.getSenses(), target);
             if (sub != null) return sub;
         }
         return null;
@@ -3282,7 +3280,7 @@ public final class MainController {
 
     private boolean containsExample(LiftSense sense, LiftExample ex) {
         if (sense.getExamples().contains(ex)) return true;
-        for (LiftSense sub : sense.getSubSenses())
+        for (LiftSense sub : sense.getSenses())
             if (containsExample(sub, ex)) return true;
         return false;
     }
@@ -3687,7 +3685,7 @@ public final class MainController {
                 populateEntryEditor(entry);
             }
         } else if (obj instanceof LiftRelation r) {
-            AbstractExtensibleWithoutField p = r.getParent();
+            HasRelations p = r.getParent();
             if (p instanceof LiftEntry e) {
                 switchView(NAV_ENTRIES);
                 selectEntryInTable(e);
@@ -4018,7 +4016,9 @@ public final class MainController {
 
             @Override
             public List<String> getKnownTraitNames() {
-                return getKnownTraitNamesFor(LiftFieldAndTraitDefinitionTarget.SENSE);
+                return getKnownTraitNamesFor(
+                    LiftFieldAndTraitDefinitionTarget.SENSE
+                );
             }
 
             @Override
@@ -4028,7 +4028,9 @@ public final class MainController {
 
             @Override
             public List<String> getKnownFieldTypes() {
-                return getKnownFieldTypesFor(LiftFieldAndTraitDefinitionTarget.SENSE);
+                return getKnownFieldTypesFor(
+                    LiftFieldAndTraitDefinitionTarget.SENSE
+                );
             }
 
             @Override
@@ -4069,7 +4071,9 @@ public final class MainController {
 
             @Override
             public List<String> getKnownTraitNames() {
-                return getKnownTraitNamesFor(LiftFieldAndTraitDefinitionTarget.EXAMPLE);
+                return getKnownTraitNamesFor(
+                    LiftFieldAndTraitDefinitionTarget.EXAMPLE
+                );
             }
 
             @Override
@@ -4079,7 +4083,9 @@ public final class MainController {
 
             @Override
             public List<String> getKnownFieldTypes() {
-                return getKnownFieldTypesFor(LiftFieldAndTraitDefinitionTarget.EXAMPLE);
+                return getKnownFieldTypesFor(
+                    LiftFieldAndTraitDefinitionTarget.EXAMPLE
+                );
             }
 
             @Override
@@ -4128,7 +4134,9 @@ public final class MainController {
 
             @Override
             public List<String> getKnownTraitNames() {
-                return getKnownTraitNamesFor(LiftFieldAndTraitDefinitionTarget.VARIANT);
+                return getKnownTraitNamesFor(
+                    LiftFieldAndTraitDefinitionTarget.VARIANT
+                );
             }
 
             @Override
@@ -4138,7 +4146,9 @@ public final class MainController {
 
             @Override
             public List<String> getKnownFieldTypes() {
-                return getKnownFieldTypesFor(LiftFieldAndTraitDefinitionTarget.VARIANT);
+                return getKnownFieldTypesFor(
+                    LiftFieldAndTraitDefinitionTarget.VARIANT
+                );
             }
 
             @Override
@@ -4703,6 +4713,7 @@ public final class MainController {
                           .getAllRelations()
                           .stream()
                           .map(LiftRelation::getType)
+                          .map(x -> x.orElse(""))
                           .distinct()
                           .sorted()
                           .toList(),
@@ -4877,7 +4888,10 @@ public final class MainController {
         return false;
     }
 
-    private void showAddEtymologyDialog(LiftEntry entry, LiftXMLFactory factory) {
+    private void showAddEtymologyDialog(
+        LiftEntry entry,
+        LiftXMLFactory factory
+    ) {
         Dialog<Pair<String, String>> dlg = new Dialog<>();
         dlg.setTitle(I18n.get("btn.addEtymology"));
         dlg.getDialogPane()
@@ -4894,7 +4908,8 @@ public final class MainController {
                       .stream()
                       .flatMap(e -> e.getEtymologies().stream())
                       .map(LiftEtymology::getType)
-                      .filter(Objects::nonNull)
+                      .filter(Optional::isPresent)
+                      .map(Optional::get)
                       .distinct()
                       .sorted()
                       .toList();
@@ -5184,9 +5199,7 @@ public final class MainController {
             .getLiftDictionaryComponents()
             .getAllRelations()) {
             counts.merge(
-                r.getType() != null
-                    ? r.getType()
-                    : I18n.get("placeholder.noType"),
+                r.getType().orElse(I18n.get("placeholder.noType")),
                 1L,
                 Long::sum
             );
@@ -6955,7 +6968,7 @@ public final class MainController {
 
     private MultiText getParentEntryForms(LiftRelation r) {
         if (r == null || r.getParent() == null) return null;
-        AbstractExtensibleWithoutField p = r.getParent();
+        HasRelations p = r.getParent();
         if (p instanceof LiftEntry e) return e.getForms();
         if (p instanceof LiftSense s) return findParentEntry(s)
             .map(LiftEntry::getForms)
@@ -7042,7 +7055,9 @@ public final class MainController {
      * Filters via field-definition/@class: only include a trait name if its
      * LiftFieldAndTraitDefinition has no @class restriction, or if it includes {@code target}.
      */
-    private List<String> getKnownTraitNamesFor(LiftFieldAndTraitDefinitionTarget target) {
+    private List<String> getKnownTraitNamesFor(
+        LiftFieldAndTraitDefinitionTarget target
+    ) {
         if (currentDictionary == null) return List.of();
         LiftHeader h = currentDictionary
             .getLiftDictionaryComponents()
@@ -7133,7 +7148,9 @@ public final class MainController {
     }
 
     /** Returns field (not trait) type names allowed for the given target element type. */
-    private List<String> getKnownFieldTypesFor(LiftFieldAndTraitDefinitionTarget target) {
+    private List<String> getKnownFieldTypesFor(
+        LiftFieldAndTraitDefinitionTarget target
+    ) {
         if (currentDictionary == null) return List.of();
         LiftHeader h = currentDictionary
             .getLiftDictionaryComponents()
