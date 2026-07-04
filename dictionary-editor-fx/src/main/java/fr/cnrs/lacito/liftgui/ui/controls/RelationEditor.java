@@ -121,7 +121,7 @@ public final class RelationEditor extends VBox {
         }
         TreeSet<String> items = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
         if (relationTypes != null) items.addAll(relationTypes);
-        String current = rel.getType().orElse("");
+        String current = rel.getType();
         if (!current.isBlank()) items.add(current);
         typeCombo.setItems(FXCollections.observableArrayList(items));
         typeCombo.setValue(current.isBlank() ? null : current);

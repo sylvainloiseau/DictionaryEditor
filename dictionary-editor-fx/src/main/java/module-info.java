@@ -5,6 +5,7 @@ module fr.cnrs.lacito.liftgui {
     requires transitive javafx.graphics;
     requires java.logging;
     requires java.prefs;
+    requires javafx.base;
 
     exports fr.cnrs.lacito.liftgui;
 

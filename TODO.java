@@ -1,4 +1,10 @@
+dans MainController,             element.setId(newId); -> bug, le Map id -> obj n'est plus bon.
 
+adapter builder et writer, renomer type et idref and unmarshallingType et unmashallingRef.
+
+dans LiftRange : utiliser, rangeContent2 créer getRangeElementProperty, addElementProperty, etc. ; add listener.
+
+finaliser PostUnmarshalling : pointer réellement sur les objets.
 Finir LiftXMLFactoryNew
 Finaliser entry depuis le handler et "addEntryToDictionary"
 garder RefID pour le contrôle des références

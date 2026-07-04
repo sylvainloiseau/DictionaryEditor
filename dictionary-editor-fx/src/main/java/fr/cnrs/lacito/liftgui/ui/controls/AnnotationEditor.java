@@ -97,11 +97,11 @@ public final class AnnotationEditor extends VBox {
             annotationNames instanceof List ? (List<String>) annotationNames : new ArrayList<>(annotationNames)));
         nameCombo.setValue(a.getName());
 
-        valueCombo.setValue(a.getValue().orElse(""));
+        valueCombo.setValue(a.getValue());
         valueCombo.getEditor().textProperty().bindBidirectional(a.valueProperty());
 
-        whoField.setText(a.getWho().orElse(""));
-        whenField.setText(a.getWhen().orElse(""));
+        whoField.setText(a.getWho());
+        whenField.setText(a.getWhen());
         textEditor.setAvailableLanguages(availableLangs);
         textEditor.setMultiText(a.getText());
     }

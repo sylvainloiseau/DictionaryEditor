@@ -1,5 +1,5 @@
 /**
- 
+
 * @author Inès GBADAMASSI
 * @author Maryse GOEH-AKUE
 * @author Ermeline BRESSON
@@ -10,6 +10,10 @@
 package fr.cnrs.lacito.liftgui.ui.controls;
 
 import fr.cnrs.lacito.liftapi.model.*;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.*;
+import java.util.StringJoiner;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
@@ -18,11 +22,6 @@ import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
-import java.util.*;
-import java.util.StringJoiner;
 
 /**
  * Editor for a single {@link LiftTrait}.
@@ -48,7 +47,9 @@ public final class TraitEditor extends VBox {
     public TraitEditor() {
         super(6);
         setPadding(new Insets(4));
-        setStyle("-fx-border-color: #cde; -fx-border-radius: 4; -fx-background-color: #f5f8fc; -fx-background-radius: 4;");
+        setStyle(
+            "-fx-border-color: #cde; -fx-border-radius: 4; -fx-background-color: #f5f8fc; -fx-background-radius: 4;"
+        );
 
         nameCombo.setEditable(false);
         nameCombo.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -79,6 +80,7 @@ public final class TraitEditor extends VBox {
 
         getChildren().addAll(grid, annoPane);
     }
+
     private List<String> knownTraitNames = new ArrayList<>();
 
     private void validateTraitName(String name) {
@@ -89,10 +91,14 @@ public final class TraitEditor extends VBox {
         }
         if (!knownTraitNames.contains(name)) {
             nameCombo.setStyle(
-                    "-fx-border-color: orange; -fx-border-width: 2; -fx-border-radius: 4;"
+                "-fx-border-color: orange; -fx-border-width: 2; -fx-border-radius: 4;"
             );
-            Tooltip tip = new Tooltip("⚠ Valeur non documentée dans la configuration du dictionnaire");
-            tip.setStyle("-fx-background-color: #fff3cd; -fx-text-fill: #856404;");
+            Tooltip tip = new Tooltip(
+                "⚠ Valeur non documentée dans la configuration du dictionnaire"
+            );
+            tip.setStyle(
+                "-fx-background-color: #fff3cd; -fx-text-fill: #856404;"
+            );
             nameCombo.setTooltip(tip);
         } else {
             nameCombo.setStyle("-fx-border-color: #cde; -fx-border-radius: 4;");
@@ -107,9 +113,13 @@ public final class TraitEditor extends VBox {
      * @param valuesForName   known values for each trait name (fallback when no definition)
      * @param definition      optional field/trait definition carrying @type and resolved range
      */
-    public void setTrait(LiftTrait t, Collection<String> availableLangs,
-                         Collection<String> traitNames, Map<String, Set<String>> valuesForName,
-                         Optional<LiftFieldAndTraitDefinition> definition) {
+    public void setTrait(
+        LiftTrait t,
+        Collection<String> availableLangs,
+        Collection<String> traitNames,
+        Map<String, Set<String>> valuesForName,
+        Optional<LiftFieldAndTraitDefinition> definition
+    ) {
         this.trait = t;
         if (t == null) {
             nameCombo.getItems().clear();
@@ -118,12 +128,19 @@ public final class TraitEditor extends VBox {
             return;
         }
 
-        nameCombo.setItems(FXCollections.observableArrayList(
-            traitNames instanceof List ? (List<String>) traitNames : new ArrayList<>(traitNames)));
+        nameCombo.setItems(
+            FXCollections.observableArrayList(
+                traitNames instanceof List
+                    ? (List<String>) traitNames
+                    : new ArrayList<>(traitNames)
+            )
+        );
         nameCombo.setValue(t.getName());
         this.knownTraitNames = new ArrayList<>(traitNames);
         validateTraitName(t.getName());
-        valueBox.getChildren().setAll(buildValueWidget(t, definition, valuesForName));
+        valueBox
+            .getChildren()
+            .setAll(buildValueWidget(t, definition, valuesForName));
 
         annotationsBox.getChildren().clear();
         List<LiftAnnotation> annos = t.getAnnotations();
@@ -136,17 +153,22 @@ public final class TraitEditor extends VBox {
         }
     }
 
-    private Node buildValueWidget(LiftTrait t, Optional<LiftFieldAndTraitDefinition> defOpt,
-                                   Map<String, Set<String>> valuesForName) {
+    private Node buildValueWidget(
+        LiftTrait t,
+        Optional<LiftFieldAndTraitDefinition> defOpt,
+        Map<String, Set<String>> valuesForName
+    ) {
         if (defOpt.isPresent()) {
             LiftFieldAndTraitDefinition def = defOpt.get();
-            Optional<LiftFieldAndTraitDefinitionType> typeOpt = def.getDefinitionType();
+            Optional<LiftFieldAndTraitDefinitionType> typeOpt =
+                def.getDefinitionType();
             if (typeOpt.isPresent()) {
                 return switch (typeOpt.get()) {
                     case DATETIME -> buildDatePicker(t);
-                    case INTEGER  -> buildIntegerField(t);
+                    case INTEGER -> buildIntegerField(t);
                     case OPTION, OPTION_COLLECTION, OPTION_SEQUENCE -> {
-                        Optional<LiftHeaderRange> rangeOpt = def.getResolvedRange();
+                        Optional<LiftHeaderRange> rangeOpt =
+                            def.getResolvedRange();
                         yield rangeOpt.isPresent()
                             ? buildRangePicker(t, rangeOpt.get(), typeOpt.get())
                             : buildDefaultCombo(t, valuesForName);
@@ -162,8 +184,9 @@ public final class TraitEditor extends VBox {
         DatePicker dp = new DatePicker();
         dp.setMaxWidth(Double.MAX_VALUE);
         try {
-            if (t.getValue() != null && !t.getValue().isBlank())
-                dp.setValue(LocalDate.parse(t.getValue().substring(0, 10)));
+            if (t.getValue() != null && !t.getValue().isBlank()) dp.setValue(
+                LocalDate.parse(t.getValue().substring(0, 10))
+            );
         } catch (DateTimeParseException ignored) {}
         dp.valueProperty().addListener((obs, o, n) -> {
             if (n != null) t.valueProperty().set(n.toString());
@@ -186,17 +209,28 @@ public final class TraitEditor extends VBox {
      * range-elements are organised by their @parent attribute.
      * The selected abbreviation(s) are shown in a read-only label; clicking opens the picker.
      */
-    private Node buildRangePicker(LiftTrait t, LiftHeaderRange range, LiftFieldAndTraitDefinitionType type) {
-        boolean multiSelect = type == LiftFieldAndTraitDefinitionType.OPTION_COLLECTION
-                           || type == LiftFieldAndTraitDefinitionType.OPTION_SEQUENCE;
+    private Node buildRangePicker(
+        LiftTrait t,
+        LiftHeaderRange range,
+        LiftFieldAndTraitDefinitionType type
+    ) {
+        boolean multiSelect =
+            type == LiftFieldAndTraitDefinitionType.OPTION_COLLECTION ||
+            type == LiftFieldAndTraitDefinitionType.OPTION_SEQUENCE;
 
         Label displayLabel = new Label(t.getValue());
         displayLabel.setMaxWidth(Double.MAX_VALUE);
-        displayLabel.setStyle("-fx-border-color: #aab; -fx-padding: 3 6 3 6; -fx-background-color: white; -fx-background-radius: 3;");
+        displayLabel.setStyle(
+            "-fx-border-color: #aab; -fx-padding: 3 6 3 6; -fx-background-color: white; -fx-background-radius: 3;"
+        );
 
         Button pickBtn = new Button("…");
         pickBtn.setOnAction(e -> {
-            String chosen = showRangePickerDialog(range, t.getValue(), multiSelect);
+            String chosen = showRangePickerDialog(
+                range,
+                t.getValue(),
+                multiSelect
+            );
             if (chosen != null) {
                 t.valueProperty().set(chosen);
                 displayLabel.setText(chosen);
@@ -208,96 +242,173 @@ public final class TraitEditor extends VBox {
         return box;
     }
 
-    private ComboBox<String> buildDefaultCombo(LiftTrait t, Map<String, Set<String>> valuesForName) {
+    private ComboBox<String> buildDefaultCombo(
+        LiftTrait t,
+        Map<String, Set<String>> valuesForName
+    ) {
         ComboBox<String> combo = new ComboBox<>();
         combo.setEditable(true);
         combo.setMaxWidth(Double.MAX_VALUE);
-        Set<String> knownValues = valuesForName != null
-                ? valuesForName.getOrDefault(t.getName(), Set.of()) : Set.of();
-        combo.setItems(FXCollections.observableArrayList(new TreeSet<>(knownValues)));
+        Set<String> knownValues =
+            valuesForName != null
+                ? valuesForName.getOrDefault(t.getName(), Set.of())
+                : Set.of();
+        combo.setItems(
+            FXCollections.observableArrayList(new TreeSet<>(knownValues))
+        );
         combo.setValue(t.getValue());
         combo.getEditor().textProperty().bindBidirectional(t.valueProperty());
 
         // ✅ Validation de la valeur saisie
-        combo.getEditor().textProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal == null || newVal.isBlank() || knownValues.contains(newVal)) {
-                combo.setStyle(null);
-                combo.setTooltip(null);
-            } else {
-                combo.setStyle("-fx-border-color: orange; -fx-border-width: 2; -fx-border-radius: 4;");
-                Tooltip tip = new Tooltip("⚠ Valeur non documentée dans la configuration du dictionnaire");
-                tip.setStyle("-fx-background-color: #fff3cd; -fx-text-fill: #856404;");
-                combo.setTooltip(tip);
-            }
-        });
+        combo
+            .getEditor()
+            .textProperty()
+            .addListener((obs, oldVal, newVal) -> {
+                if (
+                    newVal == null ||
+                    newVal.isBlank() ||
+                    knownValues.contains(newVal)
+                ) {
+                    combo.setStyle(null);
+                    combo.setTooltip(null);
+                } else {
+                    combo.setStyle(
+                        "-fx-border-color: orange; -fx-border-width: 2; -fx-border-radius: 4;"
+                    );
+                    Tooltip tip = new Tooltip(
+                        "⚠ Valeur non documentée dans la configuration du dictionnaire"
+                    );
+                    tip.setStyle(
+                        "-fx-background-color: #fff3cd; -fx-text-fill: #856404;"
+                    );
+                    combo.setTooltip(tip);
+                }
+            });
 
         // Validation initiale
-        if (!knownValues.isEmpty() && t.getValue() != null && !knownValues.contains(t.getValue())) {
-            combo.setStyle("-fx-border-color: orange; -fx-border-width: 2; -fx-border-radius: 4;");
-            Tooltip tip = new Tooltip("⚠ Valeur non documentée dans la configuration du dictionnaire");
-            tip.setStyle("-fx-background-color: #fff3cd; -fx-text-fill: #856404;");
+        if (
+            !knownValues.isEmpty() &&
+            t.getValue() != null &&
+            !knownValues.contains(t.getValue())
+        ) {
+            combo.setStyle(
+                "-fx-border-color: orange; -fx-border-width: 2; -fx-border-radius: 4;"
+            );
+            Tooltip tip = new Tooltip(
+                "⚠ Valeur non documentée dans la configuration du dictionnaire"
+            );
+            tip.setStyle(
+                "-fx-background-color: #fff3cd; -fx-text-fill: #856404;"
+            );
             combo.setTooltip(tip);
         }
 
         return combo;
     }
+
     /**
      * Shows a Dialog with a TreeView of range-elements (using @parent hierarchy).
      * Returns the selected element's abbreviation, or null if cancelled.
      */
-    private String showRangePickerDialog(LiftHeaderRange range, String currentValue, boolean multiSelect) {
+    private String showRangePickerDialog(
+        LiftHeaderRange range,
+        String currentValue,
+        boolean multiSelect
+    ) {
         Dialog<String> dlg = new Dialog<>();
         dlg.setTitle(range.getId());
         dlg.setHeaderText("Sélectionner une valeur");
-        dlg.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        dlg.getDialogPane()
+            .getButtonTypes()
+            .addAll(ButtonType.OK, ButtonType.CANCEL);
         dlg.setResizable(true);
         dlg.getDialogPane().setPrefSize(360, 400);
 
         TreeItem<LiftHeaderRangeElement> root = new TreeItem<>(null);
         root.setExpanded(true);
-        Map<String, TreeItem<LiftHeaderRangeElement>> itemMap = new LinkedHashMap<>();
+        Map<String, TreeItem<LiftHeaderRangeElement>> itemMap =
+            new LinkedHashMap<>();
 
-        for (LiftHeaderRangeElement re : range.getRangeElements()) {
+        for (LiftHeaderRangeElement re : range.getRangeElements().values()) {
             TreeItem<LiftHeaderRangeElement> item = new TreeItem<>(re);
             item.setExpanded(true);
             itemMap.put(re.getId(), item);
         }
-        for (LiftHeaderRangeElement re : range.getRangeElements()) {
+        for (LiftHeaderRangeElement re : range.getRangeElements().values()) {
             TreeItem<LiftHeaderRangeElement> item = itemMap.get(re.getId());
             String pid = re.getParentId().orElse(null);
-            if (pid != null && itemMap.containsKey(pid)) itemMap.get(pid).getChildren().add(item);
+            if (pid != null && itemMap.containsKey(pid)) itemMap
+                .get(pid)
+                .getChildren()
+                .add(item);
             else root.getChildren().add(item);
         }
 
         TreeView<LiftHeaderRangeElement> tree = new TreeView<>(root);
         tree.setShowRoot(false);
         tree.getSelectionModel().setSelectionMode(
-            multiSelect ? SelectionMode.MULTIPLE : SelectionMode.SINGLE);
-        tree.setCellFactory(tv -> new TreeCell<>() {
-            @Override protected void updateItem(LiftHeaderRangeElement item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) { setText(null); return; }
-                String abbrev = item.getAbbrev().getForms().stream().findFirst()
-                    .map(f -> f.toPlainText()).orElse("");
-                String label = item.getLabel().getForms().stream().findFirst()
-                    .map(f -> f.toPlainText()).orElse(item.getId());
-                setText(abbrev.isBlank() ? label : abbrev + " – " + label);
+            multiSelect ? SelectionMode.MULTIPLE : SelectionMode.SINGLE
+        );
+        tree.setCellFactory(tv ->
+            new TreeCell<>() {
+                @Override
+                protected void updateItem(
+                    LiftHeaderRangeElement item,
+                    boolean empty
+                ) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null) {
+                        setText(null);
+                        return;
+                    }
+                    String abbrev = item
+                        .getAbbrev()
+                        .getForms()
+                        .stream()
+                        .findFirst()
+                        .map(f -> f.toPlainText())
+                        .orElse("");
+                    String label = item
+                        .getLabel()
+                        .getForms()
+                        .stream()
+                        .findFirst()
+                        .map(f -> f.toPlainText())
+                        .orElse(item.getId());
+                    setText(abbrev.isBlank() ? label : abbrev + " – " + label);
+                }
             }
-        });
+        );
 
         // Pre-select current value
-        String[] current = currentValue == null ? new String[0] : currentValue.split("\\s+");
+        String[] current =
+            currentValue == null ? new String[0] : currentValue.split("\\s+");
         Set<String> currentSet = new HashSet<>(Arrays.asList(current));
         for (TreeItem<LiftHeaderRangeElement> ti : itemMap.values()) {
             if (ti.getValue() != null) {
-                String abbrev = ti.getValue().getAbbrev().getForms().stream().findFirst()
-                    .map(f -> f.toPlainText()).orElse(ti.getValue().getId());
-                if (currentSet.contains(abbrev) || currentSet.contains(ti.getValue().getId()))
-                    tree.getSelectionModel().select(ti);
+                String abbrev = ti
+                    .getValue()
+                    .getAbbrev()
+                    .getForms()
+                    .stream()
+                    .findFirst()
+                    .map(f -> f.toPlainText())
+                    .orElse(ti.getValue().getId());
+                if (
+                    currentSet.contains(abbrev) ||
+                    currentSet.contains(ti.getValue().getId())
+                ) tree.getSelectionModel().select(ti);
             }
         }
 
-        dlg.getDialogPane().setContent(new ScrollPane(tree) {{ setFitToWidth(true); setFitToHeight(true); }});
+        dlg.getDialogPane().setContent(
+            new ScrollPane(tree) {
+                {
+                    setFitToWidth(true);
+                    setFitToHeight(true);
+                }
+            }
+        );
 
         dlg.setResultConverter(bt -> {
             if (bt != ButtonType.OK) return null;
@@ -306,8 +417,14 @@ public final class TraitEditor extends VBox {
             StringJoiner sj = new StringJoiner(" ");
             for (var ti : selected) {
                 if (ti.getValue() != null) {
-                    String abbrev = ti.getValue().getAbbrev().getForms().stream().findFirst()
-                        .map(f -> f.toPlainText()).orElse(ti.getValue().getId());
+                    String abbrev = ti
+                        .getValue()
+                        .getAbbrev()
+                        .getForms()
+                        .stream()
+                        .findFirst()
+                        .map(f -> f.toPlainText())
+                        .orElse(ti.getValue().getId());
                     sj.add(abbrev.isBlank() ? ti.getValue().getId() : abbrev);
                 }
             }
@@ -318,9 +435,19 @@ public final class TraitEditor extends VBox {
     }
 
     /** Backward-compatible overload — no definition data. */
-    public void setTrait(LiftTrait t, Collection<String> availableLangs,
-                         Collection<String> traitNames, Map<String, Set<String>> valuesForName) {
-        setTrait(t, availableLangs, traitNames, valuesForName, Optional.empty());
+    public void setTrait(
+        LiftTrait t,
+        Collection<String> availableLangs,
+        Collection<String> traitNames,
+        Map<String, Set<String>> valuesForName
+    ) {
+        setTrait(
+            t,
+            availableLangs,
+            traitNames,
+            valuesForName,
+            Optional.empty()
+        );
     }
 
     /** Backward-compatible overload (no dropdown data). */

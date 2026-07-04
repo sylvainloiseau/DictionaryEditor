@@ -69,7 +69,7 @@ public final class NoteEditor extends VBox {
             extensibleEditor.setModel(null, availableLangs);
             return;
         }
-        typeField.setText(note.getType().orElse(""));
+        typeField.setText(note.getType());
         textEditor.setAvailableLanguages(availableLangs);
         textEditor.setMultiText(note.getText());
         extensibleEditor.setModel(note, availableLangs);

@@ -97,7 +97,7 @@ public final class EtymologyEditor extends VBox {
             extensibleEditor.setModel(null, metaLangs);
             return;
         }
-        typeField.setText(ety.getType().orElse(""));
+        typeField.setText(ety.getType());
         sourceField.setText(ety.getSource() != null ? ety.getSource() : "");
         formsEditor.setAvailableLanguages(objLangs);
         formsEditor.setMultiText(ety.getForms());

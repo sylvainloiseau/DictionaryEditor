@@ -65,7 +65,7 @@ public final class ReversalEditor extends VBox {
             formsEditor.setMultiText(null);
             return;
         }
-        typeField.setText(rev.getType().orElse(""));
+        typeField.setText(rev.getType());
         formsEditor.setAvailableLanguages(langs);
         formsEditor.setMultiText(rev.getForms());
 
