@@ -9,6 +9,7 @@
  **/
 package fr.cnrs.lacito.liftgui.ui.controls;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.*;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import java.util.Collection;
@@ -45,15 +46,18 @@ public final class SenseEditor extends VBox {
     private final VBox reversalsBox = new VBox(6);
     private final VBox subSensesBox = new VBox(6);
     private final TitledPane subSensesPane;
-    private final NotableEditor notableEditor = new NotableEditor();
+    private final NotableEditor notableEditor;
     /** Types from header range {@code lexical-relation} for {@link RelationEditor}. */
     private List<String> relationTypes = List.of();
     /** Currently displayed sense — used by the save listener. */
     private LiftSense currentSense = null;
     private Runnable onGramInfoChanged = null;
+    private LiftDictionary dictionary;
 
-    public SenseEditor() {
+    public SenseEditor(LiftDictionary dictionary) {
         super(6);
+        this.dictionary = dictionary;
+        this.notableEditor = new NotableEditor(this.dictionary);
         setPadding(new Insets(4));
         setStyle(
             "-fx-border-color: #aab; -fx-border-radius: 4; -fx-background-color: #f4f4fa; -fx-background-radius: 4;"
@@ -325,7 +329,7 @@ public final class SenseEditor extends VBox {
 
         // Examples — object-languages for example text, meta-languages for translations
         for (LiftExample ex : sense.getExamples()) {
-            ExampleEditor ee = new ExampleEditor();
+            ExampleEditor ee = new ExampleEditor(dictionary);
             ExtensibleAddActions exAddActions =
                 exampleAddActionsFactory != null
                     ? exampleAddActionsFactory.apply(ex)
@@ -343,21 +347,21 @@ public final class SenseEditor extends VBox {
 
         // Relations — meta-languages for usage
         for (LiftRelation rel : sense.getRelations()) {
-            RelationEditor re = new RelationEditor();
+            RelationEditor re = new RelationEditor(dictionary);
             re.setRelation(rel, metaLangs, relationTypes);
             relationsBox.getChildren().add(re);
         }
 
         // Reversals — meta-languages
         for (LiftReversal rev : sense.getReversals()) {
-            ReversalEditor rve = new ReversalEditor();
+            ReversalEditor rve = new ReversalEditor(dictionary);
             rve.setReversal(rev, metaLangs);
             reversalsBox.getChildren().add(rve);
         }
 
         // Sub-senses (recursive)
         for (LiftSense sub : sense.getSenses()) {
-            SenseEditor se = new SenseEditor();
+            SenseEditor se = new SenseEditor(dictionary);
             se.setGrammaticalInfoValues(
                 new java.util.ArrayList<>(grammaticalInfoCombo.getItems())
             );

@@ -9,7 +9,13 @@
 **/
 package fr.cnrs.lacito.liftgui.ui.controls;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
+import fr.cnrs.lacito.liftapi.model.AbstractIdentifiable;
+import fr.cnrs.lacito.liftapi.model.LiftEntry;
+import fr.cnrs.lacito.liftapi.model.LiftHeaderRangeElement;
 import fr.cnrs.lacito.liftapi.model.LiftRelation;
+import fr.cnrs.lacito.liftapi.model.LiftSense;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.TreeSet;
@@ -31,7 +37,7 @@ import javafx.scene.layout.VBox;
  */
 public final class RelationEditor extends VBox {
 
-    private final ComboBox<String> typeCombo = new ComboBox<>();
+    private final ComboBox<LiftHeaderRangeElement> typeCombo = new ComboBox<>();
     private final TextField refIdField = new TextField();
     private final TextField orderField = new TextField();
     private ChangeListener<String> refIdListener;
@@ -39,8 +45,10 @@ public final class RelationEditor extends VBox {
     private final MultiTextEditor usageEditor = new MultiTextEditor();
     private final ExtensibleWithFieldEditor extensibleEditor =
         new ExtensibleWithFieldEditor();
+    private LiftDictionary dictionary;
 
-    public RelationEditor() {
+    public RelationEditor(LiftDictionary dictionary) {
+        this.dictionary = dictionary;
         super(6);
         setPadding(new Insets(4));
         setStyle(
@@ -84,7 +92,7 @@ public final class RelationEditor extends VBox {
         getChildren().addAll(grid, usagePane, extPane);
     }
 
-    private ChangeListener<String> typeListener;
+    private ChangeListener<LiftHeaderRangeElement> typeListener;
 
     public void setRelation(LiftRelation rel, Collection<String> langs) {
         setRelation(rel, langs, List.of());
@@ -105,6 +113,7 @@ public final class RelationEditor extends VBox {
         if (rel == null) {
             typeCombo.setItems(FXCollections.observableArrayList());
             typeCombo.setValue(null);
+            typeCombo.setEditable(false);
             refIdField.setText("");
             orderField.setText("");
             if (refIdListener != null) refIdField
@@ -119,15 +128,15 @@ public final class RelationEditor extends VBox {
             extensibleEditor.setModel(null, langs);
             return;
         }
-        TreeSet<String> items = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-        if (relationTypes != null) items.addAll(relationTypes);
-        String current = rel.getType();
-        if (!current.isBlank()) items.add(current);
-        typeCombo.setItems(FXCollections.observableArrayList(items));
-        typeCombo.setValue(current.isBlank() ? null : current);
-        LiftRelation relRef = rel;
+        // TreeSet<String> items = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        // if (relationTypes != null) items.addAll(relationTypes);
+        // LiftHeaderRangeElement current = rel.getType();
+        // //if (!current.isBlank()) items.add(current);
+        // typeCombo.setItems(FXCollections.observableArrayList(items));
+        typeCombo.setItems(FXCollections.observableArrayList(dictionary.getHeader().getNoteTypeManager().typesProperty().get()));
+        typeCombo.getSelectionModel().select(rel.getType());
         typeListener = (obs, o, n) -> {
-            if (n != null && !n.isBlank()) relRef.setType(n);
+            rel.setType(n);
         };
         typeCombo.valueProperty().addListener(typeListener);
         refIdField.setText(rel.getRefID().orElse(""));
@@ -139,7 +148,14 @@ public final class RelationEditor extends VBox {
             .textProperty()
             .removeListener(orderListener);
         LiftRelation relationRef = rel;
-        refIdListener = (obs, o, n) -> relationRef.setRefId(n != null ? n : "");
+        refIdListener = (obs, o, n) -> {
+            if (n == null) return;
+            AbstractIdentifiable target = dictionary.getLiftDictionaryRegistry().getEntryOrSenseByLiftId(n);
+            if (target == null) {
+                throw new IllegalArgumentException("No entry or sense found for liftId: " + n);
+            }
+            relationRef.setRefObject(target);
+        };
         orderListener = (obs, o, n) -> {
             if (n != null && !n.isBlank()) {
                 try {

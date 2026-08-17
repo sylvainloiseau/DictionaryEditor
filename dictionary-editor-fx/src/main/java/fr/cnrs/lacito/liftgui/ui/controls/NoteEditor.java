@@ -1,6 +1,6 @@
 
 /**
- 
+
 * @author Inès GBADAMASSI
 * @author Maryse GOEH-AKUE
 * @author Ermeline BRESSON
@@ -10,8 +10,12 @@
 **/
 package fr.cnrs.lacito.liftgui.ui.controls;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
+import fr.cnrs.lacito.liftapi.model.LiftHeaderRangeElement;
 import fr.cnrs.lacito.liftapi.model.LiftNote;
+import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
@@ -32,24 +36,24 @@ import java.util.Collection;
  */
 public final class NoteEditor extends VBox {
 
-    private final TextField typeField = new TextField();
+    private final ComboBox<LiftHeaderRangeElement> typeCombo = new ComboBox<>();
     private final MultiTextEditor textEditor = new MultiTextEditor();
     private final ExtensibleWithFieldEditor extensibleEditor = new ExtensibleWithFieldEditor();
 
-    public NoteEditor() {
+    public NoteEditor(LiftDictionary dictionary) {
         super(6);
         setPadding(new Insets(4));
         setStyle("-fx-border-color: #c9b; -fx-border-radius: 4; -fx-background-color: #faf5f8; -fx-background-radius: 4;");
 
-        typeField.setEditable(false);
-        typeField.setPromptText("type");
-
+        typeCombo.setEditable(false);
+        typeCombo.setPromptText("type");
+        typeCombo.setItems(FXCollections.observableArrayList(dictionary.getHeader().getNoteTypeManager().typesProperty().get()));
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(6);
         grid.add(new Label("Type"), 0, 0);
-        grid.add(typeField, 1, 0);
-        GridPane.setHgrow(typeField, Priority.ALWAYS);
+        grid.add(typeCombo, 1, 0);
+        GridPane.setHgrow(typeCombo, Priority.ALWAYS);
 
         TitledPane textPane = new TitledPane("Texte (MultiText)", textEditor);
         textPane.setExpanded(true);
@@ -64,12 +68,13 @@ public final class NoteEditor extends VBox {
 
     public void setNote(LiftNote note, Collection<String> availableLangs) {
         if (note == null) {
-            typeField.setText("");
+            typeCombo.setDisable(true);
             textEditor.setMultiText(null);
             extensibleEditor.setModel(null, availableLangs);
             return;
         }
-        typeField.setText(note.getType());
+        typeCombo.setDisable(false);
+        typeCombo.getSelectionModel().select(note.getType());
         textEditor.setAvailableLanguages(availableLangs);
         textEditor.setMultiText(note.getText());
         extensibleEditor.setModel(note, availableLangs);

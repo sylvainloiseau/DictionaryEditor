@@ -10,6 +10,7 @@
 
 package fr.cnrs.lacito.liftgui.ui.controls;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftExample;
 import fr.cnrs.lacito.liftapi.model.MultiText;
 import javafx.beans.value.ChangeListener;
@@ -38,10 +39,13 @@ public final class ExampleEditor extends VBox {
     private ChangeListener<String> sourceListener;
     private final MultiTextEditor exampleTextEditor = new MultiTextEditor();
     private final VBox translationsBox = new VBox(6);
-    private final NotableEditor notableEditor = new NotableEditor();
+    private final NotableEditor notableEditor;
+    private LiftDictionary dictionary;
 
-    public ExampleEditor() {
+    public ExampleEditor(LiftDictionary dictionary) {
         super(6);
+        this.dictionary = dictionary;
+        this.notableEditor = new NotableEditor(this.dictionary);
         setPadding(new Insets(4));
         setStyle("-fx-border-color: #cba; -fx-border-radius: 4; -fx-background-color: #faf6f2; -fx-background-radius: 4;");
 

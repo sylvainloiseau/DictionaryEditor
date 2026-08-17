@@ -9,3 +9,5 @@
 # build
 target/
 *.class
+
+.DS_Store

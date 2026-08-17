@@ -135,9 +135,9 @@ public final class TraitEditor extends VBox {
                     : new ArrayList<>(traitNames)
             )
         );
-        nameCombo.setValue(t.getName());
+        nameCombo.setValue(t.getDefinition().getName());
         this.knownTraitNames = new ArrayList<>(traitNames);
-        validateTraitName(t.getName());
+        validateTraitName(t.getDefinition().getName());
         valueBox
             .getChildren()
             .setAll(buildValueWidget(t, definition, valuesForName));
@@ -251,7 +251,7 @@ public final class TraitEditor extends VBox {
         combo.setMaxWidth(Double.MAX_VALUE);
         Set<String> knownValues =
             valuesForName != null
-                ? valuesForName.getOrDefault(t.getName(), Set.of())
+                ? valuesForName.getOrDefault(t.getDefinition().getName(), Set.of())
                 : Set.of();
         combo.setItems(
             FXCollections.observableArrayList(new TreeSet<>(knownValues))

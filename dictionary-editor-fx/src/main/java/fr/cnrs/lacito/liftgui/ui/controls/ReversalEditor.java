@@ -1,5 +1,5 @@
 /**
- 
+
 * @author Inès GBADAMASSI
 * @author Maryse GOEH-AKUE
 * @author Ermeline BRESSON
@@ -9,8 +9,12 @@
 **/
 package fr.cnrs.lacito.liftgui.ui.controls;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
+import fr.cnrs.lacito.liftapi.model.LiftHeaderRangeElement;
 import fr.cnrs.lacito.liftapi.model.LiftReversal;
+import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
@@ -27,24 +31,28 @@ import java.util.Collection;
  */
 public final class ReversalEditor extends VBox {
 
-    private final TextField typeField = new TextField();
+    private final ComboBox<LiftHeaderRangeElement> typeCombo = new ComboBox<>();
+    //private final TextField typeField = new TextField();
     private final MultiTextEditor formsEditor = new MultiTextEditor();
     private final VBox mainBox = new VBox(6);
+    private LiftDictionary dictionary;
 
-    public ReversalEditor() {
+    public ReversalEditor(LiftDictionary dictionary) {
+        this.dictionary = dictionary;
         super(6);
         setPadding(new Insets(4));
         setStyle("-fx-border-color: #b9c; -fx-border-radius: 4; -fx-background-color: #f8f4fa; -fx-background-radius: 4;");
 
-        typeField.setEditable(false);
-        typeField.setPromptText("type");
+        typeCombo.setEditable(false);
+        typeCombo.setPromptText("type");
+        typeCombo.setItems(FXCollections.observableArrayList(dictionary.getHeader().getEtymologyTypeManager().typesProperty().get()));
 
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(6);
         grid.add(new Label("Type"), 0, 0);
-        grid.add(typeField, 1, 0);
-        GridPane.setHgrow(typeField, Priority.ALWAYS);
+        grid.add(typeCombo, 1, 0);
+        GridPane.setHgrow(typeCombo, Priority.ALWAYS);
 
         TitledPane formsPane = new TitledPane("Formes (MultiText)", formsEditor);
         formsPane.setExpanded(true);
@@ -61,16 +69,19 @@ public final class ReversalEditor extends VBox {
         mainBox.getChildren().clear();
 
         if (rev == null) {
-            typeField.setText("");
+            typeCombo.setValue(null);
+            typeCombo.setDisable(true);
             formsEditor.setMultiText(null);
             return;
         }
-        typeField.setText(rev.getType());
+        typeCombo.setValue(rev.getType());
+        typeCombo.getSelectionModel().select(rev.getType());
+        typeCombo.setDisable(false);
         formsEditor.setAvailableLanguages(langs);
         formsEditor.setMultiText(rev.getForms());
 
         if (rev.getMain() != null) {
-            ReversalEditor mainEditor = new ReversalEditor();
+            ReversalEditor mainEditor = new ReversalEditor(dictionary);
             mainEditor.setReversal(rev.getMain(), langs);
             mainBox.getChildren().add(mainEditor);
         }

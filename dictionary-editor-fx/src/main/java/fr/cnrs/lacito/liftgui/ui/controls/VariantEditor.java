@@ -1,6 +1,6 @@
 
 /**
- 
+
 * @author Inès GBADAMASSI
 * @author Maryse GOEH-AKUE
 * @author Ermeline BRESSON
@@ -10,6 +10,7 @@
 **/
 package fr.cnrs.lacito.liftgui.ui.controls;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftPronunciation;
 import fr.cnrs.lacito.liftapi.model.LiftRelation;
 import fr.cnrs.lacito.liftapi.model.LiftTrait;
@@ -56,9 +57,11 @@ public final class VariantEditor extends VBox {
     private LiftVariant currentVariant;
     private ExtensibleAddActions currentAddActions;
     private boolean updatingVariantType = false;
+    private LiftDictionary dictionary;
 
-    public VariantEditor() {
+    public VariantEditor(LiftDictionary dictionary) {
         super(6);
+        this.dictionary = dictionary;
         setPadding(new Insets(4));
         setStyle("-fx-border-color: #bbc; -fx-border-radius: 4; -fx-background-color: #f6f6fa; -fx-background-radius: 4;");
 
@@ -152,7 +155,7 @@ public final class VariantEditor extends VBox {
         }
         refIdField.setText(v.getRefId().orElse(""));
         String currentVariantType = v.getTraits().stream()
-            .filter(t -> VARIANT_TYPE_TRAIT.equals(t.getName()))
+            .filter(t -> VARIANT_TYPE_TRAIT.equals(t.getDefinition().getName()))
             .map(LiftTrait::getValue)
             .filter(value -> value != null && !value.isBlank())
             .findFirst()
@@ -235,7 +238,7 @@ public final class VariantEditor extends VBox {
         }
 
         for (LiftRelation r : v.getRelations()) {
-            RelationEditor re = new RelationEditor();
+            RelationEditor re = new RelationEditor(dictionary);
             re.setRelation(r, metaLangs, relationTypes);
             relationsBox.getChildren().add(re);
         }
@@ -246,7 +249,7 @@ public final class VariantEditor extends VBox {
     private void updateVariantType(String newValue) {
         if (currentVariant == null) return;
         LiftTrait existingTrait = currentVariant.getTraits().stream()
-            .filter(t -> VARIANT_TYPE_TRAIT.equals(t.getName()))
+            .filter(t -> VARIANT_TYPE_TRAIT.equals(t.getDefinition().getName()))
             .findFirst()
             .orElse(null);
         if (newValue == null || newValue.isBlank()) {

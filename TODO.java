@@ -1,3 +1,8 @@
+quand on change un Id d'un LiftHeaderRangeElement, il faut mettre à jour tous les hash
+(AbstractNotable, LiftExemple : translation)
+relationsProperty et etymologyProperty dns LiftEntry (et autres ?)
+LiftReversal : où ?
+
 dans MainController,             element.setId(newId); -> bug, le Map id -> obj n'est plus bon.
 
 adapter builder et writer, renomer type et idref and unmarshallingType et unmashallingRef.

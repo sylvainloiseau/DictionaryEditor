@@ -1020,7 +1020,7 @@ public final class MainController {
             if (e == null) return;
             e.getTraits()
                 .stream()
-                .filter(t -> Keys.MORPH_TYPE.equals(t.getName()))
+                .filter(t -> Keys.MORPH_TYPE.equals(t.getDefinition().getName()))
                 .findFirst()
                 .ifPresentOrElse(
                     t -> t.setValue(ev.getNewValue()),
@@ -1284,7 +1284,7 @@ public final class MainController {
         );
         TableColumn<LiftNote, String> typeCol = col(
             I18n.get(Keys.COL_TYPE),
-            LiftNote::getType
+            x -> x.getType().getId()
         );
         TableColumn<LiftNote, String> textGroup = new TableColumn<>(
             I18n.get(Keys.COL_TEXT)
@@ -1442,7 +1442,7 @@ public final class MainController {
         }
         TableColumn<LiftRelation, String> typeCol = col(
             I18n.get(Keys.COL_TYPE),
-            (LiftRelation r) -> r.getType()
+            (LiftRelation r) -> r.getType().getId()
         );
         TableColumn<LiftRelation, String> refFormGroup = new TableColumn<>(
             I18n.get("col.ref") + " (form)"
@@ -1564,7 +1564,7 @@ public final class MainController {
                 editorContainer.getChildren().add(backBtn);
             }
         }
-        RelationEditor re = new RelationEditor();
+        RelationEditor re = new RelationEditor(currentDictionary);
         re.setRelation(relation, metaLangs, getKnownRelationTypes());
         editorContainer.getChildren().add(re);
     }
@@ -1580,7 +1580,7 @@ public final class MainController {
         List<String> objLangs = getObjectLanguages();
         TableColumn<LiftEtymology, String> typeCol = col(
             I18n.get(Keys.COL_TYPE),
-            (LiftEtymology e) -> e.getType()
+            (LiftEtymology e) -> e.getType().getId()
         );
         TableColumn<LiftEtymology, String> sourceCol = col(
             I18n.get(Keys.COL_SOURCE),
@@ -1613,14 +1613,15 @@ public final class MainController {
             .selectedItemProperty()
             .addListener((obs, o, n) -> {
                 if (n != null) {
-                    EtymologyEditor ee = new EtymologyEditor();
+                    EtymologyEditor ee = new EtymologyEditor(currentDictionary);
                     ee.setEtymology(
                         n,
                         getObjectLanguages(),
                         getMetaLanguages()
                     );
                     editEntryTitle.setText(
-                        n.getType().isEmpty() ? I18n.get("nav.etymologies") : n.getType()
+                        // TODO null for type?
+                        n.getType() == null ? I18n.get("nav.etymologies") : n.getType().getId()
                     );
                     editEntryCode.setText(
                         n.getSource() != null ? n.getSource() : ""
@@ -1935,12 +1936,12 @@ public final class MainController {
         for (LiftTrait t : currentDictionary
             .getLiftDictionaryComponents()
             .getAllTraits()) {
-            String key = t.getName() + "|" + t.getValue();
+            String key = t.getDefinition().getName() + "|" + t.getValue();
             counts.compute(key, (k, row) -> {
                 String parentType = describeParentType(t.getParent());
                 if (row == null) return new TraitRow(
                     parentType,
-                    t.getName(),
+                    t.getDefinition().getName(),
                     t.getValue(),
                     1
                 );
@@ -2600,7 +2601,7 @@ public final class MainController {
                 I18n.get(Keys.EDITOR_VARIANTS),
                 safeList(entry.getVariants()),
                 v -> {
-                    VariantEditor ve = new VariantEditor();
+                    VariantEditor ve = new VariantEditor(currentDictionary);
                     ve.setRelationTypes(getKnownRelationTypes());
                     ve.setVariant(
                         v,
@@ -2626,7 +2627,7 @@ public final class MainController {
                 I18n.get(Keys.EDITOR_RELATIONS),
                 safeList(entry.getRelations()),
                 r -> {
-                    RelationEditor re = new RelationEditor();
+                    RelationEditor re = new RelationEditor(currentDictionary);
                     re.setRelation(r, metaLangs, getKnownRelationTypes());
                     return re;
                 },
@@ -2637,7 +2638,7 @@ public final class MainController {
                 I18n.get(Keys.EDITOR_ETYMOLOGIES),
                 safeList(entry.getEtymologies()),
                 et -> {
-                    EtymologyEditor ee = new EtymologyEditor();
+                    EtymologyEditor ee = new EtymologyEditor(currentDictionary);
                     ee.setEtymology(et, objLangs, metaLangs);
                     return ee;
                 },
@@ -2689,7 +2690,7 @@ public final class MainController {
                 I18n.get(Keys.EDITOR_NOTES),
                 new ArrayList<>(safeMapValues(entry.getNotes())),
                 n -> {
-                    NoteEditor ne = new NoteEditor();
+                    NoteEditor ne = new NoteEditor(currentDictionary);
                     ne.setNote(n, metaLangs);
                     return ne;
                 },
@@ -2999,7 +3000,7 @@ public final class MainController {
             editorContainer.getChildren().add(exLink);
         }
 
-        SenseEditor se = new SenseEditor();
+        SenseEditor se = new SenseEditor(currentDictionary);
         se.setRelationTypes(getKnownRelationTypes());
         se.setGrammaticalInfoValues(getHeaderRangeValues("grammatical-info"));
         se.setOnGramInfoChanged(() -> senseTable.refresh());
@@ -3245,7 +3246,7 @@ public final class MainController {
             editorContainer.getChildren().add(backBtn);
         }
 
-        ExampleEditor ee = new ExampleEditor();
+        ExampleEditor ee = new ExampleEditor(currentDictionary);
         LiftXMLFactory factory = getFactory(currentDictionary);
         BiConsumer<String, MultiText> onAddAnnotation =
             factory != null
@@ -3546,7 +3547,7 @@ public final class MainController {
                     .stream()
                     .anyMatch(
                         t ->
-                            traitName.equals(t.getName()) &&
+                            traitName.equals(t.getDefinition().getName()) &&
                             traitValue.equals(t.getValue())
                     )
             ) matches.add(e);
@@ -3558,7 +3559,7 @@ public final class MainController {
                     .stream()
                     .anyMatch(
                         t ->
-                            traitName.equals(t.getName()) &&
+                            traitName.equals(t.getDefinition().getName()) &&
                             traitValue.equals(t.getValue())
                     )
             ) findParentEntry(s).ifPresent(matches::add);
@@ -3570,7 +3571,7 @@ public final class MainController {
                     .stream()
                     .anyMatch(
                         t ->
-                            traitName.equals(t.getName()) &&
+                            traitName.equals(t.getDefinition().getName()) &&
                             traitValue.equals(t.getValue())
                     )
             ) findParentSense(ex)
@@ -3585,7 +3586,7 @@ public final class MainController {
                     .stream()
                     .anyMatch(
                         t ->
-                            traitName.equals(t.getName()) &&
+                            traitName.equals(t.getDefinition().getName()) &&
                             traitValue.equals(t.getValue())
                     )
             ) Optional.ofNullable(v.getParent()).ifPresent(matches::add);
@@ -3601,7 +3602,7 @@ public final class MainController {
                     .stream()
                     .anyMatch(
                         t ->
-                            traitName.equals(t.getName()) &&
+                            traitName.equals(t.getDefinition().getName()) &&
                             traitValue.equals(t.getValue())
                     )
             ) Optional.ofNullable(et.getParent()).ifPresent(matches::add);
@@ -3938,7 +3939,7 @@ public final class MainController {
                 editorContainer.getChildren().add(backBtn);
             }
         }
-        NoteEditor ne = new NoteEditor();
+        NoteEditor ne = new NoteEditor(currentDictionary);
         ne.setNote(note, getMetaLanguages());
         editorContainer.getChildren().add(ne);
     }
@@ -3966,7 +3967,7 @@ public final class MainController {
             backBtn.setOnAction(e -> navigateToEntryFromSense(parentEntry));
             editorContainer.getChildren().add(backBtn);
         }
-        VariantEditor ve = new VariantEditor();
+        VariantEditor ve = new VariantEditor(currentDictionary);
         ve.setRelationTypes(getKnownRelationTypes());
         ve.setVariantTypes(
             new ArrayList<>(
@@ -4604,7 +4605,7 @@ public final class MainController {
                           .getLiftDictionaryComponents()
                           .getAllNotes()
                           .stream()
-                          .map(LiftNote::getType)
+                          .map(x -> x.getType().getId())
                           .distinct()
                           .sorted()
                           .toList(),
@@ -4711,7 +4712,7 @@ public final class MainController {
                           .getLiftDictionaryComponents()
                           .getAllRelations()
                           .stream()
-                          .map(LiftRelation::getType)
+                          .map(r -> r.getType().getId())
                           .distinct()
                           .sorted()
                           .toList(),
@@ -4906,7 +4907,9 @@ public final class MainController {
                       .stream()
                       .flatMap(e -> e.getEtymologies().stream())
                       .map(LiftEtymology::getType)
-                      .filter(x -> !x.isEmpty())
+                      // TODO null or empty policy
+                      .filter(x -> x != null && !x.getId().isEmpty())
+                      .map(LiftHeaderRangeElement::getId)
                       .distinct()
                       .sorted()
                       .toList();
@@ -5141,7 +5144,7 @@ public final class MainController {
         for (LiftNote n : currentDictionary
             .getLiftDictionaryComponents()
             .getAllNotes()) {
-            String type = n.getType();
+            String type = n.getType().getId();
             String pt = describeParentType(n.getParent());
             String key = type + "|" + pt;
             counts.compute(key, (k, row) -> {
@@ -5196,7 +5199,7 @@ public final class MainController {
             .getLiftDictionaryComponents()
             .getAllRelations()) {
             counts.merge(
-                r.getType().isEmpty() ? I18n.get("placeholder.noType") : r.getType(),
+                r.getType().getId().isEmpty() ? I18n.get("placeholder.noType") : r.getType().getId(),
                 1L,
                 Long::sum
             );
@@ -6165,7 +6168,7 @@ public final class MainController {
                 ),
                 col(I18n.get("cfg.kind"), fd -> fieldDefKindLabel(fd)),
                 col(I18n.get("cfg.fieldDefType"), fd ->
-                    fd.getType().orElse("")
+                    fd.getTypeStr().orElse("")
                 ),
                 col(I18n.get("cfg.targets"), fd -> fd.getFClass().orElse("")),
                 col(I18n.get("cfg.description"), fd ->
@@ -6376,7 +6379,7 @@ public final class MainController {
     private void populateFieldDefEditor(LiftFieldAndTraitDefinition fd) {
         editEntryTitle.setText(fd.getName());
         String kindLabel = fieldDefKindLabel(fd);
-        editEntryCode.setText(kindLabel + " – " + fd.getType().orElse(""));
+        editEntryCode.setText(kindLabel + " – " + fd.getTypeStr().orElse(""));
         editorContainer.getChildren().clear();
         List<String> metaLangs = getMetaLanguages();
 
@@ -6409,7 +6412,7 @@ public final class MainController {
                         "option-collection",
                         "option-sequence"
                     );
-                typeCombo.setValue(fd.getType().orElse(""));
+                typeCombo.setValue(fd.getTypeStr().orElse(""));
                 typeCombo.valueProperty().addListener((obs, o, n) -> {
                     fd.setType(
                         n == null || n.isBlank()
@@ -6434,15 +6437,23 @@ public final class MainController {
                 g.add(classTf, 1, 3);
 
                 g.add(new Label(I18n.get("cfg.optionRange")), 0, 4);
-                TextField orTf = new TextField(fd.getOptionRange().orElse(""));
-                orTf.setPromptText("range id...");
-                orTf.textProperty().addListener((obs, o, n) ->
-                    fd.setOptionRange(
-                        n.isBlank() ? Optional.empty() : Optional.of(n)
-                    )
+                ComboBox<LiftHeaderRange> orCb = new ComboBox<>();
+                orCb.setItems(currentDictionary.getHeader().getRanges());
+                orCb.getSelectionModel().selectedItemProperty().addListener((obs, o, n) ->
+                    fd.setResolvedRange(Optional.of(n))
                 );
-                GridPane.setHgrow(orTf, Priority.ALWAYS);
-                g.add(orTf, 1, 4);
+
+                //TextField orTf = new TextField(fd.getOptionRange().orElse(""));
+                //orTf.setPromptText("range id...");
+                //orTf.textProperty().addListener((obs, o, n) ->
+                //    fd.setOptionRange(
+                //        n.isBlank() ? Optional.empty() : Optional.of(n)
+                //    )
+                //);
+                //GridPane.setHgrow(orTf, Priority.ALWAYS);
+                //g.add(orTf, 1, 4);
+                GridPane.setHgrow(orCb, Priority.ALWAYS);
+                g.add(orCb, 1, 4);
                 return g;
             },
             true
@@ -6483,7 +6494,7 @@ public final class MainController {
         long traitCount = comps
             .getAllTraits()
             .stream()
-            .filter(t -> fd.getName().equals(t.getName()))
+            .filter(t -> fd.getName().equals(t.getDefinition().getName()))
             .count();
         return fieldCount + traitCount;
     }
@@ -6518,7 +6529,7 @@ public final class MainController {
             .stream()
             .filter(
                 t ->
-                    rangeId.equals(t.getName()) &&
+                    rangeId.equals(t.getDefinition().getName()) &&
                     elementId.equals(t.getValue())
             )
             .count();
@@ -6539,7 +6550,7 @@ public final class MainController {
         String oldId,
         String newId
     ) {
-        if (currentDictionary == null) return;
+        //if (currentDictionary == null) return;
         var comps = currentDictionary.getLiftDictionaryComponents();
         LiftHeader header = comps.getHeader();
         if (header != null) {
@@ -6548,11 +6559,12 @@ public final class MainController {
             range.changeElementId(element, newId);
         }
         if ("note-type".equals(rangeId)) {
-            comps
-                .getAllNotes()
-                .stream()
-                .filter(n -> oldId.equals(n.getType()))
-                .forEach(n -> n.setType(newId));
+            currentDictionary.getHeader().getRange(rangeId).changeElementId(oldId, newId);
+            // comps
+            //     .getAllNotes()
+            //     .stream()
+            //     .filter(n -> oldId.equals(n.getType()))
+            //     .forEach(n -> n.setType(newId));
         } else if ("grammatical-info".equals(rangeId)) {
             comps
                 .getAllSenses()
@@ -6570,7 +6582,7 @@ public final class MainController {
                 .stream()
                 .filter(
                     t ->
-                        rangeId.equals(t.getName()) &&
+                        rangeId.equals(t.getDefinition().getName()) &&
                         oldId.equals(t.getValue())
                 )
                 .forEach(t -> t.setValue(newId));
@@ -6591,19 +6603,20 @@ public final class MainController {
         List<String> metaLangs = getMetaLanguages();
         String descLang = metaLangs.isEmpty() ? "en" : metaLangs.get(0);
 
-        ensureRange(
-            factory,
-            header,
-            "note-type",
-            comps
-                .getAllNotes()
-                .stream()
-                .map(LiftNote::getType)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet()),
-            descLang,
-            autoDesc
-        );
+        // ensureRange(
+        //     factory,
+        //     header,
+        //     "note-type",
+        //     comps
+        //         .getAllNotes()
+        //         .stream()
+        //         //.map(LiftNote::getType)
+        //         .map(x -> x.getType().getId())
+        //         .filter(Objects::nonNull)
+        //         .collect(Collectors.toSet()),
+        //     descLang,
+        //     autoDesc
+        // );
 
         ensureRange(
             factory,
@@ -6640,7 +6653,7 @@ public final class MainController {
         Map<String, Set<String>> traitsByName = new HashMap<>();
         for (LiftTrait t : comps.getAllTraits()) {
             traitsByName
-                .computeIfAbsent(t.getName(), k -> new TreeSet<>())
+                .computeIfAbsent(t.getDefinition().getName(), k -> new TreeSet<>())
                 .add(t.getValue());
         }
         for (var entry : traitsByName.entrySet()) {
@@ -6677,7 +6690,7 @@ public final class MainController {
         Set<String> traitNames = comps
             .getAllTraits()
             .stream()
-            .map(LiftTrait::getName)
+            .map(x -> x.getDefinition().getName())
             .collect(Collectors.toSet());
         for (String tn : traitNames) {
             if (!definedFieldDefs.contains(tn)) {
@@ -6914,7 +6927,7 @@ public final class MainController {
             : e
                   .getTraits()
                   .stream()
-                  .filter(t -> name.equals(t.getName()))
+                  .filter(t -> name.equals(t.getDefinition().getName()))
                   .findFirst()
                   .map(LiftTrait::getValue)
                   .orElse("");
@@ -6926,7 +6939,7 @@ public final class MainController {
             : v
                   .getTraits()
                   .stream()
-                  .filter(t -> name.equals(t.getName()))
+                  .filter(t -> name.equals(t.getDefinition().getName()))
                   .findFirst()
                   .map(LiftTrait::getValue)
                   .orElse("");
@@ -7093,7 +7106,7 @@ public final class MainController {
                 .getLiftDictionaryComponents()
                 .getAllTraits()) {
                 result
-                    .computeIfAbsent(t.getName(), k -> new TreeSet<>())
+                    .computeIfAbsent(t.getDefinition().getName(), k -> new TreeSet<>())
                     .add(t.getValue());
             }
         }

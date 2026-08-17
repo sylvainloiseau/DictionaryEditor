@@ -10,6 +10,7 @@
 **/
 package fr.cnrs.lacito.liftgui.ui.controls;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.AbstractNotable;
 import fr.cnrs.lacito.liftapi.model.LiftNote;
 import fr.cnrs.lacito.liftgui.ui.I18n;
@@ -31,9 +32,11 @@ import java.util.List;
 public class NotableEditor extends ExtensibleWithFieldEditor {
 
     private final VBox notesBox = new VBox(6);
+    private LiftDictionary dictionary;
 
-    public NotableEditor() {
+    public NotableEditor(LiftDictionary dictionary) {
         super();
+        this.dictionary = dictionary;
 
         TitledPane notesPane = new TitledPane("Notes", notesBox);
         notesPane.setExpanded(false);
@@ -71,7 +74,7 @@ public class NotableEditor extends ExtensibleWithFieldEditor {
         }
 
         for (LiftNote note : model.getNotes().values()) {
-            NoteEditor ne = new NoteEditor();
+            NoteEditor ne = new NoteEditor(dictionary);
             ne.setNote(note, availableLangs);
             notesBox.getChildren().add(ne);
         }

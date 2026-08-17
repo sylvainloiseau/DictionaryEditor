@@ -9,9 +9,16 @@
 **/
 package fr.cnrs.lacito.liftgui.ui.controls;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftEtymology;
+import fr.cnrs.lacito.liftapi.model.LiftHeaderRangeElement;
+
 import java.util.Collection;
+
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
@@ -26,22 +33,23 @@ import javafx.scene.layout.VBox;
  */
 public final class EtymologyEditor extends VBox {
 
-    private final TextField typeField = new TextField();
+    private final ComboBox<LiftHeaderRangeElement> typeCombo = new ComboBox<>();
     private final TextField sourceField = new TextField();
     private final MultiTextEditor formsEditor = new MultiTextEditor();
     private final MultiTextEditor glossesEditor = new MultiTextEditor();
     private final ExtensibleWithFieldEditor extensibleEditor =
         new ExtensibleWithFieldEditor();
 
-    public EtymologyEditor() {
+    public EtymologyEditor(LiftDictionary dictionary) {
         super(6);
         setPadding(new Insets(4));
         setStyle(
             "-fx-border-color: #abc; -fx-border-radius: 4; -fx-background-color: #f4f8fa; -fx-background-radius: 4;"
         );
 
-        typeField.setEditable(false);
-        typeField.setPromptText("type");
+        typeCombo.setEditable(false);
+        typeCombo.setPromptText("type");
+        typeCombo.setItems(FXCollections.observableArrayList(dictionary.getHeader().getEtymologyTypeManager().typesProperty().get()));
         sourceField.setEditable(false);
         sourceField.setPromptText("source");
 
@@ -49,10 +57,10 @@ public final class EtymologyEditor extends VBox {
         grid.setHgap(8);
         grid.setVgap(6);
         grid.add(new Label("Type"), 0, 0);
-        grid.add(typeField, 1, 0);
+        grid.add(typeCombo, 1, 0);
         grid.add(new Label("Source"), 0, 1);
         grid.add(sourceField, 1, 1);
-        GridPane.setHgrow(typeField, Priority.ALWAYS);
+        GridPane.setHgrow(typeCombo, Priority.ALWAYS);
         GridPane.setHgrow(sourceField, Priority.ALWAYS);
 
         TitledPane formsPane = new TitledPane(
@@ -90,14 +98,15 @@ public final class EtymologyEditor extends VBox {
         Collection<String> metaLangs
     ) {
         if (ety == null) {
-            typeField.setText("");
+            typeCombo.setDisable(true);
             sourceField.setText("");
             formsEditor.setMultiText(null);
             glossesEditor.setMultiText(null);
             extensibleEditor.setModel(null, metaLangs);
             return;
         }
-        typeField.setText(ety.getType());
+        typeCombo.setDisable(false);
+        typeCombo.getSelectionModel().select(ety.getType());
         sourceField.setText(ety.getSource() != null ? ety.getSource() : "");
         formsEditor.setAvailableLanguages(objLangs);
         formsEditor.setMultiText(ety.getForms());
