@@ -11,7 +11,7 @@ package fr.cnrs.lacito.liftgui.ui;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.*;
-import fr.cnrs.lacito.liftapi.xml.LiftXMLFactory;
+import fr.cnrs.lacito.liftapi.xml.LiftXMLFactoryNew;
 import fr.cnrs.lacito.liftgui.core.DictionaryService;
 import fr.cnrs.lacito.liftgui.ui.controls.*;
 import fr.cnrs.lacito.liftgui.undo.*;
@@ -612,7 +612,6 @@ public final class MainController {
         rangesNode.setExpanded(false);
         if (currentDictionary != null) {
             LiftHeader header = currentDictionary
-                .getLiftDictionaryComponents()
                 .getHeader();
             if (header != null) {
                 for (LiftHeaderRange range : header.getRanges()) {
@@ -961,8 +960,8 @@ public final class MainController {
 
         // ── Colonnes Formes par langue ──
         var formLangs = currentDictionary
-            .getLiftDictionaryComponents()
-            .getAllEntries()
+            .getLiftDictionaryRegistry()
+            .getEntries()
             .stream()
             .flatMap(e -> e.getForms().getLangs().stream())
             .filter(s -> s != null && !s.isBlank())
@@ -1025,12 +1024,13 @@ public final class MainController {
                 .ifPresentOrElse(
                     t -> t.setValue(ev.getNewValue()),
                     () -> {
-                        LiftXMLFactory factory = getFactory(currentDictionary);
-                        if (factory != null) factory.createTrait(
-                            Keys.MORPH_TYPE,
-                            ev.getNewValue(),
-                            e
-                        );
+                        currentDictionary.getComponentBuilder().trait(e, Keys.MORPH_TYPE, ev.getNewValue()).build();
+                        //LiftXMLFactory factory = getFactory(currentDictionary);
+                        //if (factory != null) factory.createTrait(
+                        //    Keys.MORPH_TYPE,
+                        //    ev.getNewValue(),
+                        //    e
+                        //);
                     }
                 );
         });
@@ -1128,8 +1128,8 @@ public final class MainController {
             senseSubsetOverride != null
                 ? senseSubsetOverride
                 : currentDictionary
-                      .getLiftDictionaryComponents()
-                      .getAllSenses();
+                      .getLiftDictionaryRegistry()
+                      .getSenses();
         senseTable.getItems().addAll(sensesToShow);
         senseTable
             .getSelectionModel()
@@ -1164,7 +1164,7 @@ public final class MainController {
 
         List<String> objLangs = getObjectLanguages();
         List<String> metaLangs = getMetaLanguages();
-        Set<String> transTypes = currentDictionary.getTranslationType();
+        Set<LiftHeaderRangeElement> transTypes = currentDictionary.getHeader().getTranslationTypeManager().getRangeElements().values().stream().collect(Collectors.toSet());
 
         // 1. Sens parent (multitexte : glose du sens parent)
         TableColumn<LiftExample, String> parentSenseGroup = new TableColumn<>(
@@ -1224,7 +1224,7 @@ public final class MainController {
         exampleTable.getColumns().add(exGroup);
 
         // 4. Traductions : un groupe par type de traduction, sous-colonnes par langue méta
-        for (String transType : transTypes.stream().sorted().toList()) {
+        for (String transType : transTypes.stream().map(LiftHeaderRangeElement::getId).sorted().toList()) {
             TableColumn<LiftExample, String> transGroup = new TableColumn<>(
                 transType.isEmpty() ? I18n.get(Keys.COL_TRANSLATION) : transType
             );
@@ -1246,7 +1246,7 @@ public final class MainController {
         exampleTable
             .getItems()
             .addAll(
-                currentDictionary.getLiftDictionaryComponents().getAllExamples()
+                currentDictionary.getLiftDictionaryRegistry().getExamples()
             );
         exampleTable
             .getSelectionModel()
@@ -1300,7 +1300,7 @@ public final class MainController {
         noteTable
             .getItems()
             .addAll(
-                currentDictionary.getLiftDictionaryComponents().getAllNotes()
+                currentDictionary.getLiftDictionaryRegistry().getNotesReadOnly()
             );
         noteTable
             .getSelectionModel()
@@ -1390,7 +1390,7 @@ public final class MainController {
         variantTable
             .getItems()
             .addAll(
-                currentDictionary.getLiftDictionaryComponents().getAllVariants()
+                currentDictionary.getLiftDictionaryRegistry().getVariantsReadOnly()
             );
         variantTable
             .getSelectionModel()
@@ -1425,8 +1425,8 @@ public final class MainController {
         List<String> objLangs = getObjectLanguages();
         List<String> metaLangs = getMetaLanguages();
         var entryById = currentDictionary
-            .getLiftDictionaryComponents()
-            .getEntryById();
+            .getLiftDictionaryRegistry()
+            .getEntriesById();
         TableColumn<LiftRelation, String> parentFormGroup = new TableColumn<>(
             I18n.get(Keys.COL_PARENT_ENTRY)
         );
@@ -1487,8 +1487,8 @@ public final class MainController {
             .getItems()
             .addAll(
                 currentDictionary
-                    .getLiftDictionaryComponents()
-                    .getAllRelations()
+                    .getLiftDictionaryRegistry()
+                    .getRelationsReadOnly()
             );
         relationTable
             .getSelectionModel()
@@ -1603,8 +1603,8 @@ public final class MainController {
                 );
         etyTable.getColumns().addAll(typeCol, sourceCol, formGroup);
         currentDictionary
-            .getLiftDictionaryComponents()
-            .getAllEntries()
+            .getLiftDictionaryRegistry()
+            .getEntries()
             .stream()
             .flatMap(e -> e.getEtymologies().stream())
             .forEach(etyTable.getItems()::add);
@@ -1659,8 +1659,8 @@ public final class MainController {
         // Collect all multitext entries with parent info
         List<MultiTextField> rows = new ArrayList<>();
         for (LiftEntry entry : currentDictionary
-            .getLiftDictionaryComponents()
-            .getAllEntries()) {
+            .getLiftDictionaryRegistry()
+            .getEntries()) {
             if (objectLangs) {
                 String eid = entry.getId().orElse("?");
                 collectMtRows(
@@ -1934,8 +1934,8 @@ public final class MainController {
 
         Map<String, TraitRow> counts = new LinkedHashMap<>();
         for (LiftTrait t : currentDictionary
-            .getLiftDictionaryComponents()
-            .getAllTraits()) {
+            .getLiftDictionaryRegistry()
+            .getTraitsReadOnly()) {
             String key = t.getDefinition().getName() + "|" + t.getValue();
             counts.compute(key, (k, row) -> {
                 String parentType = describeParentType(t.getParent());
@@ -2011,8 +2011,8 @@ public final class MainController {
         }
 
         List<LiftAnnotation> all = currentDictionary
-            .getLiftDictionaryComponents()
-            .getAllAnnotations();
+            .getLiftDictionaryRegistry()
+            .getAnnotationsReadOnly();
 
         TableColumn<LiftAnnotation, String> annotFreqCol = col(
             I18n.get(Keys.COL_FREQUENCY),
@@ -2098,7 +2098,7 @@ public final class MainController {
         fieldTable
             .getItems()
             .addAll(
-                currentDictionary.getLiftDictionaryComponents().getAllFields()
+                currentDictionary.getLiftDictionaryRegistry().getFieldsReadOnly()
             );
         fieldTable
             .getSelectionModel()
@@ -2159,8 +2159,8 @@ public final class MainController {
             quickEntryTable.getColumns().add(c);
         }
         List<String> knownGramCodes = currentDictionary
-            .getLiftDictionaryComponents()
-            .getAllSenses()
+            .getLiftDictionaryRegistry()
+            .getSenses()
             .stream()
             .map(s ->
                 s
@@ -3129,8 +3129,8 @@ public final class MainController {
     private Optional<LiftEntry> findParentEntry(LiftSense sense) {
         if (currentDictionary == null) return Optional.empty();
         return currentDictionary
-            .getLiftDictionaryComponents()
-            .getAllEntries()
+            .getLiftDictionaryRegistry()
+            .getEntries()
             .stream()
             .filter(e -> containsSense(e.getSenses(), sense))
             .findFirst();
@@ -3149,8 +3149,8 @@ public final class MainController {
     > findParentSenseListAndIndex(LiftSense sense) {
         if (currentDictionary == null) return Optional.empty();
         for (LiftEntry e : currentDictionary
-            .getLiftDictionaryComponents()
-            .getAllEntries()) {
+            .getLiftDictionaryRegistry()
+            .getEntries()) {
             var found = findInList(e.getSenses(), sense);
             if (found != null) return Optional.of(found);
         }
@@ -3271,8 +3271,8 @@ public final class MainController {
     private Optional<LiftSense> findParentSense(LiftExample ex) {
         if (currentDictionary == null) return Optional.empty();
         return currentDictionary
-            .getLiftDictionaryComponents()
-            .getAllSenses()
+            .getLiftDictionaryRegistry()
+            .getSenses()
             .stream()
             .filter(s -> containsExample(s, ex))
             .findFirst();
@@ -3539,8 +3539,8 @@ public final class MainController {
     private void showObjectsWithTrait(String traitName, String traitValue) {
         if (currentDictionary == null) return;
         List<LiftEntry> matches = new ArrayList<>();
-        var comps = currentDictionary.getLiftDictionaryComponents();
-        for (LiftEntry e : comps.getAllEntries()) {
+        var comps = currentDictionary.getLiftDictionaryRegistry();
+        for (LiftEntry e : comps.getEntries()) {
             if (
                 e
                     .getTraits()
@@ -3617,8 +3617,8 @@ public final class MainController {
         if (currentDictionary == null) return;
         List<LiftEntry> matches = new ArrayList<>();
         for (LiftNote n : currentDictionary
-            .getLiftDictionaryComponents()
-            .getAllNotes()) {
+            .getLiftDictionaryRegistry()
+            .getNotesReadOnly()) {
             if (!noteType.equals(n.getType())) continue;
             AbstractNotable parent = n.getParent();
             if (parent instanceof LiftEntry e) matches.add(e);
@@ -3756,8 +3756,8 @@ public final class MainController {
     private void showObjectsWithFieldType(String fieldType) {
         if (currentDictionary == null) return;
         List<LiftEntry> matches = currentDictionary
-            .getLiftDictionaryComponents()
-            .getAllFields()
+            .getLiftDictionaryRegistry()
+            .getFieldsReadOnly()
             .stream()
             .filter(f -> fieldType.equals(f.getName()))
             .map(LiftField::getParent)
@@ -3817,8 +3817,8 @@ public final class MainController {
     private void showObjectsWithGramInfo(String gramInfoValue) {
         if (currentDictionary == null) return;
         List<LiftSense> matches = currentDictionary
-            .getLiftDictionaryComponents()
-            .getAllSenses()
+            .getLiftDictionaryRegistry()
+            .getSenses()
             .stream()
             .filter(s ->
                 s
@@ -3840,8 +3840,8 @@ public final class MainController {
     private void showObjectsWithTranslationType(String transType) {
         if (currentDictionary == null) return;
         List<LiftEntry> matches = currentDictionary
-            .getLiftDictionaryComponents()
-            .getAllExamples()
+            .getLiftDictionaryRegistry()
+            .getExamples()
             .stream()
             .filter(ex -> ex.getTranslations().containsKey(transType))
             .map(this::findParentSense)
@@ -3858,8 +3858,8 @@ public final class MainController {
     private void showObjectsWithRelationType(String relationType) {
         if (currentDictionary == null) return;
         List<LiftEntry> matches = currentDictionary
-            .getLiftDictionaryComponents()
-            .getAllRelations()
+            .getLiftDictionaryRegistry()
+            .getRelationsReadOnly()
             .stream()
             .filter(r -> relationType.equals(r.getType()))
             .map(LiftRelation::getParent)
@@ -4335,7 +4335,7 @@ public final class MainController {
         ensureHeaderComplete();
         rebuildHeaderCfgChildren();
         baseEntries.addAll(
-            dictionary.getLiftDictionaryComponents().getAllEntries()
+            dictionary.getLiftDictionaryRegistry()().getEntries()
         );
         configureEntryTableColumns();
         if (currentView.equals(NAV_ENTRIES)) {
@@ -4602,8 +4602,8 @@ public final class MainController {
                 currentDictionary == null
                     ? List.of()
                     : currentDictionary
-                          .getLiftDictionaryComponents()
-                          .getAllNotes()
+                          .getLiftDictionaryRegistry()
+                          .getNotesReadOnly()
                           .stream()
                           .map(x -> x.getType().getId())
                           .distinct()
@@ -4613,8 +4613,8 @@ public final class MainController {
                 currentDictionary == null
                     ? 0L
                     : currentDictionary
-                          .getLiftDictionaryComponents()
-                          .getAllNotes()
+                          .getLiftDictionaryRegistry()
+                          .getNotesReadOnly()
                           .stream()
                           .filter(n -> val.equals(n.getType()))
                           .count()
@@ -5778,7 +5778,7 @@ public final class MainController {
                 String parentSel = parentCombo.getValue();
                 if (
                     parentSel != null && !parentSel.isBlank()
-                ) newElem.setParentId(parentSel);
+                ) newElem.setParentElement(parentSel);
                 if (!metaLangs.isEmpty()) newElem
                     .getDescription()
                     .add(new Form(metaLangs.get(0), I18n.get("cfg.autoAdded")));
@@ -6170,7 +6170,7 @@ public final class MainController {
                 col(I18n.get("cfg.fieldDefType"), fd ->
                     fd.getTypeStr().orElse("")
                 ),
-                col(I18n.get("cfg.targets"), fd -> fd.getFClass().orElse("")),
+                col(I18n.get("cfg.targets"), fd -> fd.getTargetAsString()),
                 col(I18n.get("cfg.description"), fd ->
                     fd
                         .getDescription()
@@ -6424,14 +6424,14 @@ public final class MainController {
                 g.add(typeCombo, 1, 2);
 
                 g.add(new Label(I18n.get("cfg.targets")), 0, 3);
-                TextField classTf = new TextField(fd.getFClass().orElse(""));
+                TextField classTf = new TextField(fd.getTargetAsString());
                 classTf.setPromptText("entry sense variant ...");
                 classTf
                     .textProperty()
                     .addListener((obs, o, n) ->
-                        fd.setFClass(
-                            n.isBlank() ? Optional.empty() : Optional.of(n)
-                        )
+                        if (!n.isBlank()) {
+                           fd.setTargets(n);
+                        }
                     );
                 GridPane.setHgrow(classTf, Priority.ALWAYS);
                 g.add(classTf, 1, 3);
