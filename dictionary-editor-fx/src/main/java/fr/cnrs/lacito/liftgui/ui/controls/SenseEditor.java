@@ -75,7 +75,8 @@ public final class SenseEditor extends VBox {
                     newVal != null &&
                     !newVal.equals(oldVal)
                 ) {
-                    currentSense.setGrammaticalInfo(newVal.trim());
+                    LiftHeaderRangeElement grammaticalInfoRangeElement = dictionary.getHeader().getGrammaticalInfoManager().getRangeElement(newVal.trim());
+                    currentSense.setGrammaticalInfo(grammaticalInfoRangeElement);
                     if (onGramInfoChanged != null) onGramInfoChanged.run();
                 }
             });

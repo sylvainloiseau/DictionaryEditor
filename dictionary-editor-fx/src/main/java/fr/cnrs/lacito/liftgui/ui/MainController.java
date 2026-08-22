@@ -10,6 +10,8 @@
 package fr.cnrs.lacito.liftgui.ui;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
+import fr.cnrs.lacito.liftapi.builder.EntryBuilder;
+import fr.cnrs.lacito.liftapi.builder.SenseBuilder;
 import fr.cnrs.lacito.liftapi.model.*;
 import fr.cnrs.lacito.liftapi.xml.LiftXMLFactoryNew;
 import fr.cnrs.lacito.liftgui.core.DictionaryService;
@@ -1062,8 +1064,8 @@ public final class MainController {
             return;
         }
 
-        List<String> objLangs = getObjectLanguages();
-        List<String> metaLangs = getMetaLanguages();
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
 
         // Colonne "Entrée parente" : forme(s) de l'entrée dont c'est le sens
         TableColumn<LiftSense, String> parentEntryGroup = new TableColumn<>(
@@ -1162,8 +1164,8 @@ public final class MainController {
             return;
         }
 
-        List<String> objLangs = getObjectLanguages();
-        List<String> metaLangs = getMetaLanguages();
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
         Set<LiftHeaderRangeElement> transTypes = currentDictionary.getHeader().getTranslationTypeManager().getRangeElements().values().stream().collect(Collectors.toSet());
 
         // 1. Sens parent (multitexte : glose du sens parent)
@@ -1277,7 +1279,7 @@ public final class MainController {
             tableContainer.getChildren().setAll(noteTable);
             return;
         }
-        List<String> metaLangs = getMetaLanguages();
+        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
         TableColumn<LiftNote, String> parentTypeCol = col(
             I18n.get(Keys.COL_PARENT_TYPE),
             n -> describeParentType(n.getParent())
@@ -1332,7 +1334,7 @@ public final class MainController {
             tableContainer.getChildren().setAll(variantTable);
             return;
         }
-        List<String> objLangs = getObjectLanguages();
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
         TableColumn<LiftVariant, String> parentFormGroup = new TableColumn<>(
             I18n.get(Keys.COL_PARENT_ENTRY)
         );
@@ -1422,8 +1424,8 @@ public final class MainController {
             tableContainer.getChildren().setAll(relationTable);
             return;
         }
-        List<String> objLangs = getObjectLanguages();
-        List<String> metaLangs = getMetaLanguages();
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
         var entryById = currentDictionary
             .getLiftDictionaryRegistry()
             .getEntriesById();
@@ -1512,7 +1514,7 @@ public final class MainController {
     }
 
     private void populateRelationEditor(LiftRelation relation) {
-        List<String> metaLangs = getMetaLanguages();
+        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
         editEntryTitle.setText(
             I18n.get("nav.relations") +
                 " : " +
@@ -1577,7 +1579,7 @@ public final class MainController {
             tableContainer.getChildren().setAll(etyTable);
             return;
         }
-        List<String> objLangs = getObjectLanguages();
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
         TableColumn<LiftEtymology, String> typeCol = col(
             I18n.get(Keys.COL_TYPE),
             (LiftEtymology e) -> e.getType().getId()
@@ -1616,8 +1618,8 @@ public final class MainController {
                     EtymologyEditor ee = new EtymologyEditor(currentDictionary);
                     ee.setEtymology(
                         n,
-                        getObjectLanguages(),
-                        getMetaLanguages()
+                        currentDictionary.getObjectLanguageManager().getLanguages(),
+                        currentDictionary.getMetaLanguageManager().getLanguages()
                     );
                     editEntryTitle.setText(
                         // TODO null for type?
@@ -1652,9 +1654,9 @@ public final class MainController {
             return;
         }
 
-        List<String> langs = objectLangs
-            ? getObjectLanguages()
-            : getMetaLanguages();
+        Set<String> langs = objectLangs
+            ? currentDictionary.getObjectLanguageManager().getLanguages()
+            : currentDictionary.getMetaLanguageManager().getLanguages();
 
         // Collect all multitext entries with parent info
         List<MultiTextField> rows = new ArrayList<>();
@@ -2084,7 +2086,7 @@ public final class MainController {
                 col(I18n.get(Keys.COL_PARENT_TYPE), f ->
                     describeParentType(f.getParent())
                 ),
-                col(I18n.get(Keys.COL_TYPE), LiftField::getName),
+                col(I18n.get(Keys.COL_TYPE), x -> x.getName().getName()),
                 col(I18n.get(Keys.COL_TEXT), f ->
                     f
                         .getText()
@@ -2131,8 +2133,8 @@ public final class MainController {
             return;
         }
         quickEntryTable.setEditable(true);
-        List<String> objLangs = getObjectLanguages();
-        List<String> metaLangs = getMetaLanguages();
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
 
         for (String l : objLangs) {
             TableColumn<QuickEntryRow, String> c = new TableColumn<>(
@@ -2220,7 +2222,6 @@ public final class MainController {
             .add(new QuickEntryRow());
 
         // Auto-create entry when user leaves a filled row (selection changes away from it)
-        LiftXMLFactory factory = getFactory(currentDictionary);
         quickEntryTable
             .getSelectionModel()
             .selectedIndexProperty()
@@ -2230,50 +2231,71 @@ public final class MainController {
                     prev < 0 || prev >= quickEntryTable.getItems().size()
                 ) return;
                 QuickEntryRow row = quickEntryTable.getItems().get(prev);
-                boolean hasContent =
-                    objLangs
-                        .stream()
-                        .anyMatch(l -> !row.formProperty(l).get().isBlank()) ||
-                    metaLangs
-                        .stream()
-                        .anyMatch(l -> !row.glossProperty(l).get().isBlank());
-                if (!hasContent || factory == null) return;
+
+                List<String> filedObjLangs = objLangs
+                    .stream()
+                    .filter(l -> !row.formProperty(l).get().isBlank())
+                    .collect(Collectors.toList());
+
+                if (filedObjLangs.isEmpty() || currentDictionary == null) return;
+
+                List<String> filedMetaLangs = metaLangs
+                    .stream()
+                    .filter(l -> !row.glossProperty(l).get().isBlank())
+                    .collect(Collectors.toList());
 
                 // Check if entry was already auto-created for this row
                 if (Boolean.TRUE.equals(row.createdProperty().get())) return;
                 row.createdProperty().set(true);
 
-                org.xml.sax.helpers.AttributesImpl attrs =
-                    new org.xml.sax.helpers.AttributesImpl();
-                attrs.addAttribute(
-                    "",
-                    "id",
-                    "id",
-                    "CDATA",
-                    UUID.randomUUID().toString()
-                );
-                LiftEntry entry = factory.createEntry(attrs);
-                for (String l : objLangs) {
-                    String v = row.formProperty(l).get();
-                    if (!v.isBlank()) entry.getForms().add(new Form(l, v));
+                EntryBuilder eb = currentDictionary.getComponentBuilder().entry();
+                for (String filedObjLang : filedObjLangs) {
+                    String v = row.formProperty(filedObjLang).get();
+                    if (!v.isBlank()) eb.withForm(filedObjLang, v);
                 }
-                org.xml.sax.helpers.AttributesImpl senseAttrs =
-                    new org.xml.sax.helpers.AttributesImpl();
-                senseAttrs.addAttribute(
-                    "",
-                    "id",
-                    "id",
-                    "CDATA",
-                    UUID.randomUUID().toString()
-                );
-                LiftSense sense = factory.createSense(senseAttrs, entry);
-                for (String l : metaLangs) {
-                    String v = row.glossProperty(l).get();
-                    if (!v.isBlank()) sense.addGloss(new Form(l, v));
+                LiftEntry e = eb.build();
+
+                for (String filedMetaLang : filedMetaLangs) {
+                    String v = row.glossProperty(filedMetaLang).get();
+                    if (!v.isBlank()) {
+                        SenseBuilder sb = currentDictionary.getComponentBuilder().sense(e);
+                        sb.withGloss(filedMetaLang, v);
+                        String gi = row.gramInfoProperty().get();
+                        if (!gi.isBlank()) sb.withPartOfSpeech(gi);
+                        sb.build();
+                    }
                 }
-                String gi = row.gramInfoProperty().get();
-                if (!gi.isBlank()) sense.setGrammaticalInfo(gi);
-                baseEntries.add(entry);
+
+                // org.xml.sax.helpers.AttributesImpl attrs =
+                //     new org.xml.sax.helpers.AttributesImpl();
+                // attrs.addAttribute(
+                //     "",
+                //     "id",
+                //     "id",
+                //     "CDATA",
+                //     UUID.randomUUID().toString()
+                // );
+                // LiftEntry entry = currentDictionary.getComponentBuilder().entry(attrs);
+                // for (String l : objLangs) {
+                //     String v = row.formProperty(l).get();
+                //     if (!v.isBlank()) entry.getForms().add(new Form(l, v));
+                // }
+                // org.xml.sax.helpers.AttributesImpl senseAttrs =
+                //     new org.xml.sax.helpers.AttributesImpl();
+                // senseAttrs.addAttribute(
+                //     "",
+                //     "id",
+                //     "id",
+                //     "CDATA",
+                //     UUID.randomUUID().toString()
+                // );
+                // LiftSense sense = factory.createSense(senseAttrs, entry);
+                // for (String l : metaLangs) {
+                //     String v = row.glossProperty(l).get();
+                //     if (!v.isBlank()) sense.addGloss(new Form(l, v));
+                // }
+                // + add grammatical info if present
+                baseEntries.add(e);
                 updateCountLabel(baseEntries.size(), baseEntries.size());
 
                 // Ensure there's always an empty row at the end
@@ -2337,7 +2359,7 @@ public final class MainController {
             );
             return;
         }
-        LiftXMLFactory factory = getFactory(currentDictionary);
+        LiftXMLFactoryNew factory = getFactory(currentDictionary);
         if (factory == null) return;
 
         switch (currentView) {
@@ -2365,9 +2387,12 @@ public final class MainController {
         applyCurrentFilter();
     }
 
+    private void createEntriesFromQuickTableRow(QuickEntryRow row) {
+    }
+
     private void createEntriesFromQuickTable(LiftXMLFactory factory) {
-        List<String> objLangs = getObjectLanguages();
-        List<String> metaLangs = getMetaLanguages();
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
         int created = 0;
         for (QuickEntryRow row : quickEntryTable.getItems()) {
             boolean hasContent =
@@ -2427,8 +2452,8 @@ public final class MainController {
 
     private void populateEntryEditor(LiftEntry entry) {
         try {
-            List<String> objLangs = getObjectLanguages();
-            List<String> metaLangs = getMetaLanguages();
+            Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+            Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
 
             // Collect known dropdown values filtered by element type (entry)
             List<String> traitNames = getKnownTraitNamesFor(
@@ -2923,8 +2948,8 @@ public final class MainController {
     }
 
     private void populateSenseEditor(LiftSense sense) {
-        List<String> metaLangs = getMetaLanguages();
-        List<String> objLangs = getObjectLanguages();
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
         editEntryTitle.setText(senseDisplayText(sense));
         editEntryCode.setText(
             sense.getGrammaticalInfo().map(GrammaticalInfo::getValue).orElse("")
@@ -3254,8 +3279,8 @@ public final class MainController {
                 : null;
         ee.setExample(
             ex,
-            getObjectLanguages(),
-            getMetaLanguages(),
+            currentDictionary.getObjectLanguageManager().getLanguages(),
+            currentDictionary.getMetaLanguageManager().getLanguages(),
             onAddAnnotation,
             getKnownAnnotationNames(),
             factory != null ? createExampleAddActions(ex) : null
@@ -3399,7 +3424,7 @@ public final class MainController {
             filterPane.getChildren().isEmpty()
         ) return;
 
-        List<String> objLangs = getObjectLanguages();
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
         String filterValue = null;
         for (String lang : objLangs) {
             String form = entry
@@ -3486,9 +3511,9 @@ public final class MainController {
         if (row.multiText() != null) {
             editorContainer.getChildren().add(g);
             MultiTextEditor mte = new MultiTextEditor();
-            List<String> availLangs = NAV_OBJ_LANGS.equals(currentView)
-                ? getObjectLanguages()
-                : getMetaLanguages();
+            Set<String> availLangs = NAV_OBJ_LANGS.equals(currentView)
+                ? currentDictionary.getObjectLanguageManager().getLanguages()
+                : currentDictionary.getMetaLanguageManager().getLanguages();
             mte.setAvailableLanguages(
                 availLangs.isEmpty() ? List.of(row.lang()) : availLangs
             );
@@ -3940,7 +3965,7 @@ public final class MainController {
             }
         }
         NoteEditor ne = new NoteEditor(currentDictionary);
-        ne.setNote(note, getMetaLanguages());
+        ne.setNote(note, new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages()));
         editorContainer.getChildren().add(ne);
     }
 
@@ -3976,8 +4001,8 @@ public final class MainController {
         );
         ve.setVariant(
             v,
-            getObjectLanguages(),
-            getMetaLanguages(),
+            currentDictionary.getObjectLanguageManager().getLanguages(),
+            currentDictionary.getMetaLanguageManager().getLanguages(),
             getFactory(currentDictionary) != null
                 ? createVariantAddActions(v)
                 : null
@@ -4480,7 +4505,7 @@ public final class MainController {
                 UUID.randomUUID().toString()
             );
             LiftEntry entry = factory.createEntry(attrs);
-            List<String> objLangs = getObjectLanguages();
+            Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
             if (!objLangs.isEmpty()) entry
                 .getForms()
                 .add(new Form(objLangs.get(0), text.trim()));
@@ -4736,8 +4761,8 @@ public final class MainController {
             return;
         }
         var ldc = currentDictionary.getLiftDictionaryComponents();
-        List<String> objLangs = new ArrayList<>(getObjectLanguages());
-        List<String> metaLangs = new ArrayList<>(getMetaLanguages());
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
 
         VBox box = new VBox(10);
         box.setPadding(new Insets(12));
@@ -4968,8 +4993,8 @@ public final class MainController {
                 c.getAllEntries().size(),
                 c.getAllSenses().size(),
                 c.getAllExamples().size(),
-                String.join(", ", getObjectLanguages()),
-                String.join(", ", getMetaLanguages())
+                String.join(", ", currentDictionary.getObjectLanguageManager().getLanguages()),
+                String.join(", ", currentDictionary.getMetaLanguageManager().getLanguages())
             )
         );
     }
@@ -5734,7 +5759,7 @@ public final class MainController {
                   .range(rangeId, header)
                   .build();
 
-        List<String> metaLangs = getMetaLanguages();
+        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
 
         // ── Top: Range properties (description, label, abbrev) ─────────────
         TitledPane rangePropsPane = new TitledPane(
@@ -5929,7 +5954,7 @@ public final class MainController {
                 .setAll(new Label(I18n.get("cfg.noHeader")));
             return;
         }
-        List<String> metaLangs = getMetaLanguages();
+        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
         VBox box = new VBox(10);
         box.setPadding(new Insets(12));
         Label title = new Label(I18n.get("nav.cfgDesc"));
@@ -6301,7 +6326,7 @@ public final class MainController {
             if (typeVal != null && !typeVal.isBlank()) fd.setType(
                 Optional.of(typeVal)
             );
-            List<String> metaLangs = getMetaLanguages();
+            List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
             if (!metaLangs.isEmpty()) fd.getDescription().add(
                 new Form(metaLangs.get(0), I18n.get("cfg.autoAdded"))
             );
@@ -6339,7 +6364,7 @@ public final class MainController {
         );
         editEntryCode.setText(range.getId());
         editorContainer.getChildren().clear();
-        List<String> metaLangs = getMetaLanguages();
+        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
 
         addSection(
             editorContainer,
@@ -6381,7 +6406,7 @@ public final class MainController {
         String kindLabel = fieldDefKindLabel(fd);
         editEntryCode.setText(kindLabel + " – " + fd.getTypeStr().orElse(""));
         editorContainer.getChildren().clear();
-        List<String> metaLangs = getMetaLanguages();
+        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
 
         addSection(
             editorContainer,
@@ -6600,7 +6625,7 @@ public final class MainController {
         if (header == null) header = factory.createHeader();
 
         String autoDesc = I18n.get("cfg.autoAdded");
-        List<String> metaLangs = getMetaLanguages();
+        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
         String descLang = metaLangs.isEmpty() ? "en" : metaLangs.get(0);
 
         // ensureRange(
@@ -6998,28 +7023,6 @@ public final class MainController {
         if (parent instanceof LiftEtymology) return I18n.get("nav.etymologies");
         if (parent instanceof GrammaticalInfo) return I18n.get("nav.gramInfo");
         return parent.getClass().getSimpleName();
-    }
-
-    private List<String> getObjectLanguages() {
-        return currentDictionary == null
-            ? List.of()
-            : currentDictionary
-                  .getObjectLanguagesOfAllText()
-                  .stream()
-                  .filter(s -> s != null && !s.isBlank())
-                  .sorted()
-                  .toList();
-    }
-
-    private List<String> getMetaLanguages() {
-        return currentDictionary == null
-            ? List.of()
-            : currentDictionary
-                  .getMetaLanguagesOfAllText()
-                  .stream()
-                  .filter(s -> s != null && !s.isBlank())
-                  .sorted()
-                  .toList();
     }
 
     /* ─── Known dropdown values from header ranges ─── */
@@ -7709,7 +7712,7 @@ public final class MainController {
                 .stream()
                 .map(LiftHeaderRangeElement::getId)
                 .collect(Collectors.toSet());
-            List<String> metaLangs = getMetaLanguages();
+            List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
             String descLang = metaLangs.isEmpty() ? "en" : metaLangs.get(0);
 
             for (ConfigRow row : rows) {
@@ -7800,9 +7803,9 @@ public final class MainController {
         }
     }
 
-    private static LiftXMLFactory getFactory(LiftDictionary d) {
+    private static LiftXMLFactoryNew getFactory(LiftDictionary d) {
         return d != null &&
-            d.getLiftDictionaryComponents() instanceof LiftXMLFactory lf
+            d.getLiftDictionaryComponents() instanceof LiftXMLFactoryNew lf
             ? lf
             : null;
     }

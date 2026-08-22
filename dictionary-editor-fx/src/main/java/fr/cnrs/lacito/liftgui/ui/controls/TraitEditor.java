@@ -13,7 +13,7 @@ import fr.cnrs.lacito.liftapi.model.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.*;
-import java.util.StringJoiner;
+
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
@@ -336,9 +336,9 @@ public final class TraitEditor extends VBox {
         }
         for (LiftHeaderRangeElement re : range.getRangeElements().values()) {
             TreeItem<LiftHeaderRangeElement> item = itemMap.get(re.getId());
-            String pid = re.getParentId().orElse(null);
-            if (pid != null && itemMap.containsKey(pid)) itemMap
-                .get(pid)
+            LiftHeaderRangeElement pid = re.getParentId().orElse(null);
+            if (pid != null && itemMap.containsKey(pid.getId())) itemMap
+                .get(pid.getId())
                 .getChildren()
                 .add(item);
             else root.getChildren().add(item);

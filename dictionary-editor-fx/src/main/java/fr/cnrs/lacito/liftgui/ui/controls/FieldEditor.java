@@ -90,9 +90,9 @@ public final class FieldEditor extends VBox {
         }
         nameCombo.setItems(FXCollections.observableArrayList(
             fieldTypes instanceof List ? (List<String>) fieldTypes : new ArrayList<>(fieldTypes)));
-        nameCombo.setValue(f.getName());
+        nameCombo.setValue(f.getName().getName());
         this.knownFieldTypes = new ArrayList<>(fieldTypes);
-        validateFieldType(f.getName());
+        validateFieldType(f.getName().getName());
         textEditor.setAvailableLanguages(availableLangs);
         textEditor.setMultiText(f.getText());
         extensibleEditor.setModel(f, availableLangs);

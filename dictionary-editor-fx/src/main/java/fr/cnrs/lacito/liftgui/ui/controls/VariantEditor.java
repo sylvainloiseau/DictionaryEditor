@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Editor for a single {@link LiftVariant}.
@@ -131,7 +132,7 @@ public final class VariantEditor extends VBox {
         setVariant(v, objLangs, metaLangs, null);
     }
 
-    public void setVariant(LiftVariant v, Collection<String> objLangs, Collection<String> metaLangs, ExtensibleAddActions addActions) {
+    public void setVariant(LiftVariant v, Set<String> objLangs, Set<String> metaLangs, ExtensibleAddActions addActions) {
         pronunciationsBox.getChildren().clear();
         relationsBox.getChildren().clear();
         currentVariant = v;

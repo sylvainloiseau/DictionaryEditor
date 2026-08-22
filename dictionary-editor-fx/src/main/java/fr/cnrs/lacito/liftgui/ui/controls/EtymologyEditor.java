@@ -14,6 +14,7 @@ import fr.cnrs.lacito.liftapi.model.LiftEtymology;
 import fr.cnrs.lacito.liftapi.model.LiftHeaderRangeElement;
 
 import java.util.Collection;
+import java.util.Set;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -94,8 +95,8 @@ public final class EtymologyEditor extends VBox {
      */
     public void setEtymology(
         LiftEtymology ety,
-        Collection<String> objLangs,
-        Collection<String> metaLangs
+        Set<String> objLangs,
+        Set<String> metaLangs
     ) {
         if (ety == null) {
             typeCombo.setDisable(true);

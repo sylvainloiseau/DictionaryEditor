@@ -12,6 +12,7 @@ package fr.cnrs.lacito.liftgui.ui.controls;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftExample;
+import fr.cnrs.lacito.liftapi.model.LiftHeaderRangeElement;
 import fr.cnrs.lacito.liftapi.model.MultiText;
 import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
@@ -25,6 +26,7 @@ import javafx.scene.layout.VBox;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 /**
@@ -95,7 +97,7 @@ public final class ExampleEditor extends VBox {
     /**
      * Same with optional add actions for trait/annotation/field/note at example level.
      */
-    public void setExample(LiftExample ex, Collection<String> objLangs, Collection<String> metaLangs,
+    public void setExample(LiftExample ex, Set<String> objLangs, Set<String> metaLangs,
             BiConsumer<String, MultiText> onAddAnnotation, Collection<String> knownAnnotationNames,
             ExtensibleAddActions addActions) {
         translationsBox.getChildren().clear();
@@ -121,8 +123,8 @@ public final class ExampleEditor extends VBox {
         }
 
         // Translations: one MultiTextEditor per translation type — meta-languages
-        for (Map.Entry<String, MultiText> kv : ex.getTranslations().entrySet()) {
-            String type = kv.getKey();
+        for (Map.Entry<LiftHeaderRangeElement, MultiText> kv : ex.getTranslations().entrySet()) {
+            String type = kv.getKey().getId();
             MultiText mt = kv.getValue();
 
             String label = type.isBlank() ? "Traduction (par défaut)" : "Traduction [" + type + "]";
