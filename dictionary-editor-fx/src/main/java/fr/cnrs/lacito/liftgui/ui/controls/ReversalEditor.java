@@ -16,7 +16,6 @@ import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
-import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
@@ -33,12 +32,13 @@ public final class ReversalEditor extends VBox {
 
     private final ComboBox<LiftHeaderRangeElement> typeCombo = new ComboBox<>();
     //private final TextField typeField = new TextField();
-    private final MultiTextEditor formsEditor = new MultiTextEditor();
+    private final MultiTextEditor formsEditor;
     private final VBox mainBox = new VBox(6);
     private LiftDictionary dictionary;
 
     public ReversalEditor(LiftDictionary dictionary) {
         this.dictionary = dictionary;
+        this.formsEditor = new MultiTextEditor(dictionary);
         super(6);
         setPadding(new Insets(4));
         setStyle("-fx-border-color: #b9c; -fx-border-radius: 4; -fx-background-color: #f8f4fa; -fx-background-radius: 4;");
@@ -77,7 +77,7 @@ public final class ReversalEditor extends VBox {
         typeCombo.setValue(rev.getType());
         typeCombo.getSelectionModel().select(rev.getType());
         typeCombo.setDisable(false);
-        formsEditor.setAvailableLanguages(langs);
+        // formsEditor.setAvailableLanguages(langs);
         formsEditor.setMultiText(rev.getForms());
 
         if (rev.getMain() != null) {

@@ -11,14 +11,9 @@ package fr.cnrs.lacito.liftgui.ui.controls;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.AbstractIdentifiable;
-import fr.cnrs.lacito.liftapi.model.LiftEntry;
 import fr.cnrs.lacito.liftapi.model.LiftHeaderRangeElement;
 import fr.cnrs.lacito.liftapi.model.LiftRelation;
-import fr.cnrs.lacito.liftapi.model.LiftSense;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.TreeSet;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -42,14 +37,15 @@ public final class RelationEditor extends VBox {
     private final TextField orderField = new TextField();
     private ChangeListener<String> refIdListener;
     private ChangeListener<String> orderListener;
-    private final MultiTextEditor usageEditor = new MultiTextEditor();
-    private final ExtensibleWithFieldEditor extensibleEditor =
-        new ExtensibleWithFieldEditor();
+    private final MultiTextEditor usageEditor;
+    private final ExtensibleWithFieldEditor extensibleEditor;
     private LiftDictionary dictionary;
 
     public RelationEditor(LiftDictionary dictionary) {
-        this.dictionary = dictionary;
         super(6);
+        this.dictionary = dictionary;
+        this.usageEditor = new MultiTextEditor(dictionary);
+        this.extensibleEditor = new ExtensibleWithFieldEditor(dictionary);
         setPadding(new Insets(4));
         setStyle(
             "-fx-border-color: #bca; -fx-border-radius: 4; -fx-background-color: #f8faf4; -fx-background-radius: 4;"
@@ -94,17 +90,11 @@ public final class RelationEditor extends VBox {
 
     private ChangeListener<LiftHeaderRangeElement> typeListener;
 
-    public void setRelation(LiftRelation rel, Collection<String> langs) {
-        setRelation(rel, langs, List.of());
-    }
-
     /**
      * @param relationTypes allowed types from header range {@code lexical-relation} (non-editable combo only).
      */
     public void setRelation(
-        LiftRelation rel,
-        Collection<String> langs,
-        List<String> relationTypes
+        LiftRelation rel
     ) {
         if (typeListener != null) {
             typeCombo.valueProperty().removeListener(typeListener);
@@ -125,7 +115,7 @@ public final class RelationEditor extends VBox {
             refIdListener = null;
             orderListener = null;
             usageEditor.setMultiText(null);
-            extensibleEditor.setModel(null, langs);
+            extensibleEditor.setModel(null);
             return;
         }
         // TreeSet<String> items = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
@@ -165,8 +155,8 @@ public final class RelationEditor extends VBox {
         };
         refIdField.textProperty().addListener(refIdListener);
         orderField.textProperty().addListener(orderListener);
-        usageEditor.setAvailableLanguages(langs);
+        // usageEditor.setAvailableLanguages(langs);
         usageEditor.setMultiText(rel.getUsage());
-        extensibleEditor.setModel(rel, langs);
+        extensibleEditor.setModel(rel);
     }
 }

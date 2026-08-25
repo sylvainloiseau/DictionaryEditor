@@ -9,6 +9,7 @@
 **/
 package fr.cnrs.lacito.liftgui.ui.controls;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -26,7 +27,7 @@ import javafx.scene.layout.VBox;
 /**
  * Editor for a single {@link LiftTrait}.
  * <p>
- * The value widget adapts to the {@link LiftFieldAndTraitDefinitionType} of the associated
+ * The value widget adapts to the {@link LiftFieldAndTraitDefinitionDataModel} of the associated
  * {@link LiftFieldAndTraitDefinition}:
  * <ul>
  *   <li>{@code datetime} → {@link DatePicker}</li>
@@ -43,9 +44,11 @@ public final class TraitEditor extends VBox {
     private final VBox annotationsBox = new VBox(6);
 
     private LiftTrait trait;
+    private final LiftDictionary dictionary;
 
-    public TraitEditor() {
+    public TraitEditor(LiftDictionary dictionary) {
         super(6);
+        this.dictionary = dictionary;
         setPadding(new Insets(4));
         setStyle(
             "-fx-border-color: #cde; -fx-border-radius: 4; -fx-background-color: #f5f8fc; -fx-background-radius: 4;"
@@ -115,13 +118,17 @@ public final class TraitEditor extends VBox {
      */
     public void setTrait(
         LiftTrait t,
-        Collection<String> availableLangs,
-        Collection<String> traitNames,
-        Map<String, Set<String>> valuesForName,
-        Optional<LiftFieldAndTraitDefinition> definition
+        LiftFieldAndTraitDefinitionTarget target
+        //Collection<String> traitNames,
+        // Map<String, Set<String>> valuesForName
+        // Optional<LiftFieldAndTraitDefinition> definition
     ) {
         this.trait = t;
-        if (t == null) {
+        Collection<String> availableLangs = dictionary.getObjectLanguageManager().getLanguages();
+        Collection<String> traitNames = dictionary.getHeader().getFieldsAndTraitsDefinitionsFor(target).stream().map(Object::toString).toList();
+        LiftFieldAndTraitDefinition definition = t.getDefinition();
+
+        if (trait == null) {
             nameCombo.getItems().clear();
             valueBox.getChildren().clear();
             annotationsBox.getChildren().clear();
@@ -140,13 +147,13 @@ public final class TraitEditor extends VBox {
         validateTraitName(t.getDefinition().getName());
         valueBox
             .getChildren()
-            .setAll(buildValueWidget(t, definition, valuesForName));
+            .setAll(buildValueWidget(t));
 
         annotationsBox.getChildren().clear();
         List<LiftAnnotation> annos = t.getAnnotations();
         if (annos != null) {
             for (LiftAnnotation a : annos) {
-                AnnotationEditor ae = new AnnotationEditor();
+                AnnotationEditor ae = new AnnotationEditor(dictionary);
                 ae.setAnnotation(a, availableLangs, Set.of());
                 annotationsBox.getChildren().add(ae);
             }
@@ -154,30 +161,25 @@ public final class TraitEditor extends VBox {
     }
 
     private Node buildValueWidget(
-        LiftTrait t,
-        Optional<LiftFieldAndTraitDefinition> defOpt,
-        Map<String, Set<String>> valuesForName
+        LiftTrait t
     ) {
-        if (defOpt.isPresent()) {
-            LiftFieldAndTraitDefinition def = defOpt.get();
-            Optional<LiftFieldAndTraitDefinitionType> typeOpt =
-                def.getDefinitionType();
+            Optional<LiftFieldAndTraitDefinitionDataModel> typeOpt =
+                t.getDefinition().getDataModel();
             if (typeOpt.isPresent()) {
                 return switch (typeOpt.get()) {
                     case DATETIME -> buildDatePicker(t);
                     case INTEGER -> buildIntegerField(t);
                     case OPTION, OPTION_COLLECTION, OPTION_SEQUENCE -> {
                         Optional<LiftHeaderRange> rangeOpt =
-                            def.getResolvedRange();
+                            t.getDefinition().getResolvedRange();
                         yield rangeOpt.isPresent()
                             ? buildRangePicker(t, rangeOpt.get(), typeOpt.get())
-                            : buildDefaultCombo(t, valuesForName);
+                            : buildDefaultCombo(t);
                     }
-                    default -> buildDefaultCombo(t, valuesForName);
+                    default -> buildDefaultCombo(t);
                 };
             }
-        }
-        return buildDefaultCombo(t, valuesForName);
+        return buildDefaultCombo(t);
     }
 
     private DatePicker buildDatePicker(LiftTrait t) {
@@ -212,11 +214,11 @@ public final class TraitEditor extends VBox {
     private Node buildRangePicker(
         LiftTrait t,
         LiftHeaderRange range,
-        LiftFieldAndTraitDefinitionType type
+        LiftFieldAndTraitDefinitionDataModel type
     ) {
         boolean multiSelect =
-            type == LiftFieldAndTraitDefinitionType.OPTION_COLLECTION ||
-            type == LiftFieldAndTraitDefinitionType.OPTION_SEQUENCE;
+            type == LiftFieldAndTraitDefinitionDataModel.OPTION_COLLECTION ||
+            type == LiftFieldAndTraitDefinitionDataModel.OPTION_SEQUENCE;
 
         Label displayLabel = new Label(t.getValue());
         displayLabel.setMaxWidth(Double.MAX_VALUE);
@@ -243,16 +245,12 @@ public final class TraitEditor extends VBox {
     }
 
     private ComboBox<String> buildDefaultCombo(
-        LiftTrait t,
-        Map<String, Set<String>> valuesForName
+        LiftTrait t
     ) {
         ComboBox<String> combo = new ComboBox<>();
         combo.setEditable(true);
         combo.setMaxWidth(Double.MAX_VALUE);
-        Set<String> knownValues =
-            valuesForName != null
-                ? valuesForName.getOrDefault(t.getDefinition().getName(), Set.of())
-                : Set.of();
+        Set<String> knownValues = t.getDefinition().getResolvedRange().get().getRangeElements().keySet();
         combo.setItems(
             FXCollections.observableArrayList(new TreeSet<>(knownValues))
         );
@@ -336,7 +334,7 @@ public final class TraitEditor extends VBox {
         }
         for (LiftHeaderRangeElement re : range.getRangeElements().values()) {
             TreeItem<LiftHeaderRangeElement> item = itemMap.get(re.getId());
-            LiftHeaderRangeElement pid = re.getParentId().orElse(null);
+            LiftHeaderRangeElement pid = re.getParentElement().orElse(null);
             if (pid != null && itemMap.containsKey(pid.getId())) itemMap
                 .get(pid.getId())
                 .getChildren()
@@ -432,26 +430,5 @@ public final class TraitEditor extends VBox {
         });
 
         return dlg.showAndWait().orElse(null);
-    }
-
-    /** Backward-compatible overload — no definition data. */
-    public void setTrait(
-        LiftTrait t,
-        Collection<String> availableLangs,
-        Collection<String> traitNames,
-        Map<String, Set<String>> valuesForName
-    ) {
-        setTrait(
-            t,
-            availableLangs,
-            traitNames,
-            valuesForName,
-            Optional.empty()
-        );
-    }
-
-    /** Backward-compatible overload (no dropdown data). */
-    public void setTrait(LiftTrait t, Collection<String> availableLangs) {
-        setTrait(t, availableLangs, List.of(), Map.of(), Optional.empty());
     }
 }

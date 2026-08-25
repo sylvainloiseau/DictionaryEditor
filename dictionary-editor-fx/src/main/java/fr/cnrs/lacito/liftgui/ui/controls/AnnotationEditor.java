@@ -9,6 +9,7 @@
 **/
 package fr.cnrs.lacito.liftgui.ui.controls;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftAnnotation;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -30,12 +31,15 @@ public final class AnnotationEditor extends VBox {
     private final ComboBox<String> valueCombo = new ComboBox<>();
     private final TextField whoField = new TextField();
     private final TextField whenField = new TextField();
-    private final MultiTextEditor textEditor = new MultiTextEditor();
+    private final MultiTextEditor textEditor;
 
     private LiftAnnotation annotation;
+    private final LiftDictionary dictionary;
 
-    public AnnotationEditor() {
+    public AnnotationEditor(LiftDictionary dictionary) {
         super(6);
+        this.dictionary = dictionary;
+        this.textEditor = new MultiTextEditor(dictionary);
         setPadding(new Insets(4));
         setStyle("-fx-border-color: #ddd; -fx-border-radius: 4; -fx-background-color: #fafafa; -fx-background-radius: 4;");
 
@@ -95,14 +99,14 @@ public final class AnnotationEditor extends VBox {
 
         nameCombo.setItems(FXCollections.observableArrayList(
             annotationNames instanceof List ? (List<String>) annotationNames : new ArrayList<>(annotationNames)));
-        nameCombo.setValue(a.getName());
+        nameCombo.setValue(a.getType().getId());
 
         valueCombo.setValue(a.getValue());
         valueCombo.getEditor().textProperty().bindBidirectional(a.valueProperty());
 
         whoField.setText(a.getWho());
         whenField.setText(a.getWhen());
-        textEditor.setAvailableLanguages(availableLangs);
+        //textEditor.setAvailableLanguages(availableLangs);
         textEditor.setMultiText(a.getText());
     }
 

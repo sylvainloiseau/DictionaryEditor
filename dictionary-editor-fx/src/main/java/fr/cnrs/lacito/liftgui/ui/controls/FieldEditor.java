@@ -9,7 +9,10 @@
 **/
 package fr.cnrs.lacito.liftgui.ui.controls;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftField;
+import fr.cnrs.lacito.liftapi.model.LiftFieldAndTraitDefinition;
+import fr.cnrs.lacito.liftapi.model.LiftFieldAndTraitDefinitionKind;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
@@ -26,11 +29,15 @@ import java.util.*;
 public final class FieldEditor extends VBox {
 
     private final ComboBox<String> nameCombo = new ComboBox<>();
-    private final MultiTextEditor textEditor = new MultiTextEditor();
-    private final ExtensibleWithoutFieldEditor extensibleEditor = new ExtensibleWithoutFieldEditor();
+    private final MultiTextEditor textEditor;
+    private final ExtensibleWithoutFieldEditor extensibleEditor;
+    private final LiftDictionary dictionary;
 
-    public FieldEditor() {
+    public FieldEditor(LiftDictionary dictionary) {
         super(6);
+        this.dictionary = dictionary;
+        this.textEditor = new MultiTextEditor(dictionary);
+        this.extensibleEditor = new ExtensibleWithoutFieldEditor(dictionary);
         setPadding(new Insets(4));
         setStyle("-fx-border-color: #bcd; -fx-border-radius: 4; -fx-background-color: #f0f4f8; -fx-background-radius: 4;");
 
@@ -81,25 +88,29 @@ public final class FieldEditor extends VBox {
      * @param availableLangs  languages for the MultiTextEditor
      * @param fieldTypes      all known field type names in the dictionary
      */
-    public void setField(LiftField f, Collection<String> availableLangs, Collection<String> fieldTypes) {
+    public void setField(LiftField f) {
         if (f == null) {
             nameCombo.getItems().clear();
             textEditor.setMultiText(null);
-            extensibleEditor.setModel(null, availableLangs);
+            extensibleEditor.setModel(null);
             return;
         }
-        nameCombo.setItems(FXCollections.observableArrayList(
-            fieldTypes instanceof List ? (List<String>) fieldTypes : new ArrayList<>(fieldTypes)));
-        nameCombo.setValue(f.getName().getName());
+        Collection<String> fieldTypes = dictionary.getHeader().getFieldsAndTraitsDefinitions().stream()
+                .filter(x -> x.getKind() != LiftFieldAndTraitDefinitionKind.TRAIT)
+                .map(LiftFieldAndTraitDefinition::getName)
+                .toList();
+
+        nameCombo.setItems(
+            FXCollections.observableArrayList(
+                fieldTypes
+            )
+        );
+        nameCombo.setValue(f.getType().getName());
         this.knownFieldTypes = new ArrayList<>(fieldTypes);
-        validateFieldType(f.getName().getName());
-        textEditor.setAvailableLanguages(availableLangs);
+        validateFieldType(f.getType().getName());
+        //textEditor.setAvailableLanguages(availableLangs);
         textEditor.setMultiText(f.getText());
-        extensibleEditor.setModel(f, availableLangs);
+        extensibleEditor.setModel(f);
     }
 
-    /** Backward-compatible overload. */
-    public void setField(LiftField f, Collection<String> availableLangs) {
-        setField(f, availableLangs, List.of());
-    }
 }

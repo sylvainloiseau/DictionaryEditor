@@ -9,6 +9,7 @@
 **/
 package fr.cnrs.lacito.liftgui.ui.controls;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftAnnotation;
 import fr.cnrs.lacito.liftapi.model.MultiText;
 import javafx.collections.FXCollections;
@@ -47,9 +48,11 @@ public final class MultiTextEditor extends VBox {
     private boolean fixedLanguageRows;
     private BiConsumer<String, MultiText> onAddAnnotation;
     private List<String> knownAnnotationNames = List.of();
+    private LiftDictionary dictionary;
 
-    public MultiTextEditor() {
+    public MultiTextEditor(LiftDictionary dictionary) {
         super(8);
+        this.dictionary = dictionary;
         setPadding(new Insets(4, 0, 4, 0));
 
         addLangCombo.setPromptText("Ajouter une langue…");
@@ -69,6 +72,8 @@ public final class MultiTextEditor extends VBox {
         annotationsBox.setPadding(new Insets(8, 16, 8, 16));
 
         getChildren().addAll(rowsBox, addLangCombo, annotationsPane);
+
+        setTmpAvailableLanguages(dictionary.getMetaLanguageManager().getLanguages());
     }
 
     /** Optional: when set, enables "add annotation" button in the Annotations pane. Callback receives (name, multiText). */
@@ -78,7 +83,7 @@ public final class MultiTextEditor extends VBox {
         rebuildAnnotations();
     }
 
-    public void setAvailableLanguages(Collection<String> langs) {
+    public void setTmpAvailableLanguages(Collection<String> langs) {
         allLanguages.setAll(normalizeLangs(langs));
         if (multiText != null) {
             for (String l : sorted(multiText.getLangs())) {
@@ -215,19 +220,19 @@ public final class MultiTextEditor extends VBox {
         }
         if (annotations.isEmpty()) return;
 
-        List<String> knownNames = annotations.stream()
-            .map(LiftAnnotation::getName)
-            .filter(Objects::nonNull)
-            .distinct()
-            .sorted()
-            .toList();
+        List<String> knownNames = dictionary.getHeader().getAnnotationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
+            // .map(LiftAnnotation::getName)
+            // .filter(Objects::nonNull)
+            // .distinct()
+            // .sorted()
+            // .toList();
 
         int i = 1;
         for (LiftAnnotation a : annotations) {
-            AnnotationEditor ae = new AnnotationEditor();
+            AnnotationEditor ae = new AnnotationEditor(dictionary);
             ae.setAnnotation(a, allLanguages, knownNames);
 
-            String title = a.getName() == null || a.getName().isBlank() ? "#" + i : "#" + i + " - " + a.getName();
+            String title = a.getType() == null || a.getType().getId().isBlank() ? "#" + i : "#" + i + " - " + a.getType();
             TitledPane tp = new TitledPane(title, ae);
             tp.setExpanded(false);
             tp.setAnimated(false);

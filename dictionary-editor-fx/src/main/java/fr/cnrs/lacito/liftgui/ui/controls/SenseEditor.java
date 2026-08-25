@@ -39,8 +39,8 @@ public final class SenseEditor extends VBox {
     /** Non-editable ComboBox for grammatical info — values come from header range grammatical-info */
     private final ComboBox<String> grammaticalInfoCombo = new ComboBox<>();
     private final GridPane identityBlock = new GridPane();
-    private final MultiTextEditor definitionEditor = new MultiTextEditor();
-    private final MultiTextEditor glossEditor = new MultiTextEditor();
+    private final MultiTextEditor definitionEditor;
+    private final MultiTextEditor glossEditor;
     private final VBox examplesBox = new VBox(6);
     private final VBox relationsBox = new VBox(6);
     private final VBox reversalsBox = new VBox(6);
@@ -57,6 +57,8 @@ public final class SenseEditor extends VBox {
     public SenseEditor(LiftDictionary dictionary) {
         super(6);
         this.dictionary = dictionary;
+        this.definitionEditor = new MultiTextEditor(dictionary);
+        this.glossEditor = new MultiTextEditor(dictionary);
         this.notableEditor = new NotableEditor(this.dictionary);
         setPadding(new Insets(4));
         setStyle(
@@ -196,11 +198,9 @@ public final class SenseEditor extends VBox {
      * @param objLangs    object-languages for examples
      */
     public void setSense(
-        LiftSense sense,
-        Collection<String> metaLangs,
-        Collection<String> objLangs
+        LiftSense sense
     ) {
-        setSense(sense, metaLangs, objLangs, null, List.of());
+        setSense(sense, null, List.of());
     }
 
     /**
@@ -208,8 +208,6 @@ public final class SenseEditor extends VBox {
      */
     public void setSense(
         LiftSense sense,
-        Collection<String> metaLangs,
-        Collection<String> objLangs,
         BiConsumer<
             String,
             fr.cnrs.lacito.liftapi.model.MultiText
@@ -218,8 +216,6 @@ public final class SenseEditor extends VBox {
     ) {
         setSense(
             sense,
-            metaLangs,
-            objLangs,
             onAddAnnotation,
             knownAnnotationNames,
             s -> null,
@@ -232,8 +228,6 @@ public final class SenseEditor extends VBox {
      */
     public void setSense(
         LiftSense sense,
-        Collection<String> metaLangs,
-        Collection<String> objLangs,
         BiConsumer<
             String,
             fr.cnrs.lacito.liftapi.model.MultiText
@@ -245,6 +239,8 @@ public final class SenseEditor extends VBox {
             ExtensibleAddActions
         > exampleAddActionsFactory
     ) {
+        Collection<String> metaLangs = dictionary.getMetaLanguageManager().getLanguages();
+        Collection<String> objLangs = dictionary.getObjectLanguageManager().getLanguages();
         ExtensibleAddActions addActions =
             addActionsFactory != null ? addActionsFactory.apply(sense) : null;
         examplesBox.getChildren().clear();
@@ -259,7 +255,7 @@ public final class SenseEditor extends VBox {
             definitionEditor.setOnAddAnnotation(null, null);
             glossEditor.setMultiText(null);
             glossEditor.setOnAddAnnotation(null, null);
-            notableEditor.setModel(null, metaLangs);
+            notableEditor.setModel(null);
             identityBlock.getChildren().clear();
             return;
         }
@@ -310,7 +306,7 @@ public final class SenseEditor extends VBox {
         GridPane.setHgrow(dateCreatedField, Priority.ALWAYS);
         GridPane.setHgrow(dateModifiedField, Priority.ALWAYS);
 
-        definitionEditor.setAvailableLanguages(metaLangs);
+        // definitionEditor.setAvailableLanguages(metaLangs);
         definitionEditor.setMultiText(sense.getDefinition());
         if (onAddAnnotation != null) {
             definitionEditor.setOnAddAnnotation(
@@ -319,7 +315,7 @@ public final class SenseEditor extends VBox {
             );
         }
 
-        glossEditor.setAvailableLanguages(metaLangs);
+        // glossEditor.setAvailableLanguages(metaLangs);
         glossEditor.setMultiText(sense.getGloss());
         if (onAddAnnotation != null) {
             glossEditor.setOnAddAnnotation(
@@ -337,10 +333,7 @@ public final class SenseEditor extends VBox {
                     : null;
             ee.setExample(
                 ex,
-                objLangs,
-                metaLangs,
                 onAddAnnotation,
-                knownAnnotationNames,
                 exAddActions
             );
             examplesBox.getChildren().add(ee);
@@ -349,7 +342,7 @@ public final class SenseEditor extends VBox {
         // Relations — meta-languages for usage
         for (LiftRelation rel : sense.getRelations()) {
             RelationEditor re = new RelationEditor(dictionary);
-            re.setRelation(rel, metaLangs, relationTypes);
+            re.setRelation(rel);
             relationsBox.getChildren().add(re);
         }
 
@@ -368,8 +361,6 @@ public final class SenseEditor extends VBox {
             );
             se.setSense(
                 sub,
-                metaLangs,
-                objLangs,
                 onAddAnnotation,
                 knownAnnotationNames,
                 addActionsFactory,
@@ -379,6 +370,6 @@ public final class SenseEditor extends VBox {
         }
         subSensesPane.setExpanded(!sense.getSenses().isEmpty());
 
-        notableEditor.setModel(sense, metaLangs, addActions);
+        notableEditor.setModel(sense, addActions);
     }
 }

@@ -30,11 +30,9 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
-import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Editor for a single {@link LiftVariant}.
@@ -47,11 +45,11 @@ public final class VariantEditor extends VBox {
 
     private final TextField refIdField = new TextField();
     private final ComboBox<String> variantTypeCombo = new ComboBox<>();
-    private final MultiTextEditor parentEntryFormsEditor = new MultiTextEditor();
-    private final MultiTextEditor formsEditor = new MultiTextEditor();
+    private final MultiTextEditor parentEntryFormsEditor;
+    private final MultiTextEditor formsEditor;
     private final VBox pronunciationsBox = new VBox(6);
     private final VBox relationsBox = new VBox(6);
-    private final ExtensibleWithFieldEditor extensibleEditor = new ExtensibleWithFieldEditor();
+    private final ExtensibleWithFieldEditor extensibleEditor;
     /** Types from header range {@code lexical-relation} for {@link RelationEditor}. */
     private List<String> relationTypes = List.of();
     private List<String> variantTypes = List.of();
@@ -63,6 +61,9 @@ public final class VariantEditor extends VBox {
     public VariantEditor(LiftDictionary dictionary) {
         super(6);
         this.dictionary = dictionary;
+        this.parentEntryFormsEditor = new MultiTextEditor(dictionary);
+        this.formsEditor = new MultiTextEditor(dictionary);
+        this.extensibleEditor = new ExtensibleWithFieldEditor(dictionary);
         setPadding(new Insets(4));
         setStyle("-fx-border-color: #bbc; -fx-border-radius: 4; -fx-background-color: #f6f6fa; -fx-background-radius: 4;");
 
@@ -124,15 +125,13 @@ public final class VariantEditor extends VBox {
 
     /**
      * @param v          the variant
-     * @param objLangs   object-languages for variant forms and pronunciations
-     * @param metaLangs  meta-languages for relations (usage) and inherited properties
      * @param addActions optional callbacks for adding pronunciation, relation, trait, annotation, field
      */
-    public void setVariant(LiftVariant v, Collection<String> objLangs, Collection<String> metaLangs) {
-        setVariant(v, objLangs, metaLangs, null);
+    public void setVariant(LiftVariant v) {
+        setVariant(v, null);
     }
 
-    public void setVariant(LiftVariant v, Set<String> objLangs, Set<String> metaLangs, ExtensibleAddActions addActions) {
+    public void setVariant(LiftVariant v, ExtensibleAddActions addActions) {
         pronunciationsBox.getChildren().clear();
         relationsBox.getChildren().clear();
         currentVariant = v;
@@ -151,7 +150,7 @@ public final class VariantEditor extends VBox {
             parentEntryFormsEditor.setMultiText(null);
             formsEditor.setMultiText(null);
             formsEditor.setReadOnly(true);
-            extensibleEditor.setModel(null, metaLangs, null);
+            extensibleEditor.setModel(null, null);
             return;
         }
         refIdField.setText(v.getRefId().orElse(""));
@@ -175,22 +174,20 @@ public final class VariantEditor extends VBox {
         }
         LiftVariant variant = v;
         MultiText parentForms = variant.getParent() != null ? variant.getParent().getForms() : null;
-        parentEntryFormsEditor.setAvailableLanguages(objLangs);
+        // parentEntryFormsEditor.setAvailableLanguages(dictionary.getObjectLanguageManager().getLanguages());
         parentEntryFormsEditor.setMultiText(parentForms);
         parentEntryFormsEditor.setReadOnly(true);
         // Object langs from dictionary + langs already used on parent entry forms (avoids empty rows for new variants)
         LinkedHashSet<String> variantFormLangs = new LinkedHashSet<>();
-        if (objLangs != null) {
-            for (String l : objLangs) {
-                if (l != null && !l.isBlank()) variantFormLangs.add(l.trim());
-            }
+        for (String l : dictionary.getObjectLanguageManager().getLanguages()) {
+            if (l != null && !l.isBlank()) variantFormLangs.add(l.trim());
         }
         if (variant.getParent() != null && variant.getParent().getForms() != null) {
             for (String l : variant.getParent().getForms().getLangs()) {
                 if (l != null && !l.isBlank()) variantFormLangs.add(l.trim());
             }
         }
-        formsEditor.setAvailableLanguages(variantFormLangs);
+        // formsEditor.setAvailableLanguages(variantFormLangs);
         formsEditor.setMultiText(v.getForms());
         // Editable when dictionary is writable (addActions); parent lexical forms stay read-only above
         formsEditor.setReadOnly(addActions == null);
@@ -210,7 +207,7 @@ public final class VariantEditor extends VBox {
             Button addRelBtn = new Button(I18n.get("btn.addRelation"));
             addRelBtn.getStyleClass().add("example-add-button");
             addRelBtn.setOnAction(e -> {
-                List<String> types = addActions.getKnownRelationTypes();
+                List<String> types = dictionary.getHeader().getRelationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
                 Optional<String> typeOpt;
                 if (types.isEmpty()) {
                     TextInputDialog tid = new TextInputDialog();
@@ -233,18 +230,18 @@ public final class VariantEditor extends VBox {
         }
 
         for (LiftPronunciation p : v.getPronunciations()) {
-            PronunciationEditor pe = new PronunciationEditor();
-            pe.setPronunciation(p, objLangs);
+            PronunciationEditor pe = new PronunciationEditor(dictionary);
+            pe.setPronunciation(p);
             pronunciationsBox.getChildren().add(pe);
         }
 
         for (LiftRelation r : v.getRelations()) {
             RelationEditor re = new RelationEditor(dictionary);
-            re.setRelation(r, metaLangs, relationTypes);
+            re.setRelation(r);
             relationsBox.getChildren().add(re);
         }
 
-        extensibleEditor.setModel(v, metaLangs, addActions);
+        extensibleEditor.setModel(v, addActions);
     }
 
     private void updateVariantType(String newValue) {

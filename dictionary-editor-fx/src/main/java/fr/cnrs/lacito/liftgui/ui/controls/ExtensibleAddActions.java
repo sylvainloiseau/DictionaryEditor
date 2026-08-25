@@ -1,6 +1,6 @@
 package fr.cnrs.lacito.liftgui.ui.controls;
 
-import java.util.List;
+// import java.util.List;
 
 /**
  * Callbacks for adding trait, annotation, field, and note to extensible objects.
@@ -14,9 +14,9 @@ public interface ExtensibleAddActions {
     default void addPronunciation() {}
     default void addRelation(String type) {}
     void refresh();
-    List<String> getKnownTraitNames();
-    List<String> getKnownAnnotationNames();
-    List<String> getKnownFieldTypes();
-    default List<String> getKnownNoteTypes() { return List.of(); }
-    default List<String> getKnownRelationTypes() { return List.of(); }
+    // List<String> getKnownTraitNames();
+    // List<String> getKnownAnnotationNames();
+    // List<String> getKnownFieldTypes();
+    // default List<String> getKnownNoteTypes() { return List.of(); }
+    // default List<String> getKnownRelationTypes() { return List.of(); }
 }

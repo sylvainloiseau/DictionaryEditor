@@ -23,10 +23,8 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiConsumer;
 
 /**
@@ -39,7 +37,7 @@ public final class ExampleEditor extends VBox {
 
     private final TextField sourceField = new TextField();
     private ChangeListener<String> sourceListener;
-    private final MultiTextEditor exampleTextEditor = new MultiTextEditor();
+    private final MultiTextEditor exampleTextEditor;
     private final VBox translationsBox = new VBox(6);
     private final NotableEditor notableEditor;
     private LiftDictionary dictionary;
@@ -47,6 +45,7 @@ public final class ExampleEditor extends VBox {
     public ExampleEditor(LiftDictionary dictionary) {
         super(6);
         this.dictionary = dictionary;
+        this.exampleTextEditor = new MultiTextEditor(dictionary);
         this.notableEditor = new NotableEditor(this.dictionary);
         setPadding(new Insets(4));
         setStyle("-fx-border-color: #cba; -fx-border-radius: 4; -fx-background-color: #faf6f2; -fx-background-radius: 4;");
@@ -82,25 +81,24 @@ public final class ExampleEditor extends VBox {
      * @param objLangs  object-languages for the example text
      * @param metaLangs meta-languages for translations, notes, etc.
      */
-    public void setExample(LiftExample ex, Collection<String> objLangs, Collection<String> metaLangs) {
-        setExample(ex, objLangs, metaLangs, null, List.of());
+    public void setExample(LiftExample ex) {
+        setExample(ex, null);
     }
 
     /**
      * Same with optional callback to create annotations on MultiText (example, translations).
      */
-    public void setExample(LiftExample ex, Collection<String> objLangs, Collection<String> metaLangs,
-            BiConsumer<String, MultiText> onAddAnnotation, Collection<String> knownAnnotationNames) {
-        setExample(ex, objLangs, metaLangs, onAddAnnotation, knownAnnotationNames, null);
+    public void setExample(LiftExample ex, BiConsumer<String, MultiText> onAddAnnotation) {
+        setExample(ex, onAddAnnotation, null);
     }
 
     /**
      * Same with optional add actions for trait/annotation/field/note at example level.
      */
-    public void setExample(LiftExample ex, Set<String> objLangs, Set<String> metaLangs,
-            BiConsumer<String, MultiText> onAddAnnotation, Collection<String> knownAnnotationNames,
+    public void setExample(LiftExample ex, BiConsumer<String, MultiText> onAddAnnotation, 
             ExtensibleAddActions addActions) {
         translationsBox.getChildren().clear();
+        List<String> knownAnnotationNames = dictionary.getHeader().getAnnotationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
 
         if (ex == null) {
             sourceField.setText("");
@@ -108,7 +106,7 @@ public final class ExampleEditor extends VBox {
             sourceListener = null;
             exampleTextEditor.setMultiText(null);
             exampleTextEditor.setOnAddAnnotation(null, null);
-            notableEditor.setModel(null, metaLangs, null);
+            notableEditor.setModel(null, null);
             return;
         }
         sourceField.setText(ex.getSource().orElse(""));
@@ -116,7 +114,7 @@ public final class ExampleEditor extends VBox {
         LiftExample exampleRef = ex;
         sourceListener = (obs, o, n) -> exampleRef.setSource(n != null ? n : "");
         sourceField.textProperty().addListener(sourceListener);
-        exampleTextEditor.setAvailableLanguages(objLangs);
+        // exampleTextEditor.setAvailableLanguages(dictionary.getObjectLanguageManager().getLanguages());
         exampleTextEditor.setMultiText(ex.getExample());
         if (onAddAnnotation != null) {
             exampleTextEditor.setOnAddAnnotation(onAddAnnotation, knownAnnotationNames);
@@ -128,9 +126,9 @@ public final class ExampleEditor extends VBox {
             MultiText mt = kv.getValue();
 
             String label = type.isBlank() ? "Traduction (par défaut)" : "Traduction [" + type + "]";
-            MultiTextEditor mte = new MultiTextEditor();
+            MultiTextEditor mte = new MultiTextEditor(dictionary);
             mte.setFixedLanguageRows(true);
-            mte.setAvailableLanguages(metaLangs);
+            // mte.setAvailableLanguages(dictionary.getMetaLanguageManager().getLanguages());
             mte.setMultiText(mt);
             if (onAddAnnotation != null) {
                 mte.setOnAddAnnotation(onAddAnnotation, knownAnnotationNames);
@@ -142,6 +140,6 @@ public final class ExampleEditor extends VBox {
             translationsBox.getChildren().add(tp);
         }
 
-        notableEditor.setModel(ex, metaLangs, addActions);
+        notableEditor.setModel(ex, addActions);
     }
 }

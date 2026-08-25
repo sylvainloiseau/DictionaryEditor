@@ -10,6 +10,8 @@
 **/
 package fr.cnrs.lacito.liftgui.ui.controls;
 
+import java.util.List;
+
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.AbstractNotable;
 import fr.cnrs.lacito.liftapi.model.LiftNote;
@@ -20,9 +22,6 @@ import javafx.scene.control.TitledPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
 
-import java.util.Collection;
-import java.util.List;
-
 /**
  * Editor for {@link AbstractNotable} objects.
  *
@@ -32,10 +31,10 @@ import java.util.List;
 public class NotableEditor extends ExtensibleWithFieldEditor {
 
     private final VBox notesBox = new VBox(6);
-    private LiftDictionary dictionary;
+    private final LiftDictionary dictionary;
 
     public NotableEditor(LiftDictionary dictionary) {
-        super();
+        super(dictionary);
         this.dictionary = dictionary;
 
         TitledPane notesPane = new TitledPane("Notes", notesBox);
@@ -45,12 +44,12 @@ public class NotableEditor extends ExtensibleWithFieldEditor {
         getChildren().add(notesPane);
     }
 
-    public void setModel(AbstractNotable model, Collection<String> availableLangs) {
-        setModel(model, availableLangs, null);
+    public void setModel(AbstractNotable model) {
+        setModel(model, null);
     }
 
-    public void setModel(AbstractNotable model, Collection<String> availableLangs, ExtensibleAddActions addActions) {
-        super.setModel(model, availableLangs, addActions);
+    public void setModel(AbstractNotable model, ExtensibleAddActions addActions) {
+        super.setModel(model, addActions);
 
         notesBox.getChildren().clear();
         if (model == null) return;
@@ -60,7 +59,7 @@ public class NotableEditor extends ExtensibleWithFieldEditor {
             Button addNoteBtn = new Button(I18n.get("btn.addNote"));
             addNoteBtn.getStyleClass().add("example-add-button");
             addNoteBtn.setOnAction(e -> {
-                List<String> types = addActions.getKnownNoteTypes();
+                List<String> types = dictionary.getHeader().getNoteTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
                 ChoiceDialog<String> dlg = new ChoiceDialog<>(types.isEmpty() ? null : types.get(0), types);
                 dlg.setTitle(I18n.get("btn.addNote"));
                 dlg.setHeaderText(I18n.get("col.type"));
@@ -75,7 +74,7 @@ public class NotableEditor extends ExtensibleWithFieldEditor {
 
         for (LiftNote note : model.getNotes().values()) {
             NoteEditor ne = new NoteEditor(dictionary);
-            ne.setNote(note, availableLangs);
+            ne.setNote(note);
             notesBox.getChildren().add(ne);
         }
     }

@@ -10,8 +10,10 @@
 **/
 package fr.cnrs.lacito.liftgui.ui.controls;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.AbstractExtensibleWithoutField;
 import fr.cnrs.lacito.liftapi.model.LiftAnnotation;
+import fr.cnrs.lacito.liftapi.model.LiftFieldAndTraitDefinitionTarget;
 import fr.cnrs.lacito.liftapi.model.LiftTrait;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import javafx.geometry.Insets;
@@ -26,7 +28,6 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,9 +43,11 @@ public class ExtensibleWithoutFieldEditor extends VBox {
     private final TextField dateModifiedField = new TextField();
     private final VBox traitsBox = new VBox(6);
     private final VBox annotationsBox = new VBox(6);
+    private final LiftDictionary dictionary;
 
-    public ExtensibleWithoutFieldEditor() {
+    public ExtensibleWithoutFieldEditor(LiftDictionary dictionary) {
         super(8);
+        this.dictionary = dictionary;
         setPadding(new Insets(4));
 
         dateCreatedField.setEditable(false);
@@ -76,11 +79,11 @@ public class ExtensibleWithoutFieldEditor extends VBox {
     private TitledPane traitsPane;
     private TitledPane annotationsPane;
 
-    public void setModel(AbstractExtensibleWithoutField model, Collection<String> availableLangs) {
-        setModel(model, availableLangs, null);
+    public void setModel(AbstractExtensibleWithoutField model) {
+        setModel(model, null);
     }
 
-    public void setModel(AbstractExtensibleWithoutField model, Collection<String> availableLangs, ExtensibleAddActions addActions) {
+    public void setModel(AbstractExtensibleWithoutField model, ExtensibleAddActions addActions) {
         traitsBox.getChildren().clear();
         annotationsBox.getChildren().clear();
 
@@ -97,8 +100,8 @@ public class ExtensibleWithoutFieldEditor extends VBox {
         List<LiftTrait> traits = model.getTraits();
         if (traits != null) {
             for (LiftTrait t : traits) {
-                TraitEditor te = new TraitEditor();
-                te.setTrait(t, availableLangs);
+                TraitEditor te = new TraitEditor(dictionary);
+                te.setTrait(t, LiftFieldAndTraitDefinitionTarget.fromType(model));
                 traitsBox.getChildren().add(te);
             }
         }
@@ -107,8 +110,8 @@ public class ExtensibleWithoutFieldEditor extends VBox {
         List<LiftAnnotation> annos = model.getAnnotations();
         if (annos != null) {
             for (LiftAnnotation a : annos) {
-                AnnotationEditor ae = new AnnotationEditor();
-                ae.setAnnotation(a, availableLangs);
+                AnnotationEditor ae = new AnnotationEditor(dictionary);
+                ae.setAnnotation(a, dictionary.getMetaLanguageManager().getLanguages());
                 annotationsBox.getChildren().add(ae);
             }
         }
@@ -123,7 +126,7 @@ public class ExtensibleWithoutFieldEditor extends VBox {
         Button addTraitBtn = new Button(I18n.get("btn.addTrait"));
         addTraitBtn.getStyleClass().add("example-add-button");
         addTraitBtn.setOnAction(e -> {
-            List<String> names = addActions.getKnownTraitNames();
+            List<String> names = dictionary.getHeader().getTraitsDefinitions().stream().map(x -> x.getName()).toList();
             ChoiceDialog<String> dlg = new ChoiceDialog<>(names.isEmpty() ? null : names.get(0), names);
             dlg.setTitle(I18n.get("btn.addTrait"));
             dlg.setHeaderText(I18n.get("col.name"));
@@ -139,7 +142,7 @@ public class ExtensibleWithoutFieldEditor extends VBox {
         Button addAnnotBtn = new Button(I18n.get("btn.addAnnotation"));
         addAnnotBtn.getStyleClass().add("example-add-button");
         addAnnotBtn.setOnAction(e -> {
-            List<String> names = addActions.getKnownAnnotationNames();
+            List<String> names = dictionary.getHeader().getAnnotationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
             Optional<String> nameOpt;
             if (names.isEmpty()) {
                 TextInputDialog tid = new TextInputDialog();

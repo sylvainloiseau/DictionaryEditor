@@ -17,13 +17,10 @@ import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
-import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-
-import java.util.Collection;
 
 /**
  * Programmatic editor for a {@link LiftNote}.
@@ -37,10 +34,14 @@ import java.util.Collection;
 public final class NoteEditor extends VBox {
 
     private final ComboBox<LiftHeaderRangeElement> typeCombo = new ComboBox<>();
-    private final MultiTextEditor textEditor = new MultiTextEditor();
-    private final ExtensibleWithFieldEditor extensibleEditor = new ExtensibleWithFieldEditor();
+    private final MultiTextEditor textEditor;
+    private final ExtensibleWithFieldEditor extensibleEditor;
+    private final LiftDictionary dictionary;
 
     public NoteEditor(LiftDictionary dictionary) {
+        this.dictionary = dictionary;
+        this.extensibleEditor = new ExtensibleWithFieldEditor(dictionary);
+        this.textEditor = new MultiTextEditor(dictionary);
         super(6);
         setPadding(new Insets(4));
         setStyle("-fx-border-color: #c9b; -fx-border-radius: 4; -fx-background-color: #faf5f8; -fx-background-radius: 4;");
@@ -66,17 +67,17 @@ public final class NoteEditor extends VBox {
         getChildren().addAll(grid, textPane, extPane);
     }
 
-    public void setNote(LiftNote note, Collection<String> availableLangs) {
+    public void setNote(LiftNote note) {
         if (note == null) {
             typeCombo.setDisable(true);
             textEditor.setMultiText(null);
-            extensibleEditor.setModel(null, availableLangs);
+            extensibleEditor.setModel(null);
             return;
         }
         typeCombo.setDisable(false);
         typeCombo.getSelectionModel().select(note.getType());
-        textEditor.setAvailableLanguages(availableLangs);
+        //textEditor.setAvailableLanguages(availableLangs);
         textEditor.setMultiText(note.getText());
-        extensibleEditor.setModel(note, availableLangs);
+        extensibleEditor.setModel(note);
     }
 }

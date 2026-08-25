@@ -13,11 +13,9 @@ import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftEtymology;
 import fr.cnrs.lacito.liftapi.model.LiftHeaderRangeElement;
 
-import java.util.Collection;
 import java.util.Set;
 
 import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -36,13 +34,18 @@ public final class EtymologyEditor extends VBox {
 
     private final ComboBox<LiftHeaderRangeElement> typeCombo = new ComboBox<>();
     private final TextField sourceField = new TextField();
-    private final MultiTextEditor formsEditor = new MultiTextEditor();
-    private final MultiTextEditor glossesEditor = new MultiTextEditor();
-    private final ExtensibleWithFieldEditor extensibleEditor =
-        new ExtensibleWithFieldEditor();
+    private final MultiTextEditor formsEditor;
+    private final MultiTextEditor glossesEditor;
+    private final ExtensibleWithFieldEditor extensibleEditor;
+    private final LiftDictionary dictionary;
 
     public EtymologyEditor(LiftDictionary dictionary) {
         super(6);
+        this.dictionary = dictionary;
+        this.formsEditor = new MultiTextEditor(dictionary);
+        this.glossesEditor = new MultiTextEditor(dictionary);
+        this.extensibleEditor = new ExtensibleWithFieldEditor(dictionary);
+
         setPadding(new Insets(4));
         setStyle(
             "-fx-border-color: #abc; -fx-border-radius: 4; -fx-background-color: #f4f8fa; -fx-background-radius: 4;"
@@ -103,16 +106,16 @@ public final class EtymologyEditor extends VBox {
             sourceField.setText("");
             formsEditor.setMultiText(null);
             glossesEditor.setMultiText(null);
-            extensibleEditor.setModel(null, metaLangs);
+            extensibleEditor.setModel(null);
             return;
         }
         typeCombo.setDisable(false);
         typeCombo.getSelectionModel().select(ety.getType());
         sourceField.setText(ety.getSource() != null ? ety.getSource() : "");
-        formsEditor.setAvailableLanguages(objLangs);
+        // formsEditor.setAvailableLanguages(objLangs);
         formsEditor.setMultiText(ety.getForms());
-        glossesEditor.setAvailableLanguages(metaLangs);
+        //glossesEditor.setAvailableLanguages(metaLangs);
         glossesEditor.setMultiText(ety.getGloss());
-        extensibleEditor.setModel(ety, metaLangs);
+        extensibleEditor.setModel(ety);
     }
 }

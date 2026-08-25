@@ -1,8 +1,7 @@
 package fr.cnrs.lacito.liftgui.undo;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftEntry;
-import fr.cnrs.lacito.liftapi.xml.LiftXMLFactory;
-import javafx.collections.ObservableList;
 
 import java.util.function.Supplier;
 
@@ -12,45 +11,36 @@ import java.util.function.Supplier;
 public final class DeleteEntryCommand implements UndoableCommand {
     private final LiftEntry entry;
     private final int baseEntriesIndex;
-    private final Supplier<LiftXMLFactory> factorySupplier;
-    private final ObservableList<LiftEntry> baseEntries;
+    private final Supplier<LiftDictionary> dictionarySupplier;
     private final Runnable onUndoRefresh;
     private final Runnable onRedoRefresh;
 
     public DeleteEntryCommand(LiftEntry entry, int baseEntriesIndex,
-                              Supplier<LiftXMLFactory> factorySupplier,
-                              ObservableList<LiftEntry> baseEntries,
-                              Runnable onUndoRefresh, Runnable onRedoRefresh) {
+                              Supplier<LiftDictionary> dictionarySupplier,
+                              Runnable onUndoRefresh,
+                              Runnable onRedoRefresh) {
         this.entry = entry;
         this.baseEntriesIndex = baseEntriesIndex;
-        this.factorySupplier = factorySupplier;
-        this.baseEntries = baseEntries;
+        this.dictionarySupplier = dictionarySupplier;
         this.onUndoRefresh = onUndoRefresh;
         this.onRedoRefresh = onRedoRefresh;
     }
 
     @Override
     public void undo() {
-        LiftXMLFactory factory = factorySupplier.get();
-        if (factory != null) {
-            factory.getAllEntries().add(entry);
-            factory.getAllObjectLanguagesMultiText().add(entry.getForms());
-            factory.getAllMetaLanguagesMultiText().add(entry.getCitations());
+        LiftDictionary dictionary = dictionarySupplier.get();
+        if (dictionary != null) {
+            dictionary.getLiftDictionaryRegistry().addToDictionaryLowLevel(entry, baseEntriesIndex);
         }
-        int idx = Math.min(baseEntriesIndex, baseEntries.size());
-        baseEntries.add(idx, entry);
         if (onUndoRefresh != null) onUndoRefresh.run();
     }
 
     @Override
     public void redo() {
-        LiftXMLFactory factory = factorySupplier.get();
-        if (factory != null) {
-            factory.getAllEntries().remove(entry);
-            factory.getAllObjectLanguagesMultiText().remove(entry.getForms());
-            factory.getAllMetaLanguagesMultiText().remove(entry.getCitations());
+        LiftDictionary dictionary = dictionarySupplier.get();
+        if (dictionary != null) {
+            dictionary.getLiftDictionaryRegistry().removeFromDictionary(entry);
         }
-        baseEntries.remove(entry);
         if (onRedoRefresh != null) onRedoRefresh.run();
     }
 }
