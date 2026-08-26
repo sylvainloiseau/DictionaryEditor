@@ -1,0 +1,7885 @@
+/**
+
+* @author Inès GBADAMASSI
+* @author Maryse GOEH-AKUE
+* @author Ermeline BRESSON
+* @author Ayman JARI
+* @author Erij MAZOUZ
+
+**/
+package fr.cnrs.lacito.liftgui.ui;
+
+import fr.cnrs.lacito.liftapi.LiftDictionary;
+import fr.cnrs.lacito.liftapi.LiftVersion;
+import fr.cnrs.lacito.liftapi.builder.DictionaryObjectBuilderFactory;
+import fr.cnrs.lacito.liftapi.builder.EntryBuilder;
+import fr.cnrs.lacito.liftapi.builder.SenseBuilder;
+import fr.cnrs.lacito.liftapi.model.*;
+import fr.cnrs.lacito.liftgui.core.DictionaryService;
+import fr.cnrs.lacito.liftgui.ui.controls.*;
+import fr.cnrs.lacito.liftgui.undo.*;
+import java.io.*;
+import java.nio.file.Files;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.prefs.Preferences;
+import java.util.stream.Collectors;
+import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
+import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.value.ObservableValue;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
+import javafx.collections.transformation.SortedList;
+import javafx.fxml.FXML;
+import javafx.geometry.Insets;
+import javafx.scene.control.*;
+import javafx.scene.control.cell.TextFieldTableCell;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
+import javafx.scene.layout.*;
+import javafx.stage.FileChooser;
+import javafx.util.Callback;
+import javafx.util.Pair;
+
+/**
+ * Main controller.
+ *
+ * General display:
+ *  - Left:  TreeView for navigation (Objects, Languages, Categories, Configuration)
+ *  - Center: dynamic TableView switching per navigation selection
+ *  - Right:  detail editor form for selected table row
+ */
+public final class MainController {
+
+    private static final Logger LOGGER = Logger.getLogger(
+        MainController.class.getName()
+    );
+    private static final String FILTER_MODE_TEXT = "text";
+    private static final int MAX_RECENT_FILES = 5;
+    private static final String PREF_RECENT_PREFIX = "recent.file.";
+    private static final Preferences PREFS = Preferences.userNodeForPackage(
+        MainController.class
+    );
+
+    private void saveRecentFile(File f) {
+        // De-rank existing recent files and put the new file on top.
+        List<String> recents = loadRecentFiles();
+        recents.remove(f.getAbsolutePath());
+        recents.add(0, f.getAbsolutePath());
+        if (recents.size() > MAX_RECENT_FILES) recents = recents.subList(
+            0,
+            MAX_RECENT_FILES
+        );
+        for (int i = 0; i < MAX_RECENT_FILES; i++) {
+            if (i < recents.size()) PREFS.put(
+                PREF_RECENT_PREFIX + i,
+                recents.get(i)
+            );
+            else PREFS.remove(PREF_RECENT_PREFIX + i);
+        }
+        refreshRecentMenu();
+    }
+
+    private List<String> loadRecentFiles() {
+        List<String> recents = new ArrayList<>();
+        for (int i = 0; i < MAX_RECENT_FILES; i++) {
+            String path = PREFS.get(PREF_RECENT_PREFIX + i, null);
+            if (path != null) recents.add(path);
+        }
+        return recents;
+    }
+
+    private void refreshRecentMenu() {
+        if (recentMenu == null) return;
+        recentMenu.getItems().clear();
+        List<String> recents = loadRecentFiles();
+        if (recents.isEmpty()) {
+            MenuItem empty = new MenuItem(I18n.get(Keys.MENU_FILE_NO_RECENT));
+            empty.setDisable(true);
+            recentMenu.getItems().add(empty);
+            return;
+        }
+        for (String path : recents) {
+            File f = new File(path);
+            MenuItem item = new MenuItem(
+                f.getName() + "  (" + f.getParent() + ")"
+            );
+            item.setOnAction(e -> {
+                try {
+                    setDictionary(dictionaryService.loadFromFile(f));
+                    switchView(NAV_ENTRIES);
+                } catch (Exception ex) {
+                    LOGGER.log(
+                        Level.SEVERE,
+                        "Ouverture du fichier LIFT (fichier récent)",
+                        ex
+                    );
+                    showError(
+                        I18n.get(Keys.ERROR_OPEN),
+                        I18n.formatErrorMessage("error.open.detail", ex)
+                    );
+                }
+            });
+            item.setDisable(!f.exists());
+            recentMenu.getItems().add(item);
+        }
+    }
+
+    /* ─── Nav view identifiers (i18n keys) ─── */
+    private static final String NAV_ENTRIES = "nav.entries";
+    private static final String NAV_SENSES = "nav.senses";
+    private static final String NAV_EXAMPLES = "nav.examples";
+    private static final String NAV_NOTES = "nav.notes";
+    private static final String NAV_VARIANTS = "nav.variants";
+    private static final String NAV_ETYMOLOGIES = "nav.etymologies";
+    private static final String NAV_RELATIONS = "nav.relations";
+    private static final String NAV_OBJ_LANGS = "nav.objectLangs";
+    private static final String NAV_META_LANGS = "nav.metaLangs";
+    private static final String NAV_TRAITS = "nav.traits";
+    private static final String NAV_ANNOTATIONS = "nav.annotations";
+    private static final String NAV_FIELDS = "nav.fields";
+    private static final String NAV_GRAM_INFO = "nav.gramInfo";
+    private static final String NAV_TRANS_TYPES = "nav.transTypes";
+    private static final String NAV_NOTE_TYPES = "nav.noteTypes";
+    private static final String NAV_RELATION_TYPES = "nav.relationTypes";
+    private static final String NAV_FIELD_TYPES = "nav.fieldTypes";
+    private static final String NAV_QUICK_ENTRY = "nav.quickEntry";
+
+    /* ─── Header configuration nav keys ─── */
+    private static final String NAV_CFG_DESC = "nav.cfgDesc";
+    private static final String NAV_CFG_FIELD_DEFS = "nav.cfgFieldDefs";
+    private static final String NAV_CFG_MANAGE_LANGS = "nav.cfgManageLangs";
+    private static final String NAV_CFG_MANAGE_NOTE_TYPES =
+        "nav.cfgManageNoteTypes";
+    private static final String NAV_CFG_MANAGE_TRANS_TYPES =
+        "nav.cfgManageTransTypes";
+    private static final String NAV_CFG_MANAGE_ANNOTATION_TYPES =
+        "nav.cfgManageAnnotationTypes";
+    private static final String NAV_CFG_MANAGE_RELATION_TYPES =
+        "nav.cfgManageRelationTypes";
+    private static final String NAV_CFG_RANGE_PREFIX = "cfg.range."; // + rangeId for dynamic ranges
+    private TreeItem<String> headerCfgNode; // kept for dynamic rebuild
+
+    /* ─── State ─── */
+    private final DictionaryService dictionaryService = new DictionaryService();
+    private LiftDictionary currentDictionary;
+    private String currentView = NAV_ENTRIES;
+    private boolean ignoreNavSelectionEvents = false;
+
+    /* ─── FXML nodes ─── */
+    @FXML
+    private TreeView<String> navTree;
+
+    @FXML
+    private StackPane tableContainer;
+
+    @FXML
+    private TextField searchField;
+
+    @FXML
+    private Label viewTitle;
+
+    @FXML
+    private Label tableCountLabel;
+
+    @FXML
+    private Label editEntryTitle;
+
+    @FXML
+    private Label editEntryCode;
+
+    @FXML
+    private VBox rightContent;
+
+    @FXML
+    private VBox editorContainer;
+
+    @FXML
+    private Menu recentMenu;
+
+    @FXML
+    private MenuBar menuBar;
+
+    @FXML
+    private SplitPane mainSplit;
+
+    @FXML
+    private Button addButton;
+
+    @FXML
+    private HBox modifyButtonRow;
+
+    @FXML
+    private Button modifyButton;
+
+    @FXML
+    private Button undoButton;
+
+    @FXML
+    private Button redoButton;
+
+    @FXML
+    private MenuItem undoMenuItem;
+
+    @FXML
+    private MenuItem redoMenuItem;
+
+    /* ─── Undo/Redo ─── */
+    private final UndoManager undoManager = new UndoManager();
+
+    /* ─── Entry table (main view) ─── */
+    private final TableView<LiftEntry> entryTable = new TableView<>();
+    private final ObservableList<LiftEntry> baseEntries =
+        FXCollections.observableArrayList();
+    private final FilteredList<LiftEntry> filteredEntries = new FilteredList<>(
+        baseEntries,
+        e -> true
+    );
+
+    /* ─── Generic object tables ─── */
+    private final TableView<LiftSense> senseTable = new TableView<>();
+    private final TableView<LiftExample> exampleTable = new TableView<>();
+    private final TableView<LiftVariant> variantTable = new TableView<>();
+    private final TableView<LiftRelation> relationTable = new TableView<>();
+    private final TableView<TraitRow> traitTable = new TableView<>();
+
+    private record TraitRow(
+        String parentType,
+        String name,
+        String value,
+        long frequency
+    ) {}
+
+    private final TableView<LiftAnnotation> annotationTable = new TableView<>();
+    private final TableView<LiftField> fieldTable = new TableView<>();
+    private final TableView<MultiTextField> langFieldTable = new TableView<>();
+    private final TableView<QuickEntryRow> quickEntryTable = new TableView<>();
+    private List<LiftEntry> entrySubsetOverride = null;
+    private String entrySubsetTitle = null;
+    private boolean keepEntrySubsetOnNextEntryView = false;
+    private List<LiftSense> senseSubsetOverride = null;
+    private boolean keepSenseSubsetOnNextSenseView = false;
+
+    /* ─── Wrapper for language field view ─── */
+    public record MultiTextField(
+        String parentType,
+        String parentId,
+        String lang,
+        String text,
+        Object parentObject,
+        MultiText multiText
+    ) {
+        public MultiTextField(
+            String parentType,
+            String parentId,
+            String lang,
+            String text
+        ) {
+            this(parentType, parentId, lang, text, null, null);
+        }
+    }
+
+    public static class QuickEntryRow {
+
+        private final Map<String, javafx.beans.property.StringProperty> forms =
+            new HashMap<>();
+        private final Map<
+            String,
+            javafx.beans.property.StringProperty
+        > glosses = new HashMap<>();
+        private final javafx.beans.property.StringProperty gramInfo =
+            new javafx.beans.property.SimpleStringProperty("");
+        private final javafx.beans.property.BooleanProperty created =
+            new javafx.beans.property.SimpleBooleanProperty(false);
+
+        public javafx.beans.property.StringProperty formProperty(String lang) {
+            return forms.computeIfAbsent(lang, k ->
+                new javafx.beans.property.SimpleStringProperty("")
+            );
+        }
+
+        public javafx.beans.property.StringProperty glossProperty(String lang) {
+            return glosses.computeIfAbsent(lang, k ->
+                new javafx.beans.property.SimpleStringProperty("")
+            );
+        }
+
+        public javafx.beans.property.StringProperty gramInfoProperty() {
+            return gramInfo;
+        }
+
+        public javafx.beans.property.BooleanProperty createdProperty() {
+            return created;
+        }
+    }
+
+    /**
+     * TableCell that shows a TextField permanently and commits its value on
+     * focus loss, Tab, and Enter (not only Enter like the default TextFieldTableCell).
+     */
+    private static class CommitOnFocusLossCell<S> extends TableCell<S, String> {
+
+        private final TextField textField = new TextField();
+        private final java.util.function.Function<
+            S,
+            javafx.beans.property.StringProperty
+        > propertyAccessor;
+        private javafx.beans.property.StringProperty boundProperty;
+
+        CommitOnFocusLossCell(
+            java.util.function.Function<
+                S,
+                javafx.beans.property.StringProperty
+            > propertyAccessor
+        ) {
+            this.propertyAccessor = propertyAccessor;
+            textField.setOnAction(e -> commitValue());
+            textField
+                .focusedProperty()
+                .addListener((obs, wasFocused, isFocused) -> {
+                    if (!isFocused) commitValue();
+                });
+        }
+
+        private void commitValue() {
+            if (boundProperty != null) boundProperty.set(
+                textField.getText() != null ? textField.getText() : ""
+            );
+        }
+
+        @Override
+        protected void updateItem(String item, boolean empty) {
+            super.updateItem(item, empty);
+            if (
+                empty ||
+                getTableRow() == null ||
+                getTableRow().getItem() == null
+            ) {
+                setGraphic(null);
+                boundProperty = null;
+                return;
+            }
+            S rowItem = getTableRow().getItem();
+            boundProperty = propertyAccessor.apply(rowItem);
+            if (!textField.isFocused()) {
+                textField.setText(boundProperty.get());
+            }
+            setGraphic(textField);
+        }
+    }
+
+    /* ─────────────────────── INITIALIZATION ─────────────────────── */
+
+    @FXML
+    private void initialize() {
+        buildNavTree();
+        setupEntryTable();
+        setupGenericTables();
+        searchField
+            .textProperty()
+            .addListener((obs, o, n) -> applyCurrentFilter());
+        //  setDictionary(loadDemoDictionary());
+        // Recharge le dernier fichier ouvert, sinon charge le démo
+        List<String> recents = loadRecentFiles();
+        if (!recents.isEmpty()) {
+            File lastFile = new File(recents.get(0));
+            if (lastFile.exists()) {
+                try {
+                    setDictionary(
+                        LiftDictionary.loadDictionaryFromFile(lastFile)
+                    );
+                } catch (Exception e) {
+                    setDictionary(loadDemoDictionary());
+                }
+            } else {
+                setDictionary(loadDemoDictionary());
+            }
+        } else {
+            setDictionary(loadDemoDictionary());
+        }
+        ensureRightPanelVisible();
+        setupMenuHover();
+        switchView(NAV_ENTRIES);
+        refreshRecentMenu();
+        setupUndoRedo();
+    }
+
+    private void setupUndoRedo() {
+        if (undoButton != null) {
+            undoButton.setGraphic(Icons.undoIcon());
+            undoButton.setTooltip(
+                new Tooltip(I18n.get(Keys.MENU_EDIT_UNDO) + " (Ctrl+Z)")
+            );
+        }
+        if (redoButton != null) {
+            redoButton.setGraphic(Icons.redoIcon());
+            redoButton.setTooltip(
+                new Tooltip(I18n.get(Keys.MENU_EDIT_REDO) + " (Ctrl+Y)")
+            );
+        }
+        if (undoButton != null) undoButton
+            .disableProperty()
+            .bind(undoManager.canUndoProperty().not());
+        if (redoButton != null) redoButton
+            .disableProperty()
+            .bind(undoManager.canRedoProperty().not());
+        if (undoMenuItem != null) undoMenuItem
+            .disableProperty()
+            .bind(undoManager.canUndoProperty().not());
+        if (redoMenuItem != null) redoMenuItem
+            .disableProperty()
+            .bind(undoManager.canRedoProperty().not());
+        if (menuBar != null) {
+            menuBar.sceneProperty().addListener((obs, oldScene, newScene) -> {
+                if (newScene != null) installUndoRedoAccelerators(newScene);
+            });
+            if (menuBar.getScene() != null) installUndoRedoAccelerators(
+                menuBar.getScene()
+            );
+        }
+    }
+
+    private void installUndoRedoAccelerators(javafx.scene.Scene scene) {
+        scene
+            .getAccelerators()
+            .put(
+                new KeyCodeCombination(KeyCode.Z, KeyCombination.CONTROL_DOWN),
+                this::onUndo
+            );
+        scene
+            .getAccelerators()
+            .put(
+                new KeyCodeCombination(KeyCode.Y, KeyCombination.CONTROL_DOWN),
+                this::onRedo
+            );
+    }
+
+    private void setupMenuHover() {
+        if (menuBar == null) return;
+        // Nodes are not yet in the scene graph at initialize() time; install after layout.
+        menuBar.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene == null) return;
+            Platform.runLater(() -> {
+                for (Menu menu : menuBar.getMenus()) {
+                    javafx.scene.Node btn = menu.getStyleableNode();
+                    if (btn == null) continue;
+                    btn.setOnMouseEntered(e -> {
+                        boolean anyOpen = menuBar
+                            .getMenus()
+                            .stream()
+                            .anyMatch(Menu::isShowing);
+                        if (anyOpen) {
+                            menuBar.getMenus().forEach(Menu::hide);
+                            menu.show();
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    /* ─── Navigation tree (5.7.2) ─── */
+
+    private void buildNavTree() {
+        navKeyMap.clear();
+
+        TreeItem<String> root = new TreeItem<>(I18n.get(Keys.NAV_DICTIONARY));
+        root.setExpanded(true);
+
+        TreeItem<String> objects = new TreeItem<>(I18n.get(Keys.NAV_OBJECTS));
+        objects.setExpanded(true);
+        objects
+            .getChildren()
+            .addAll(
+                navItem(NAV_ENTRIES),
+                navItem(NAV_SENSES),
+                navItem(NAV_EXAMPLES),
+                navItem(NAV_NOTES),
+                navItem(NAV_VARIANTS),
+                navItem(NAV_ETYMOLOGIES),
+                navItem(NAV_RELATIONS),
+                navItem(NAV_FIELDS)
+            );
+
+        TreeItem<String> langs = new TreeItem<>(I18n.get(Keys.NAV_LANGUAGES));
+        langs.setExpanded(true);
+        langs
+            .getChildren()
+            .addAll(navItem(NAV_OBJ_LANGS), navItem(NAV_META_LANGS));
+
+        TreeItem<String> cats = new TreeItem<>(I18n.get(Keys.NAV_CATEGORIES));
+        cats.setExpanded(true);
+        cats.getChildren().addAll(
+            navItem(NAV_GRAM_INFO),
+            navItem(NAV_TRAITS),
+            navItem(NAV_ANNOTATIONS),
+            navItem(NAV_TRANS_TYPES),
+            navItem(NAV_NOTE_TYPES),
+            navItem(NAV_RELATION_TYPES),
+            navItem(NAV_FIELD_TYPES)
+        );
+
+        headerCfgNode = new TreeItem<>(I18n.get(Keys.NAV_HEADER_CONFIG));
+        headerCfgNode.setExpanded(true);
+        rebuildHeaderCfgChildren();
+
+        TreeItem<String> quick = navItem(NAV_QUICK_ENTRY);
+
+        root.getChildren().addAll(objects, langs, cats, headerCfgNode, quick);
+        navTree.setRoot(root);
+        navTree.setShowRoot(false);
+
+        navTree
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, oldV, newV) -> {
+                if (ignoreNavSelectionEvents) return;
+                if (newV != null && newV.isLeaf()) {
+                    String key = navKeyMap.get(newV);
+                    if (key != null) switchView(key);
+                }
+            });
+
+        navTree.setCellFactory(tv -> {
+            TreeCell<String> cell = new TreeCell<>() {
+                @Override
+                protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty ? null : item);
+                }
+            };
+            ContextMenu ctx = new ContextMenu();
+            MenuItem createItem = new MenuItem(
+                I18n.get(Keys.BTN_CREATE_OBJECT)
+            );
+            createItem.setOnAction(e -> onCreateNewObject());
+            ctx.getItems().add(createItem);
+            cell.setContextMenu(ctx);
+            return cell;
+        });
+    }
+
+    private final Map<TreeItem<String>, String> navKeyMap = new HashMap<>();
+
+    private TreeItem<String> navItem(String i18nKey) {
+        TreeItem<String> item = new TreeItem<>(I18n.get(i18nKey));
+        navKeyMap.put(item, i18nKey);
+        return item;
+    }
+
+    /** Dynamic nav item with explicit label (for ranges whose id is the label). */
+    private TreeItem<String> navItemDynamic(String key, String label) {
+        TreeItem<String> item = new TreeItem<>(label);
+        navKeyMap.put(item, key);
+        return item;
+    }
+
+    /**
+     * (Re-)builds the children of the "Configuration du dictionnaire" nav node.
+     * Structure: Dictionary description, Field and traits definitions (separated),
+     * then a "Ranges" section grouping all dynamic ranges.
+     */
+    private void rebuildHeaderCfgChildren() {
+        if (headerCfgNode == null) return;
+        // Remove old items from navKeyMap (including nested range children)
+        headerCfgNode.getChildren().forEach(this::removeFromNavKeyMapRecursive);
+        headerCfgNode.getChildren().clear();
+
+        // First group: Dictionary description and Field definitions (separated)
+        headerCfgNode.getChildren().add(navItem(NAV_CFG_DESC));
+        headerCfgNode.getChildren().add(navItem(NAV_CFG_FIELD_DEFS));
+
+        // Manage X entries (open config dialogs)
+        headerCfgNode.getChildren().add(navItem(NAV_CFG_MANAGE_LANGS));
+        headerCfgNode.getChildren().add(navItem(NAV_CFG_MANAGE_NOTE_TYPES));
+        headerCfgNode.getChildren().add(navItem(NAV_CFG_MANAGE_TRANS_TYPES));
+        headerCfgNode
+            .getChildren()
+            .add(navItem(NAV_CFG_MANAGE_ANNOTATION_TYPES));
+        headerCfgNode.getChildren().add(navItem(NAV_CFG_MANAGE_RELATION_TYPES));
+
+        // Second group: Ranges (Taxinomies) - parent node with dynamic range entries as children
+        TreeItem<String> rangesNode = new TreeItem<>(
+            I18n.get(Keys.NAV_CFG_RANGES)
+        );
+        rangesNode.setExpanded(false);
+        if (currentDictionary != null) {
+            LiftHeader header = currentDictionary
+                .getHeader();
+            if (header != null) {
+                for (LiftHeaderRange range : header.getRanges()) {
+                    String key = NAV_CFG_RANGE_PREFIX + range.getId();
+                    String label = range
+                        .getLabel()
+                        .getForms()
+                        .stream()
+                        .findFirst()
+                        .map(Form::toPlainText)
+                        .orElse(range.getId());
+                    rangesNode.getChildren().add(navItemDynamic(key, label));
+                }
+            }
+        }
+        headerCfgNode.getChildren().add(rangesNode);
+        headerCfgNode.setExpanded(true);
+    }
+
+    private void removeFromNavKeyMapRecursive(TreeItem<String> item) {
+        navKeyMap.remove(item);
+        item.getChildren().forEach(this::removeFromNavKeyMapRecursive);
+    }
+
+    /* ─── View switching ─── */
+
+    private void switchView(String viewName) {
+        if (NAV_ENTRIES.equals(viewName)) {
+            if (!keepEntrySubsetOnNextEntryView) {
+                entrySubsetOverride = null;
+                entrySubsetTitle = null;
+            }
+            keepEntrySubsetOnNextEntryView = false;
+        }
+        if (NAV_SENSES.equals(viewName)) {
+            if (!keepSenseSubsetOnNextSenseView) {
+                senseSubsetOverride = null;
+            }
+            keepSenseSubsetOnNextSenseView = false;
+        }
+        currentView = viewName;
+        ensureRightPanelVisible();
+        String title = viewName.startsWith(NAV_CFG_RANGE_PREFIX)
+            ? viewName.substring(NAV_CFG_RANGE_PREFIX.length())
+            : I18n.get(viewName);
+        viewTitle.setText(title);
+        editorContainer.getChildren().clear();
+        editEntryTitle.setText(I18n.get("panel.selectElement"));
+        editEntryCode.setText("");
+        tableContainer.getChildren().clear();
+        addButton.setText(I18n.get(Keys.BTN_NEW));
+        boolean showAddButton =
+            NAV_ENTRIES.equals(viewName) || NAV_QUICK_ENTRY.equals(viewName);
+        addButton.setVisible(showAddButton);
+        addButton.setManaged(showAddButton);
+
+        if (viewName.startsWith(NAV_CFG_RANGE_PREFIX)) {
+            setRightPanelVisible(true);
+            showHeaderRangeView(
+                viewName.substring(NAV_CFG_RANGE_PREFIX.length())
+            );
+            selectNavItem(viewName);
+            return;
+        }
+        switch (viewName) {
+            case NAV_ENTRIES -> showEntryView();
+            case NAV_SENSES -> showSenseView();
+            case NAV_EXAMPLES -> showExampleView();
+            case NAV_NOTES -> showNoteView();
+            case NAV_VARIANTS -> showVariantView();
+            case NAV_ETYMOLOGIES -> showEtymologyView();
+            case NAV_RELATIONS -> showRelationView();
+            case NAV_OBJ_LANGS -> showLangFieldView(true);
+            case NAV_META_LANGS -> showLangFieldView(false);
+            case NAV_TRAITS -> showTraitView();
+            case NAV_ANNOTATIONS -> showAnnotationView();
+            case NAV_FIELDS -> showFieldView();
+            case NAV_GRAM_INFO -> showGramInfoView();
+            case NAV_TRANS_TYPES -> showTranslationTypesView();
+            case NAV_NOTE_TYPES -> showNoteTypesView();
+            case NAV_RELATION_TYPES -> showRelationTypesView();
+            case NAV_FIELD_TYPES -> showFieldTypesView();
+            case NAV_QUICK_ENTRY -> showQuickEntryView();
+            case NAV_CFG_DESC -> {
+                showHeaderDescView();
+                setRightPanelVisible(false);
+            }
+            case NAV_CFG_FIELD_DEFS -> showHeaderFieldDefsView();
+            case NAV_CFG_MANAGE_LANGS -> {
+                showManageLanguagesView();
+                setRightPanelVisible(false);
+            }
+            case NAV_CFG_MANAGE_NOTE_TYPES -> {
+                showConfigNoteTypesView();
+                setRightPanelVisible(false);
+            }
+            case NAV_CFG_MANAGE_TRANS_TYPES -> {
+                showConfigTranslationTypesView();
+                setRightPanelVisible(false);
+            }
+            case NAV_CFG_MANAGE_ANNOTATION_TYPES -> {
+                showConfigAnnotationTypesView();
+                setRightPanelVisible(false);
+            }
+            case NAV_CFG_MANAGE_RELATION_TYPES -> {
+                showConfigRelationTypesView();
+                setRightPanelVisible(false);
+            }
+            default -> showEntryView();
+        }
+        boolean hideRightPanel =
+            NAV_CFG_DESC.equals(viewName) ||
+            NAV_CFG_MANAGE_LANGS.equals(viewName) ||
+            NAV_CFG_MANAGE_NOTE_TYPES.equals(viewName) ||
+            NAV_CFG_MANAGE_TRANS_TYPES.equals(viewName) ||
+            NAV_CFG_MANAGE_ANNOTATION_TYPES.equals(viewName) ||
+            NAV_CFG_MANAGE_RELATION_TYPES.equals(viewName);
+        if (!hideRightPanel) setRightPanelVisible(true);
+        // Hide search field in quick entry view (not needed there)
+        if (searchField != null) {
+            boolean showSearch = !NAV_QUICK_ENTRY.equals(viewName);
+            searchField.setVisible(showSearch);
+            searchField.setManaged(showSearch);
+        }
+        selectNavItem(viewName);
+    }
+
+    @FXML
+    private void onUndo() {
+        undoManager.undo();
+    }
+
+    @FXML
+    private void onRedo() {
+        undoManager.redo();
+    }
+
+    private boolean splitConstraintInstalled = false;
+
+    private void setRightPanelVisible(boolean visible) {
+        if (mainSplit != null && mainSplit.getItems().size() >= 2) {
+            javafx.scene.Node rightPane = mainSplit.getItems().get(1);
+            rightPane.setManaged(visible);
+            rightPane.setVisible(visible);
+        }
+    }
+
+    private void ensureRightPanelVisible() {
+        if (rightContent != null) {
+            rightContent.setManaged(true);
+            rightContent.setVisible(true);
+        }
+        if (
+            mainSplit != null &&
+            mainSplit.getItems().size() >= 2 &&
+            !splitConstraintInstalled
+        ) {
+            splitConstraintInstalled = true;
+            // Enforce min widths so neither pane can completely disappear.
+            javafx.scene.Node leftPane = mainSplit.getItems().get(0);
+            javafx.scene.Node rightPane = mainSplit.getItems().get(1);
+            if (leftPane instanceof Region r) r.setMinWidth(250);
+            if (rightPane instanceof Region r) r.setMinWidth(300);
+
+            // Clamp the divider so the right panel always stays visible.
+            SplitPane.Divider divider = mainSplit.getDividers().get(0);
+            divider.positionProperty().addListener((obs, oldPos, newPos) -> {
+                double total = mainSplit.getWidth();
+                if (total <= 0) return;
+                double minRight = 300.0;
+                double maxPosition = 1.0 - minRight / total;
+                double minLeft = 250.0;
+                double minPosition = minLeft / total;
+                double clamped = Math.max(
+                    minPosition,
+                    Math.min(maxPosition, newPos.doubleValue())
+                );
+                if (Math.abs(clamped - newPos.doubleValue()) > 0.001) {
+                    Platform.runLater(() -> divider.setPosition(clamped));
+                }
+            });
+        }
+    }
+
+    /* ════════════════════ ENTRY VIEW ════════════════════ */
+
+    private void setupEntryTable() {
+        SortedList<LiftEntry> sorted = new SortedList<>(filteredEntries);
+        sorted.comparatorProperty().bind(entryTable.comparatorProperty());
+        entryTable.setItems(sorted);
+        entryTable
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (
+                    n != null && currentView.equals(NAV_ENTRIES)
+                ) populateEntryEditor(n);
+            });
+    }
+
+    private void showEntryView() {
+        addButton.setText(I18n.get(Keys.BTN_NEW_ENTRY));
+        GridPane filterRow = buildEntryFilterRow();
+        String clearOption = I18n.get("filter.clear");
+
+        Button clearBtn = new Button(I18n.get("filter.resetAll"));
+        clearBtn.setOnAction(e -> {
+            entryFilterInternalUpdate = true;
+            try {
+                entryColumnFilters.forEach(cb -> cb.setValue(clearOption));
+            } finally {
+                entryFilterInternalUpdate = false;
+            }
+            applyCurrentFilter();
+            entryTable.getSelectionModel().clearSelection();
+        });
+        HBox header = new HBox();
+        header.setPadding(new Insets(0, 6, 4, 6));
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        header.getChildren().addAll(spacer, clearBtn);
+
+        VBox wrapper = new VBox(header, filterRow, entryTable);
+        wrapper.setMinWidth(0);
+        filterRow.setMinWidth(0);
+        entryTable.setMinWidth(0);
+        VBox.setVgrow(entryTable, Priority.ALWAYS);
+        tableContainer.getChildren().setAll(wrapper);
+        applyCurrentFilter();
+        if (entrySubsetTitle != null) viewTitle.setText(entrySubsetTitle);
+        if (!filteredEntries.isEmpty()) {
+            entryTable.getSelectionModel().selectFirst();
+            LiftEntry selected = entryTable
+                .getSelectionModel()
+                .getSelectedItem();
+            if (selected != null) populateEntryEditor(selected);
+        }
+        int total =
+            entrySubsetOverride != null
+                ? entrySubsetOverride.size()
+                : baseEntries.size();
+        updateCountLabel(filteredEntries.size(), total);
+    }
+
+    private final List<ComboBox<String>> entryColumnFilters = new ArrayList<>();
+    private boolean entryFilterInternalUpdate = false;
+
+    private GridPane buildEntryFilterRow() {
+        entryColumnFilters.clear();
+        GridPane row = new GridPane();
+        row.setHgap(0);
+        row.setPadding(new Insets(2, 0, 2, 0));
+        row.setStyle("-fx-background-color: #eef2f3;");
+        row.setMinWidth(0);
+        String clearOption = I18n.get(Keys.FILTER_CLEAR);
+        List<TableColumn<LiftEntry, ?>> leaves = collectLeafColumns(entryTable);
+
+        for (int i = 0; i < leaves.size(); i++) {
+            TableColumn<LiftEntry, ?> col = leaves.get(i);
+            ComboBox<String> cb = new ComboBox<>();
+            cb.getStyleClass().add("filter-combo");
+            cb.setPromptText(I18n.get("filter.prompt"));
+            cb.setEditable(false);
+            cb.setMaxWidth(Double.MAX_VALUE);
+            cb.setMinWidth(0);
+            cb.setMinHeight(26);
+            cb.setPrefHeight(26);
+            cb.setStyle("-fx-font-size: 11px;");
+            cb.setCellFactory(list ->
+                new ListCell<>() {
+                    @Override
+                    protected void updateItem(String item, boolean empty) {
+                        super.updateItem(item, empty);
+                        if (empty || item == null) {
+                            setText(null);
+                            setDisable(false);
+                            setStyle("");
+                            return;
+                        }
+                        setText(item);
+                        boolean isClearItem = clearOption.equals(item);
+                        boolean activeFilter = isActiveFilter(
+                            cb.getValue(),
+                            clearOption
+                        );
+                        boolean disableClear = isClearItem && !activeFilter;
+                        setDisable(disableClear);
+                        setStyle(disableClear ? "-fx-opacity: 0.45;" : "");
+                    }
+                }
+            );
+            cb.setButtonCell(
+                new ListCell<>() {
+                    @Override
+                    protected void updateItem(String item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setText(empty || item == null ? null : item);
+                    }
+                }
+            );
+            cb.valueProperty().addListener((obs, o, n) -> {
+                if (clearOption.equals(n) && !isActiveFilter(o, clearOption)) {
+                    cb.setValue(o);
+                    return;
+                }
+                if (entryFilterInternalUpdate) return;
+                applyCurrentFilter();
+            });
+            entryColumnFilters.add(cb);
+
+            ColumnConstraints cc = new ColumnConstraints();
+            cc.prefWidthProperty().bind(col.widthProperty());
+            row.getColumnConstraints().add(cc);
+            GridPane.setHgrow(cb, Priority.ALWAYS);
+            row.add(cb, i, 0);
+        }
+
+        entryFilterInternalUpdate = true;
+        try {
+            entryColumnFilters.forEach(cb -> cb.setValue(clearOption));
+        } finally {
+            entryFilterInternalUpdate = false;
+        }
+
+        // Aligner la largeur des filtres sur la zone des colonnes (prend en compte la scrollbar verticale)
+        row.maxWidthProperty().bind(
+            Bindings.createDoubleBinding(
+                () ->
+                    leaves
+                        .stream()
+                        .mapToDouble(c -> c.getWidth())
+                        .sum(),
+                leaves
+                    .stream()
+                    .<javafx.beans.Observable>map(col -> col.widthProperty())
+                    .toArray(javafx.beans.Observable[]::new)
+            )
+        );
+        return row;
+    }
+
+    private void configureEntryTableColumns() {
+        entryTable.getColumns().clear();
+        entryTable.setEditable(true); // ← active l'édition sur la table
+        if (currentDictionary == null) return;
+
+        // ── Colonnes Formes par langue ──
+        var formLangs = currentDictionary
+            .getLiftDictionaryRegistry()
+            .getEntries()
+            .stream()
+            .flatMap(e -> e.getForms().getLangs().stream())
+            .filter(s -> s != null && !s.isBlank())
+            .distinct()
+            .sorted()
+            .toList();
+
+        TableColumn<LiftEntry, String> formGroup = new TableColumn<>(
+            I18n.get(Keys.COL_FORM)
+        );
+        for (String lang : formLangs) {
+            TableColumn<LiftEntry, String> c = new TableColumn<>(lang);
+            c.setMinWidth(85);
+            c.setPrefWidth(140);
+            c.setCellValueFactory(cd ->
+                cd.getValue() == null
+                    ? new ReadOnlyStringWrapper("")
+                    : cd.getValue().getForms().formTextProperty(lang)
+            );
+            c.setCellFactory(TextFieldTableCell.forTableColumn());
+            c.setOnEditCommit(ev -> {
+                LiftEntry e = ev.getRowValue();
+                if (e == null) return;
+                e.getForms()
+                    .getForms()
+                    .stream()
+                    .filter(f -> lang.equals(f.getLang()))
+                    .findFirst()
+                    .ifPresentOrElse(
+                        f -> f.changeText(ev.getNewValue()), // ← changeText au lieu de setText
+                        () -> e.getForms().add(new Form(lang, ev.getNewValue()))
+                    );
+            });
+            formGroup.getColumns().add(c);
+        }
+
+        // ── Colonne morph-type (trait "morph-type") ──
+        TableColumn<LiftEntry, String> morphCol = new TableColumn<>(
+            I18n.get(Keys.COL_MORPH_TYPE)
+        );
+        morphCol.setMinWidth(85);
+        morphCol.setPrefWidth(110);
+        morphCol.setCellValueFactory(cd -> {
+            LiftEntry e = cd.getValue();
+            return e == null
+                ? new ReadOnlyStringWrapper("")
+                : Bindings.createStringBinding(
+                      () -> getTraitValue(e, Keys.MORPH_TYPE),
+                      e.traitsProperty()
+                  );
+        });
+        morphCol.setCellFactory(TextFieldTableCell.forTableColumn());
+        morphCol.setOnEditCommit(ev -> {
+            LiftEntry e = ev.getRowValue();
+            if (e == null) return;
+            e.getTraits()
+                .stream()
+                .filter(t -> Keys.MORPH_TYPE.equals(t.getDefinition().getName()))
+                .findFirst()
+                .ifPresentOrElse(
+                    t -> t.setValue(ev.getNewValue()),
+                    () -> {
+                        currentDictionary.getComponentBuilder().trait(e, Keys.MORPH_TYPE, ev.getNewValue()).build();
+                        //LiftXMLFactory factory = getFactory(currentDictionary);
+                        //if (factory != null) factory.createTrait(
+                        //    Keys.MORPH_TYPE,
+                        //    ev.getNewValue(),
+                        //    e
+                        //);
+                    }
+                );
+        });
+
+        // ── Colonne Date (lecture seule) ──
+        TableColumn<LiftEntry, String> dateCol = new TableColumn<>(
+            I18n.get(Keys.COL_DATE_CREATED)
+        );
+        dateCol.setMinWidth(85);
+        dateCol.setPrefWidth(130);
+        dateCol.setCellValueFactory(cd ->
+            new ReadOnlyStringWrapper(
+                cd.getValue() == null
+                    ? ""
+                    : cd.getValue().getDateCreated().orElse("")
+            )
+        );
+
+        entryTable.getColumns().addAll(formGroup, morphCol, dateCol);
+    }
+
+    /* ════════════════════ SENSE VIEW ════════════════════ */
+
+    private void showSenseView() {
+        senseTable.setItems(FXCollections.observableArrayList());
+        senseTable.getColumns().clear();
+        if (currentDictionary == null) {
+            tableContainer.getChildren().setAll(senseTable);
+            return;
+        }
+
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
+
+        // Colonne "Entrée parente" : forme(s) de l'entrée dont c'est le sens
+        TableColumn<LiftSense, String> parentEntryGroup = new TableColumn<>(
+            I18n.get(Keys.COL_PARENT_ENTRY)
+        );
+        for (String l : objLangs) {
+            final String lang = l;
+            TableColumn<LiftSense, String> c = col(l, s -> {
+                LiftEntry parent = s.getParentEntry();
+                return parent != null
+                    ? parent
+                          .getForms()
+                          .getForm(lang)
+                          .map(Form::toPlainText)
+                          .orElse("")
+                    : "";
+            });
+            c.setPrefWidth(120);
+            parentEntryGroup.getColumns().add(c);
+        }
+        TableColumn<LiftSense, String> giCol = col(
+            I18n.get(Keys.COL_GRAM_INFO),
+            s ->
+                s.getGrammaticalInfo().map(GrammaticalInfo::getValue).orElse("")
+        );
+        TableColumn<LiftSense, String> glossGroup = new TableColumn<>(
+            I18n.get(Keys.COL_GLOSS)
+        );
+        for (String l : metaLangs) {
+            glossGroup
+                .getColumns()
+                .add(
+                    col(l, s ->
+                        s
+                            .getGloss()
+                            .getForm(l)
+                            .map(Form::toPlainText)
+                            .orElse("")
+                    )
+                );
+        }
+        TableColumn<LiftSense, String> defGroup = new TableColumn<>(
+            I18n.get(Keys.COL_DEFINITION)
+        );
+        for (String l : metaLangs) {
+            defGroup
+                .getColumns()
+                .add(
+                    col(l, s ->
+                        s
+                            .getDefinition()
+                            .getForm(l)
+                            .map(Form::toPlainText)
+                            .orElse("")
+                    )
+                );
+        }
+        senseTable
+            .getColumns()
+            .addAll(parentEntryGroup, giCol, glossGroup, defGroup);
+        List<LiftSense> sensesToShow =
+            senseSubsetOverride != null
+                ? senseSubsetOverride
+                : currentDictionary
+                      .getLiftDictionaryRegistry()
+                      .getSenses();
+        senseTable.getItems().addAll(sensesToShow);
+        senseTable
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) populateSenseEditor(n);
+            });
+        tableContainer
+            .getChildren()
+            .setAll(
+                wrapTableWithFilters(
+                    senseTable,
+                    (f, t) -> updateCountLabel(f, t),
+                    searchField != null ? searchField.textProperty() : null
+                )
+            );
+        updateCountLabel(
+            senseTable.getItems().size(),
+            senseTable.getItems().size()
+        );
+    }
+
+    /* ════════════════════ EXAMPLE VIEW ════════════════════ */
+
+    private void showExampleView() {
+        exampleTable.setItems(FXCollections.observableArrayList());
+        exampleTable.getColumns().clear();
+        if (currentDictionary == null) {
+            tableContainer.getChildren().setAll(exampleTable);
+            return;
+        }
+
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
+        Set<LiftHeaderRangeElement> transTypes = currentDictionary.getHeader().getTranslationTypeManager().getRangeElements().values().stream().collect(Collectors.toSet());
+
+        // 1. Sens parent (multitexte : glose du sens parent)
+        TableColumn<LiftExample, String> parentSenseGroup = new TableColumn<>(
+            I18n.get(Keys.COL_PARENT_SENSE)
+        );
+        for (String l : metaLangs) {
+            final String lang = l;
+            parentSenseGroup.getColumns().add(
+                col(l, ex -> {
+                    LiftSense parent = ex.getParent();
+                        // ex.getParent() != null
+                        //     ? ex.getParent()
+                        //     : findParentSense(ex).orElse(null);
+                    if (parent == null) return "";
+                    // Gloss = forme principale du sens ; sinon première forme disponible
+                    MultiText gloss = parent.getGloss();
+                    return gloss
+                        .getForm(lang)
+                        .map(Form::toPlainText)
+                        .or(() ->
+                            gloss
+                                .getForms()
+                                .stream()
+                                .findFirst()
+                                .map(Form::toPlainText)
+                        )
+                        .orElse("");
+                })
+            );
+        }
+        exampleTable.getColumns().add(parentSenseGroup);
+
+        // 2. Source
+        TableColumn<LiftExample, String> srcCol = col(
+            I18n.get(Keys.COL_SOURCE),
+            ex -> ex.getSource().orElse("")
+        );
+        exampleTable.getColumns().add(srcCol);
+
+        // 3. Exemple (langues objet)
+        TableColumn<LiftExample, String> exGroup = new TableColumn<>(
+            I18n.get(Keys.COL_EXAMPLE)
+        );
+        for (String l : objLangs) {
+            exGroup
+                .getColumns()
+                .add(
+                    col(l, ex ->
+                        ex
+                            .getExample()
+                            .getForm(l)
+                            .map(Form::toPlainText)
+                            .orElse("")
+                    )
+                );
+        }
+        exampleTable.getColumns().add(exGroup);
+
+        // 4. Traductions : un groupe par type de traduction, sous-colonnes par langue méta
+        for (String transType : transTypes.stream().map(LiftHeaderRangeElement::getId).sorted().toList()) {
+            TableColumn<LiftExample, String> transGroup = new TableColumn<>(
+                transType.isEmpty() ? I18n.get(Keys.COL_TRANSLATION) : transType
+            );
+            for (String l : metaLangs) {
+                final String lang = l;
+                final String type = transType;
+                transGroup.getColumns().add(
+                    col(l, ex -> {
+                        MultiText mt = ex.getTranslations().get(type);
+                        return mt != null
+                            ? mt.getForm(lang).map(Form::toPlainText).orElse("")
+                            : "";
+                    })
+                );
+            }
+            exampleTable.getColumns().add(transGroup);
+        }
+
+        exampleTable
+            .getItems()
+            .addAll(
+                currentDictionary.getLiftDictionaryRegistry().getExamples()
+            );
+        exampleTable
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) populateExampleEditor(n);
+            });
+        tableContainer
+            .getChildren()
+            .setAll(
+                wrapTableWithFilters(
+                    exampleTable,
+                    (f, t2) -> updateCountLabel(f, t2),
+                    searchField != null ? searchField.textProperty() : null
+                )
+            );
+        updateCountLabel(
+            exampleTable.getItems().size(),
+            exampleTable.getItems().size()
+        );
+    }
+
+    /* ════════════════════ NOTE VIEW ════════════════════ */
+
+    private void showNoteView() {
+        TableView<LiftNote> noteTable = new TableView<>();
+        if (currentDictionary == null) {
+            tableContainer.getChildren().setAll(noteTable);
+            return;
+        }
+        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
+        TableColumn<LiftNote, String> parentTypeCol = col(
+            I18n.get(Keys.COL_PARENT_TYPE),
+            n -> describeParentType(n.getParent())
+        );
+        TableColumn<LiftNote, String> typeCol = col(
+            I18n.get(Keys.COL_TYPE),
+            x -> x.getType().getId()
+        );
+        TableColumn<LiftNote, String> textGroup = new TableColumn<>(
+            I18n.get(Keys.COL_TEXT)
+        );
+        for (String l : metaLangs) {
+            TableColumn<LiftNote, String> c = col(l, n ->
+                n.getText().getForm(l).map(Form::toPlainText).orElse("")
+            );
+            c.getProperties().put("filterMode", FILTER_MODE_TEXT);
+            textGroup.getColumns().add(c);
+        }
+        noteTable.getColumns().addAll(parentTypeCol, typeCol, textGroup);
+        noteTable
+            .getItems()
+            .addAll(
+                currentDictionary.getLiftDictionaryRegistry().getNotes()
+            );
+        noteTable
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) populateNoteEditor(n);
+            });
+        tableContainer
+            .getChildren()
+            .setAll(
+                wrapTableWithFilters(
+                    noteTable,
+                    (f, t2) -> updateCountLabel(f, t2),
+                    searchField != null ? searchField.textProperty() : null
+                )
+            );
+        updateCountLabel(
+            noteTable.getItems().size(),
+            noteTable.getItems().size()
+        );
+    }
+
+    /* ════════════════════ VARIANT VIEW ════════════════════ */
+
+    private void showVariantView() {
+        variantTable.setItems(FXCollections.observableArrayList());
+        variantTable.getColumns().clear();
+        if (currentDictionary == null) {
+            tableContainer.getChildren().setAll(variantTable);
+            return;
+        }
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        TableColumn<LiftVariant, String> parentFormGroup = new TableColumn<>(
+            I18n.get(Keys.COL_PARENT_ENTRY)
+        );
+        for (String l : objLangs) {
+            parentFormGroup
+                .getColumns()
+                .add(
+                    col(l, v ->
+                        v.getParent() != null
+                            ? v
+                                  .getParent()
+                                  .getForms()
+                                  .getForm(l)
+                                  .map(Form::toPlainText)
+                                  .orElse("")
+                            : ""
+                    )
+                );
+        }
+        TableColumn<LiftVariant, String> variantTypeCol = col(
+            "variant-type",
+            v -> getTraitValueFor(v, "variant-type")
+        );
+        TableColumn<LiftVariant, String> isPrimaryCol = col("is-primary", v ->
+            getTraitValueFor(v, "is-primary")
+        );
+        TableColumn<LiftVariant, String> refCol = col(
+            I18n.get(Keys.COL_REF),
+            v -> v.getRefId().orElse("")
+        );
+        TableColumn<LiftVariant, String> formGroup = new TableColumn<>(
+            I18n.get(Keys.COL_FORMS)
+        );
+        for (String l : objLangs)
+            formGroup
+                .getColumns()
+                .add(
+                    col(l, v ->
+                        v
+                            .getForms()
+                            .getForm(l)
+                            .map(Form::toPlainText)
+                            .orElse("")
+                    )
+                );
+        variantTable
+            .getColumns()
+            .addAll(
+                parentFormGroup,
+                variantTypeCol,
+                isPrimaryCol,
+                refCol,
+                formGroup
+            );
+        variantTable
+            .getItems()
+            .addAll(
+                currentDictionary.getLiftDictionaryRegistry().getVariants()
+            );
+        variantTable
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) populateVariantEditor(n);
+            });
+        tableContainer
+            .getChildren()
+            .setAll(
+                wrapTableWithFilters(
+                    variantTable,
+                    (f, t2) -> updateCountLabel(f, t2),
+                    searchField != null ? searchField.textProperty() : null
+                )
+            );
+        updateCountLabel(
+            variantTable.getItems().size(),
+            variantTable.getItems().size()
+        );
+    }
+
+    /* ════════════════════ RELATION VIEW ════════════════════ */
+
+    private void showRelationView() {
+        relationTable.setItems(FXCollections.observableArrayList());
+        relationTable.getColumns().clear();
+        if (currentDictionary == null) {
+            tableContainer.getChildren().setAll(relationTable);
+            return;
+        }
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
+        var entryById = currentDictionary
+            .getLiftDictionaryRegistry()
+            .getEntriesById();
+        TableColumn<LiftRelation, String> parentFormGroup = new TableColumn<>(
+            I18n.get(Keys.COL_PARENT_ENTRY)
+        );
+        for (String l : objLangs) {
+            parentFormGroup.getColumns().add(
+                col(l, r -> {
+                    MultiText forms = getParentEntryForms(r);
+                    return forms != null
+                        ? forms.getForm(l).map(Form::toPlainText).orElse("")
+                        : "";
+                })
+            );
+        }
+        TableColumn<LiftRelation, String> typeCol = col(
+            I18n.get(Keys.COL_TYPE),
+            (LiftRelation r) -> r.getType().getId()
+        );
+        TableColumn<LiftRelation, String> refFormGroup = new TableColumn<>(
+            I18n.get("col.ref") + " (form)"
+        );
+        for (String l : objLangs) {
+            refFormGroup.getColumns().add(
+                col(l, r -> {
+                    String refId = r.getRefID().orElse("");
+                    if (refId.isBlank()) return "";
+                    LiftEntry pointed =
+                        entryById != null ? entryById.get(refId) : null;
+                    return pointed != null
+                        ? pointed
+                              .getForms()
+                              .getForm(l)
+                              .map(Form::toPlainText)
+                              .orElse("")
+                        : "";
+                })
+            );
+        }
+        TableColumn<LiftRelation, String> usageCol = new TableColumn<>(
+            I18n.get(Keys.COL_USAGE)
+        );
+        for (String l : metaLangs) {
+            usageCol
+                .getColumns()
+                .add(
+                    col(l, r ->
+                        r
+                            .getUsage()
+                            .getForm(l)
+                            .map(Form::toPlainText)
+                            .orElse("")
+                    )
+                );
+        }
+        relationTable
+            .getColumns()
+            .addAll(parentFormGroup, typeCol, refFormGroup, usageCol);
+        relationTable
+            .getItems()
+            .addAll(
+                currentDictionary
+                    .getLiftDictionaryRegistry()
+                    .getRelations()
+            );
+        relationTable
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) populateRelationEditor(n);
+            });
+        tableContainer
+            .getChildren()
+            .setAll(
+                wrapTableWithFilters(
+                    relationTable,
+                    (f, t2) -> updateCountLabel(f, t2),
+                    searchField != null ? searchField.textProperty() : null
+                )
+            );
+        updateCountLabel(
+            relationTable.getItems().size(),
+            relationTable.getItems().size()
+        );
+    }
+
+    private void populateRelationEditor(LiftRelation relation) {
+        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
+        editEntryTitle.setText(
+            I18n.get("nav.relations") +
+                " : " +
+                (relation.getType() != null ? relation.getType() : "?")
+        );
+        editEntryCode.setText(relation.getRefID().orElse(""));
+        editorContainer.getChildren().clear();
+        HasRelations parent = relation.getParent();
+        if (parent instanceof LiftEntry entry) {
+            String entryForm = entry
+                .getForms()
+                .getForms()
+                .stream()
+                .findFirst()
+                .map(Form::toPlainText)
+                .orElse("");
+            if (entryForm.isEmpty()) entryForm = "?";
+            Button backBtn = new Button(
+                I18n.get("sense.backToEntry", entryForm)
+            );
+            backBtn.getStyleClass().addAll("example-add-button", "back-btn");
+            backBtn.setOnAction(e -> navigateToEntryFromSense(entry));
+            editorContainer.getChildren().add(backBtn);
+        } else if (parent instanceof LiftSense sense) {
+            Button backBtn = new Button(
+                I18n.get("sense.backToSense", senseDisplayText(sense))
+            );
+            backBtn.getStyleClass().addAll("example-add-button", "back-btn");
+            backBtn.setOnAction(e -> navigateToSenseFromParent(sense));
+            editorContainer.getChildren().add(backBtn);
+        } else if (parent instanceof LiftVariant variant) {
+            LiftEntry entry = variant.getParent();
+            if (entry != null) {
+                String entryForm = entry
+                    .getForms()
+                    .getForms()
+                    .stream()
+                    .findFirst()
+                    .map(Form::toPlainText)
+                    .orElse("");
+                if (entryForm.isEmpty()) entryForm = "?";
+                Button backBtn = new Button(
+                    I18n.get("sense.backToEntry", entryForm)
+                );
+                backBtn
+                    .getStyleClass()
+                    .addAll("example-add-button", "back-btn");
+                backBtn.setOnAction(e -> navigateToEntryFromSense(entry));
+                editorContainer.getChildren().add(backBtn);
+            }
+        }
+        RelationEditor re = new RelationEditor(currentDictionary);
+        re.setRelation(relation);
+        editorContainer.getChildren().add(re);
+    }
+
+    /* ════════════════════ ETYMOLOGY VIEW ════════════════════ */
+
+    private void showEtymologyView() {
+        TableView<LiftEtymology> etyTable = new TableView<>();
+        if (currentDictionary == null) {
+            tableContainer.getChildren().setAll(etyTable);
+            return;
+        }
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        TableColumn<LiftEtymology, String> typeCol = col(
+            I18n.get(Keys.COL_TYPE),
+            (LiftEtymology e) -> e.getType().getId()
+        );
+        TableColumn<LiftEtymology, String> sourceCol = col(
+            I18n.get(Keys.COL_SOURCE),
+            (LiftEtymology e) -> e.getSource() != null ? e.getSource() : ""
+        );
+        TableColumn<LiftEtymology, String> formGroup = new TableColumn<>(
+            I18n.get(Keys.COL_FORMS)
+        );
+        for (String l : objLangs)
+            formGroup
+                .getColumns()
+                .add(
+                    col(l, e ->
+                        e
+                            .getForms()
+                            .getForm(l)
+                            .map(Form::toPlainText)
+                            .orElse("")
+                    )
+                );
+        etyTable.getColumns().addAll(typeCol, sourceCol, formGroup);
+        currentDictionary
+            .getLiftDictionaryRegistry()
+            .getEntries()
+            .stream()
+            .flatMap(e -> e.getEtymologies().stream())
+            .forEach(etyTable.getItems()::add);
+        etyTable
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) {
+                    EtymologyEditor ee = new EtymologyEditor(currentDictionary);
+                    ee.setEtymology(
+                        n,
+                        currentDictionary.getObjectLanguageManager().getLanguages(),
+                        currentDictionary.getMetaLanguageManager().getLanguages()
+                    );
+                    editEntryTitle.setText(
+                        // TODO null for type?
+                        n.getType() == null ? I18n.get("nav.etymologies") : n.getType().getId()
+                    );
+                    editEntryCode.setText(
+                        n.getSource() != null ? n.getSource() : ""
+                    );
+                    editorContainer.getChildren().setAll(ee);
+                }
+            });
+        tableContainer
+            .getChildren()
+            .setAll(
+                wrapTableWithFilters(etyTable, (f, t2) ->
+                    updateCountLabel(f, t2)
+                )
+            );
+        updateCountLabel(
+            etyTable.getItems().size(),
+            etyTable.getItems().size()
+        );
+    }
+
+    /* ════════════════════ LANGUAGE FIELD VIEW (5.9) ════════════════════ */
+
+    private void showLangFieldView(boolean objectLangs) {
+        langFieldTable.setItems(FXCollections.observableArrayList());
+        langFieldTable.getColumns().clear();
+        if (currentDictionary == null) {
+            tableContainer.getChildren().setAll(langFieldTable);
+            return;
+        }
+
+        Set<String> langs = objectLangs
+            ? currentDictionary.getObjectLanguageManager().getLanguages()
+            : currentDictionary.getMetaLanguageManager().getLanguages();
+
+        // Collect all multitext entries with parent info
+        List<MultiTextField> rows = new ArrayList<>();
+
+        // if (objectLangs) {
+        //     currentDictionary
+        //     .getLiftDictionaryRegistry()
+        //     .getObjectTextReadOnly()
+        //     .stream()
+        //     .map( x -> x.getForms()
+        //                 .stream()
+        //                 .map(f ->  new MultiTextField(
+        //                         "texte-objet",
+        //                         ((x.getParent() instanceof AbstractIdentifiable) ? ((AbstractIdentifiable) x.getParent()).getId() : "?"),
+        //                         f.getLang(),
+        //                         f.toPlainText(),
+        //                         x.getParent(),
+        //                         x
+        //                     )
+        //                 )
+        //     );
+        // }
+
+                        // parentType,
+                        // parentId,
+                        // f.getLang(),
+                        // f.toPlainText(),
+                        // parentObject,
+                        // mt
+        for (LiftEntry entry : currentDictionary
+            .getLiftDictionaryRegistry()
+            .getEntries()) {
+            if (objectLangs) {
+                String eid = entry.getId().orElse("?");
+                collectMtRows(
+                    rows,
+                    I18n.get("nav.entries"),
+                    eid,
+                    entry,
+                    entry.getForms(),
+                    langs
+                );
+                for (LiftVariant v : entry.getVariants()) {
+                    collectMtRows(
+                        rows,
+                        "variante",
+                        v.getRefId().orElse("?"),
+                        v,
+                        v.getForms(),
+                        langs
+                    );
+                    for (LiftPronunciation vp : v.getPronunciations())
+                        collectMtRows(
+                            rows,
+                            "pron",
+                            v.getRefId().orElse("?"),
+                            vp,
+                            vp.getPronunciation(),
+                            langs
+                        );
+                }
+                for (LiftPronunciation p : entry.getPronunciations())
+                    collectMtRows(
+                        rows,
+                        "pron",
+                        eid,
+                        p,
+                        p.getPronunciation(),
+                        langs
+                    );
+                for (LiftSense s : entry.getSenses())
+                    collectObjLangRowsForSense(rows, s, langs);
+                for (LiftEtymology et : entry.getEtymologies())
+                    collectMtRows(
+                        rows,
+                        "étymologie",
+                        eid,
+                        et,
+                        et.getForms(),
+                        langs
+                    );
+            } else {
+                String eid = entry.getId().orElse("?");
+                collectMtRows(
+                    rows,
+                    "citation",
+                    eid,
+                    entry,
+                    entry.getCitations(),
+                    langs
+                );
+                for (LiftNote n : entry.getNotes().values())
+                    collectMtRows(rows, "note", eid, n, n.getText(), langs);
+                for (LiftRelation r : entry.getRelations())
+                    collectMtRows(
+                        rows,
+                        "relation (usage)",
+                        eid,
+                        r,
+                        r.getUsage(),
+                        langs
+                    );
+                for (LiftField f : entry.getFields().values())
+                    collectMtRows(rows, "champ", eid, f, f.getText(), langs);
+                for (LiftAnnotation a : entry.getAnnotations())
+                    collectMtRows(
+                        rows,
+                        "annotation",
+                        eid,
+                        a,
+                        a.getText(),
+                        langs
+                    );
+                for (LiftSense s : entry.getSenses())
+                    collectMetaLangRowsForSense(rows, s, langs);
+                for (LiftVariant v : entry.getVariants()) {
+                    String vid = v.getRefId().orElse("?");
+                    for (LiftRelation r : v.getRelations())
+                        collectMtRows(
+                            rows,
+                            "relation (usage)",
+                            vid,
+                            r,
+                            r.getUsage(),
+                            langs
+                        );
+                    for (LiftField f : v.getFields().values())
+                        collectMtRows(
+                            rows,
+                            "champ",
+                            vid,
+                            f,
+                            f.getText(),
+                            langs
+                        );
+                    for (LiftAnnotation a : v.getAnnotations())
+                        collectMtRows(
+                            rows,
+                            "annotation",
+                            vid,
+                            a,
+                            a.getText(),
+                            langs
+                        );
+                }
+            }
+        }
+
+        TableColumn<MultiTextField, String> parentTypeCol = new TableColumn<>(
+            I18n.get(Keys.COL_PARENT_TYPE)
+        );
+        parentTypeCol.setCellValueFactory(cd ->
+            new ReadOnlyStringWrapper(cd.getValue().parentType())
+        );
+        parentTypeCol.setPrefWidth(100);
+
+        TableColumn<MultiTextField, String> langGroup = new TableColumn<>(
+            I18n.get(Keys.NAV_LANGUAGES)
+        );
+        for (String l : langs) {
+            TableColumn<MultiTextField, String> c = new TableColumn<>(l);
+            c.setCellValueFactory(cd ->
+                new ReadOnlyStringWrapper(
+                    l.equals(cd.getValue().lang()) ? cd.getValue().text() : ""
+                )
+            );
+            c.setPrefWidth(160);
+            c.getProperties().put("filterMode", FILTER_MODE_TEXT);
+            langGroup.getColumns().add(c);
+        }
+
+        langFieldTable.getColumns().addAll(parentTypeCol, langGroup);
+        langFieldTable.getItems().addAll(rows);
+        langFieldTable
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) populateLangFieldEditor(n);
+            });
+        tableContainer
+            .getChildren()
+            .setAll(
+                wrapTableWithFilters(
+                    langFieldTable,
+                    (f, t2) -> updateCountLabel(f, t2),
+                    searchField != null ? searchField.textProperty() : null
+                )
+            );
+        updateCountLabel(rows.size(), rows.size());
+    }
+
+    private static void collectMtRows(
+        List<MultiTextField> rows,
+        String parentType,
+        String parentId,
+        Object parentObject,
+        MultiText mt,
+        Set<String> langs
+    ) {
+        if (mt == null) return;
+        for (Form f : mt.getForms()) {
+            if (langs.contains(f.getLang())) {
+                rows.add(
+                    new MultiTextField(
+                        parentType,
+                        parentId,
+                        f.getLang(),
+                        f.toPlainText(),
+                        parentObject,
+                        mt
+                    )
+                );
+            }
+        }
+    }
+
+    private static void collectObjLangRowsForSense(
+        List<MultiTextField> rows,
+        LiftSense s,
+        Set<String> langs
+    ) {
+        String sid = s.getId().orElse("?");
+        for (LiftExample ex : s.getExamples())
+            collectMtRows(rows, "exemple", sid, ex, ex.getExample(), langs);
+        for (LiftSense sub : s.getSenses())
+            collectObjLangRowsForSense(rows, sub, langs);
+    }
+
+    private static void collectMetaLangRowsForSense(
+        List<MultiTextField> rows,
+        LiftSense s,
+        Set<String> langs
+    ) {
+        String sid = s.getId().orElse("?");
+        collectMtRows(rows, "définition", sid, s, s.getDefinition(), langs);
+        collectMtRows(rows, "gloss", sid, s, s.getGloss(), langs);
+        for (LiftExample ex : s.getExamples()) {
+            for (MultiText tr : ex.getTranslations().values())
+                collectMtRows(rows, "traduction", sid, ex, tr, langs);
+            for (LiftNote n : ex.getNotes().values())
+                collectMtRows(rows, "note", sid, n, n.getText(), langs);
+            for (LiftField f : ex.getFields().values())
+                collectMtRows(rows, "champ", sid, f, f.getText(), langs);
+            for (LiftAnnotation a : ex.getAnnotations())
+                collectMtRows(rows, "annotation", sid, a, a.getText(), langs);
+        }
+        for (LiftReversal rev : s.getReversals()) {
+            collectMtRows(rows, "reversal", sid, rev, rev.getForms(), langs);
+            if (rev.getMain() != null) collectMtRows(
+                rows,
+                "reversal (main)",
+                sid,
+                rev.getMain(),
+                rev.getMain().getForms(),
+                langs
+            );
+        }
+        for (LiftRelation r : s.getRelations())
+            collectMtRows(
+                rows,
+                "relation (usage)",
+                sid,
+                r,
+                r.getUsage(),
+                langs
+            );
+        for (LiftNote n : s.getNotes().values())
+            collectMtRows(rows, "note", sid, n, n.getText(), langs);
+        for (LiftField f : s.getFields().values())
+            collectMtRows(rows, "champ", sid, f, f.getText(), langs);
+        for (LiftAnnotation a : s.getAnnotations())
+            collectMtRows(rows, "annotation", sid, a, a.getText(), langs);
+        for (LiftIllustration ill : s.getIllustrations())
+            collectMtRows(
+                rows,
+                "illustration",
+                sid,
+                ill,
+                ill.getLabel(),
+                langs
+            );
+        for (LiftSense sub : s.getSenses())
+            collectMetaLangRowsForSense(rows, sub, langs);
+    }
+
+    /* ════════════════════ TRAIT VIEW (5.10 – split: names top, values bottom) ════════════════════ */
+
+    private void showTraitView() {
+        traitTable.setItems(FXCollections.observableArrayList());
+        traitTable.getColumns().clear();
+        if (currentDictionary == null) {
+            tableContainer
+                .getChildren()
+                .setAll(
+                    wrapTableWithFilters(
+                        traitTable,
+                        (filtered, total) -> updateCountLabel(filtered, total),
+                        searchField != null ? searchField.textProperty() : null
+                    )
+                );
+            return;
+        }
+
+        Map<String, TraitRow> counts = new LinkedHashMap<>();
+        for (LiftTrait t : currentDictionary
+            .getLiftDictionaryRegistry()
+            .getTraits()) {
+            String key = t.getDefinition().getName() + "|" + t.getValue();
+            counts.compute(key, (k, row) -> {
+                String parentType = describeParentType(t.getParent());
+                if (row == null) return new TraitRow(
+                    parentType,
+                    t.getDefinition().getName(),
+                    t.getValue(),
+                    1
+                );
+                return new TraitRow(
+                    row.parentType,
+                    row.name,
+                    row.value,
+                    row.frequency + 1
+                );
+            });
+        }
+
+        TableColumn<TraitRow, String> traitFreqCol = col(
+            I18n.get(Keys.COL_FREQUENCY),
+            r -> String.valueOf(r.frequency())
+        );
+        traitFreqCol.getProperties().put("filterMode", FILTER_MODE_TEXT);
+        traitTable
+            .getColumns()
+            .addAll(
+                col(I18n.get(Keys.COL_PARENT_TYPE), (TraitRow r) ->
+                    r.parentType()
+                ),
+                col(I18n.get(Keys.COL_NAME), (TraitRow r) -> r.name()),
+                col(I18n.get(Keys.COL_VALUE), (TraitRow r) -> r.value()),
+                traitFreqCol
+            );
+        traitTable
+            .getItems()
+            .addAll(
+                counts
+                    .values()
+                    .stream()
+                    .sorted(
+                        Comparator.comparingLong(TraitRow::frequency).reversed()
+                    )
+                    .toList()
+            );
+        traitTable
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) populateTraitSummaryEditor(n);
+            });
+
+        tableContainer
+            .getChildren()
+            .setAll(
+                wrapTableWithFilters(
+                    traitTable,
+                    (f, t2) -> updateCountLabel(f, t2),
+                    searchField != null ? searchField.textProperty() : null
+                )
+            );
+        updateCountLabel(
+            traitTable.getItems().size(),
+            traitTable.getItems().size()
+        );
+    }
+
+    private void showAnnotationView() {
+        annotationTable.setItems(FXCollections.observableArrayList());
+        annotationTable.getColumns().clear();
+        if (currentDictionary == null) {
+            tableContainer.getChildren().setAll(annotationTable);
+            return;
+        }
+
+        List<LiftAnnotation> all = currentDictionary
+            .getLiftDictionaryRegistry()
+            .getAnnotations();
+
+        TableColumn<LiftAnnotation, String> annotFreqCol = col(
+            I18n.get(Keys.COL_FREQUENCY),
+            a -> {
+                long c = all
+                    .stream()
+                    .filter(
+                        x ->
+                            x.nameProperty().equals(a.nameProperty()) &&
+                            x.valueProperty().equals(a.valueProperty())
+                    )
+                    .count();
+                return String.valueOf(c);
+            }
+        );
+
+        annotationTable
+            .getColumns()
+            .addAll(
+                col(I18n.get(Keys.COL_PARENT_TYPE), (LiftAnnotation a) ->
+                    describeParentType(a.getParent())
+                ),
+                col(I18n.get(Keys.COL_PARENT_TYPE), (LiftAnnotation a) ->
+                    describeParentType(a.getParent())
+                ),
+                col(I18n.get(Keys.COL_PARENT), (LiftAnnotation a) ->
+                    describeParent(a.getParent())
+                ),
+                makeCol(I18n.get(Keys.COL_NAME), a ->
+                    new SimpleStringProperty(a.getValue().nameProperty().get().getId())
+                ),
+                col(I18n.get(Keys.COL_VALUE), LiftAnnotation::getValue),
+                col(I18n.get(Keys.COL_WHO), LiftAnnotation::getWho),
+                col(I18n.get(Keys.COL_WHEN), LiftAnnotation::getWhen),
+                annotFreqCol
+            );
+        annotationTable.getItems().addAll(all);
+        annotationTable
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) populateAnnotationSummaryEditor(n);
+            });
+
+        tableContainer
+            .getChildren()
+            .setAll(
+                wrapTableWithFilters(
+                    annotationTable,
+                    (f, t2) -> updateCountLabel(f, t2),
+                    searchField != null ? searchField.textProperty() : null
+                )
+            );
+        updateCountLabel(all.size(), all.size());
+    }
+
+    /* ════════════════════ FIELD VIEW (5.10) ════════════════════ */
+
+    private void showFieldView() {
+        fieldTable.setItems(FXCollections.observableArrayList());
+        fieldTable.getColumns().clear();
+        if (currentDictionary == null) {
+            tableContainer.getChildren().setAll(fieldTable);
+            return;
+        }
+        fieldTable
+            .getColumns()
+            .addAll(
+                col(I18n.get(Keys.COL_PARENT_TYPE), f ->
+                    describeParentType(f.getParent())
+                ),
+                col(I18n.get(Keys.COL_TYPE), x -> x.getType().getName()),
+                col(I18n.get(Keys.COL_TEXT), f ->
+                    f
+                        .getText()
+                        .getForms()
+                        .stream()
+                        .findFirst()
+                        .map(Form::toPlainText)
+                        .orElse("")
+                )
+            );
+        fieldTable
+            .getItems()
+            .addAll(
+                currentDictionary.getLiftDictionaryRegistry().getFields()
+            );
+        fieldTable
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) populateFieldSummaryEditor(n);
+            });
+        tableContainer
+            .getChildren()
+            .setAll(
+                wrapTableWithFilters(
+                    fieldTable,
+                    (f, t2) -> updateCountLabel(f, t2),
+                    searchField != null ? searchField.textProperty() : null
+                )
+            );
+        updateCountLabel(
+            fieldTable.getItems().size(),
+            fieldTable.getItems().size()
+        );
+    }
+
+    /* ════════════════════ QUICK ENTRY VIEW (5.12) ════════════════════ */
+
+    private void showQuickEntryView() {
+        quickEntryTable.setItems(FXCollections.observableArrayList());
+        quickEntryTable.getColumns().clear();
+        if (currentDictionary == null) {
+            tableContainer.getChildren().setAll(quickEntryTable);
+            return;
+        }
+        quickEntryTable.setEditable(true);
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
+
+        for (String l : objLangs) {
+            TableColumn<QuickEntryRow, String> c = new TableColumn<>(
+                "form [" + l + "]"
+            );
+            c.setCellValueFactory(cd -> cd.getValue().formProperty(l));
+            c.setCellFactory(tc ->
+                new CommitOnFocusLossCell<>(row -> row.formProperty(l))
+            );
+            c.setPrefWidth(130);
+            c.setEditable(true);
+            quickEntryTable.getColumns().add(c);
+        }
+        for (String l : metaLangs) {
+            TableColumn<QuickEntryRow, String> c = new TableColumn<>(
+                "sens [" + l + "]"
+            );
+            c.setCellValueFactory(cd -> cd.getValue().glossProperty(l));
+            c.setCellFactory(tc ->
+                new CommitOnFocusLossCell<>(row -> row.glossProperty(l))
+            );
+            c.setPrefWidth(130);
+            c.setEditable(true);
+            quickEntryTable.getColumns().add(c);
+        }
+        List<String> knownGramCodes = currentDictionary
+            .getLiftDictionaryRegistry()
+            .getSenses()
+            .stream()
+            .map(s ->
+                s
+                    .getGrammaticalInfo()
+                    .map(GrammaticalInfo::getValue)
+                    .orElse(null)
+            )
+            .filter(Objects::nonNull)
+            .distinct()
+            .sorted()
+            .toList();
+        ObservableList<String> gramItems = FXCollections.observableArrayList(
+            knownGramCodes
+        );
+
+        TableColumn<QuickEntryRow, String> giCol = new TableColumn<>(
+            I18n.get(Keys.COL_GRAM_CODE)
+        );
+        giCol.setCellValueFactory(cd -> cd.getValue().gramInfoProperty());
+        giCol.setCellFactory(tc -> {
+            ComboBox<String> combo = new ComboBox<>(gramItems);
+            combo.setEditable(false);
+            combo.setMaxWidth(Double.MAX_VALUE);
+            combo.setPromptText("—");
+            TableCell<QuickEntryRow, String> cell = new TableCell<>() {
+                @Override
+                protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty) {
+                        setGraphic(null);
+                    } else {
+                        combo.setValue(item);
+                        setGraphic(combo);
+                    }
+                }
+            };
+            combo.valueProperty().addListener((obs, o, n) -> {
+                if (
+                    cell.getTableRow() != null &&
+                    cell.getTableRow().getItem() != null
+                ) {
+                    cell.getTableRow()
+                        .getItem()
+                        .gramInfoProperty()
+                        .set(n != null ? n : "");
+                }
+            });
+            return cell;
+        });
+        giCol.setPrefWidth(140);
+        giCol.setEditable(true);
+        quickEntryTable.getColumns().add(giCol);
+
+        // Seed with empty rows
+        for (int i = 0; i < 5; i++) quickEntryTable
+            .getItems()
+            .add(new QuickEntryRow());
+
+        // Auto-create entry when user leaves a filled row (selection changes away from it)
+        quickEntryTable
+            .getSelectionModel()
+            .selectedIndexProperty()
+            .addListener((obs, oldIdx, newIdx) -> {
+                int prev = oldIdx.intValue();
+                if (
+                    prev < 0 || prev >= quickEntryTable.getItems().size()
+                ) return;
+                QuickEntryRow row = quickEntryTable.getItems().get(prev);
+
+                LiftEntry e = createEntriesFromQuickTableRow(row);
+                if (e == null) return;
+
+                // org.xml.sax.helpers.AttributesImpl attrs =
+                //     new org.xml.sax.helpers.AttributesImpl();
+                // attrs.addAttribute(
+                //     "",
+                //     "id",
+                //     "id",
+                //     "CDATA",
+                //     UUID.randomUUID().toString()
+                // );
+                // LiftEntry entry = currentDictionary.getComponentBuilder().entry(attrs);
+                // for (String l : objLangs) {
+                //     String v = row.formProperty(l).get();
+                //     if (!v.isBlank()) entry.getForms().add(new Form(l, v));
+                // }
+                // org.xml.sax.helpers.AttributesImpl senseAttrs =
+                //     new org.xml.sax.helpers.AttributesImpl();
+                // senseAttrs.addAttribute(
+                //     "",
+                //     "id",
+                //     "id",
+                //     "CDATA",
+                //     UUID.randomUUID().toString()
+                // );
+                // LiftSense sense = factory.createSense(senseAttrs, entry);
+                // for (String l : metaLangs) {
+                //     String v = row.glossProperty(l).get();
+                //     if (!v.isBlank()) sense.addGloss(new Form(l, v));
+                // }
+                // + add grammatical info if present
+                baseEntries.add(e);
+                updateCountLabel(baseEntries.size(), baseEntries.size());
+
+                // Ensure there's always an empty row at the end
+                int lastIdx = quickEntryTable.getItems().size() - 1;
+                QuickEntryRow lastRow = quickEntryTable.getItems().get(lastIdx);
+                boolean lastHasContent =
+                    objLangs
+                        .stream()
+                        .anyMatch(
+                            l -> !lastRow.formProperty(l).get().isBlank()
+                        ) ||
+                    metaLangs
+                        .stream()
+                        .anyMatch(
+                            l -> !lastRow.glossProperty(l).get().isBlank()
+                        );
+                if (lastHasContent) quickEntryTable
+                    .getItems()
+                    .add(new QuickEntryRow());
+            });
+
+        // Also append a new row when user clicks on the last row
+        quickEntryTable.setOnMouseClicked(e -> {
+            int lastIdx = quickEntryTable.getItems().size() - 1;
+            if (
+                lastIdx >= 0 &&
+                quickEntryTable.getSelectionModel().getSelectedIndex() ==
+                    lastIdx
+            ) {
+                QuickEntryRow lastRow = quickEntryTable.getItems().get(lastIdx);
+                boolean lastHasContent =
+                    objLangs
+                        .stream()
+                        .anyMatch(
+                            l -> !lastRow.formProperty(l).get().isBlank()
+                        ) ||
+                    metaLangs
+                        .stream()
+                        .anyMatch(
+                            l -> !lastRow.glossProperty(l).get().isBlank()
+                        );
+                if (lastHasContent) quickEntryTable
+                    .getItems()
+                    .add(new QuickEntryRow());
+            }
+        });
+
+        tableContainer.getChildren().setAll(quickEntryTable);
+        updateCountLabel(0, 0);
+        addButton.setText(I18n.get(Keys.BTN_CREATE_ENTRIES));
+    }
+
+    /* ─── Create new object (5.8 context menu) ─── */
+
+    @FXML
+    private void onCreateNewObject() {
+        if (currentDictionary == null) {
+            showError(
+                I18n.get(Keys.ERROR_CREATION),
+                I18n.get(Keys.ERROR_NO_DICTIONARY)
+            );
+            return;
+        }
+        switch (currentView) {
+            case NAV_QUICK_ENTRY -> createEntriesFromQuickTable();
+            case NAV_ENTRIES -> createNewEntry();
+            default -> {
+            }
+        }
+    }
+
+    private void createNewEntry() {
+        LiftEntry entry = currentDictionary.getComponentBuilder().entry().build();
+        // org.xml.sax.helpers.AttributesImpl attrs =
+        //     new org.xml.sax.helpers.AttributesImpl();
+        // attrs.addAttribute(
+        //     "",
+        //     "id",
+        //     "id",
+        //     "CDATA",
+        //     UUID.randomUUID().toString()
+        // );
+        // LiftEntry entry = factory.createEntry(attrs);
+        baseEntries.add(entry);
+        entryTable.getSelectionModel().select(entry);
+        entryTable.scrollTo(entry);
+        applyCurrentFilter();
+    }
+
+    private LiftEntry createEntriesFromQuickTableRow(QuickEntryRow row) {
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
+        List<String> filedObjLangs = objLangs
+            .stream()
+            .filter(l -> !row.formProperty(l).get().isBlank())
+            .collect(Collectors.toList());
+
+        if (filedObjLangs.isEmpty() || currentDictionary == null) return null;
+
+        List<String> filedMetaLangs = metaLangs
+            .stream()
+            .filter(l -> !row.glossProperty(l).get().isBlank())
+            .collect(Collectors.toList());
+
+        // Check if entry was already auto-created for this row
+        if (Boolean.TRUE.equals(row.createdProperty().get())) return null;
+        row.createdProperty().set(true);
+
+        EntryBuilder eb = currentDictionary.getComponentBuilder().entry();
+        for (String filedObjLang : filedObjLangs) {
+            String v = row.formProperty(filedObjLang).get();
+            if (!v.isBlank()) eb.withForm(filedObjLang, v);
+        }
+        LiftEntry e = eb.build();
+
+        for (String filedMetaLang : filedMetaLangs) {
+            String v = row.glossProperty(filedMetaLang).get();
+            if (!v.isBlank()) {
+                SenseBuilder sb = currentDictionary.getComponentBuilder().sense(e);
+                sb.withGloss(filedMetaLang, v);
+                String gi = row.gramInfoProperty().get();
+                if (!gi.isBlank()) sb.withPartOfSpeech(gi);
+                sb.build();
+            }
+        }
+        return e;
+    }
+
+    private void createEntriesFromQuickTable() {
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
+        int created = 0;
+        for (QuickEntryRow row : quickEntryTable.getItems()) {
+            LiftEntry e = createEntriesFromQuickTableRow(row);
+            if (e == null) continue;
+            // boolean hasContent =
+            //     objLangs
+            //         .stream()
+            //         .anyMatch(l -> !row.formProperty(l).get().isBlank()) ||
+            //     metaLangs
+            //         .stream()
+            //         .anyMatch(l -> !row.glossProperty(l).get().isBlank());
+            // if (!hasContent) continue;
+            // org.xml.sax.helpers.AttributesImpl attrs =
+            //     new org.xml.sax.helpers.AttributesImpl();
+            // attrs.addAttribute(
+            //     "",
+            //     "id",
+            //     "id",
+            //     "CDATA",
+            //     UUID.randomUUID().toString()
+            // );
+            // LiftEntry entry = factory.createEntry(attrs);
+            // for (String l : objLangs) {
+            //     String v = row.formProperty(l).get();
+            //     if (!v.isBlank()) entry.getForms().add(new Form(l, v));
+            // }
+            // org.xml.sax.helpers.AttributesImpl senseAttrs =
+            //     new org.xml.sax.helpers.AttributesImpl();
+            // senseAttrs.addAttribute(
+            //     "",
+            //     "id",
+            //     "id",
+            //     "CDATA",
+            //     UUID.randomUUID().toString()
+            // );
+            // LiftSense sense = factory.createSense(senseAttrs, entry);
+            // for (String l : metaLangs) {
+            //     String v = row.glossProperty(l).get();
+            //     if (!v.isBlank()) sense.addGloss(new Form(l, v));
+            // }
+            // String gi = row.gramInfoProperty().get();
+            // if (!gi.isBlank()) sense.setGrammaticalInfo(gi);
+            baseEntries.add(e);
+            created++;
+        }
+        if (created > 0) {
+            showInfo(
+                I18n.get(Keys.NAV_QUICK_ENTRY),
+                I18n.get(Keys.INFO_QUICK_ENTRY_CREATED, created)
+            );
+            quickEntryTable.getItems().clear();
+            for (int i = 0; i < 5; i++) quickEntryTable
+                .getItems()
+                .add(new QuickEntryRow());
+        }
+    }
+
+    /* ─── Editor population helpers ─── */
+
+    private void populateEntryEditor(LiftEntry entry) {
+        try {
+            Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+            Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
+
+            // Collect known dropdown values filtered by element type (entry)
+            List<String> traitNames = currentDictionary.getHeader().getTraitsDefinitionsFor(LiftFieldAndTraitDefinitionTarget.ENTRY).stream().map(x -> x.getName()).toList();
+            // getKnownTraitNamesFor(
+                // LiftFieldAndTraitDefinitionTarget.ENTRY
+            // );
+            // Map<String, Set<String>> traitValues = getKnownTraitValues();
+            // TODO use the observable typesProperty instead.
+            List<String> annotationNames = currentDictionary.getHeader().getAnnotationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
+            List<String> fieldTypes = currentDictionary.getHeader().getFieldsDefinitionsFor(LiftFieldAndTraitDefinitionTarget.ENTRY).stream().map(x -> x.getName()).toList();
+            // getKnownFieldTypesFor(
+            //     LiftFieldAndTraitDefinitionTarget.ENTRY
+            // );
+
+            Form preferred = entry
+                .getForms()
+                .getForms()
+                .stream()
+                .findFirst()
+                .orElse(Form.EMPTY_FORM);
+            editEntryTitle.setText(
+                preferred == Form.EMPTY_FORM
+                    ? "(sans forme)"
+                    : preferred.toPlainText()
+            );
+            editEntryCode.setText(getTraitValue(entry, "code"));
+            editorContainer.getChildren().clear();
+
+            Button deleteBtn = new Button(I18n.get(Keys.BTN_DELETE));
+            deleteBtn.getStyleClass().add("delete-btn");
+            deleteBtn.setStyle(
+                "-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 7 12 7 12;"
+            );
+            deleteBtn.setOnAction(e -> {
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+                confirm.setTitle(I18n.get(Keys.CONFIRM_DELETE_TITLE));
+                confirm.setHeaderText(null);
+                confirm.setContentText(
+                    I18n.get(
+                        Keys.CONFIRM_DELETE_ENTRY,
+                        entry
+                            .getForms()
+                            .getForms()
+                            .stream()
+                            .findFirst()
+                            .map(Form::toPlainText)
+                            .filter(t -> t != null && !t.isBlank())
+                            .orElse("(sans forme)")
+                    )
+                );
+                confirm
+                    .showAndWait()
+                    .filter(r -> r == ButtonType.OK)
+                    .ifPresent(r -> {
+                        int idx = baseEntries.indexOf(entry);
+                        Runnable refresh = () -> {
+                            editorContainer.getChildren().clear();
+                            editEntryTitle.setText(
+                                I18n.get("panel.selectElement")
+                            );
+                            editEntryCode.setText("");
+                            applyCurrentFilter();
+                        };
+                        DeleteEntryCommand cmd = new DeleteEntryCommand(
+                            entry,
+                            idx,
+                            () -> currentDictionary,
+                            refresh,
+                            refresh
+                        );
+                        cmd.redo();
+                        undoManager.execute(cmd);
+                    });
+            });
+            editorContainer.getChildren().add(deleteBtn);
+
+            addSectionTitle(editorContainer, "editor.section.lexicalContent");
+            addSection(
+                editorContainer,
+                I18n.get(Keys.EDITOR_FORMS),
+                () -> {
+                    MultiTextEditor m = new MultiTextEditor(currentDictionary);
+                    // m.setAvailableLanguages(objLangs);
+                    m.setMultiText(entry.getForms());
+                    m.setFixedLanguageRows(true);
+                    return m;
+                },
+                true
+            );
+            // LiftXMLFactory factory = getFactory(currentDictionary);
+            addListSection(
+                editorContainer,
+                I18n.get(Keys.EDITOR_TRAITS),
+                safeList(entry.getTraits()),
+                t -> {
+                    TraitEditor te = new TraitEditor(currentDictionary);
+                    te.setTrait(
+                        t,
+                        LiftFieldAndTraitDefinitionTarget.ENTRY
+                        // objLangs,
+                        // traitNames,
+                        // traitValues,
+                        // factory != null
+                        //     ? findFieldDef(t.getName())
+                        //     : Optional.empty()
+                    );
+                    return te;
+                },
+                false,
+                () -> {
+                          List<String> names = currentDictionary.getHeader().getTraitsDefinitionsFor(LiftFieldAndTraitDefinitionTarget.ENTRY).stream().map(x -> x.getName()).toList();
+                        //   getKnownTraitNamesFor(
+                        //       LiftFieldAndTraitDefinitionTarget.ENTRY
+                        //   );
+                          ChoiceDialog<String> dlg = new ChoiceDialog<>(
+                              names.isEmpty() ? null : names.get(0),
+                              names
+                          );
+                          dlg.setTitle(I18n.get("btn.addTrait"));
+                          dlg.setHeaderText(I18n.get("col.name"));
+                          dlg.showAndWait().ifPresent(name -> {
+                              LiftTrait b = currentDictionary.getComponentBuilder().trait(entry, name, "").build();
+                            //   factory.createTrait(name, "", entry);
+                              populateEntryEditor(entry);
+                          });
+                      }
+
+            );
+            addListSection(
+                editorContainer,
+                I18n.get(Keys.EDITOR_PRONUNCIATIONS),
+                safeList(entry.getPronunciations()),
+                p -> {
+                    PronunciationEditor pe = new PronunciationEditor(currentDictionary);
+                    pe.setPronunciation(p);
+                    return pe;
+                },
+                false
+            );
+
+            List<LiftSense> senses = safeList(entry.getSenses());
+            if (!senses.isEmpty()) {
+                addSection(
+                    editorContainer,
+                    I18n.get(Keys.EDITOR_SENSES) + " (" + senses.size() + ")",
+                    () -> {
+                        VBox box = new VBox(4);
+                        for (LiftSense s : senses) {
+                            String label = s
+                                .getGloss()
+                                .getForms()
+                                .stream()
+                                .findFirst()
+                                .map(Form::toPlainText)
+                                .orElse("");
+                            if (label.isEmpty()) label = "?";
+                            Hyperlink link = new Hyperlink(label);
+                            link.setOnAction(e ->
+                                navigateToSenseKeepingEntriesFocus(s)
+                            );
+                            box.getChildren().add(link);
+                        }
+                        return box;
+                    },
+                    true
+                );
+            }
+            addSectionTitle(
+                editorContainer,
+                "editor.section.variantsRelations"
+            );
+            addListSection(
+                editorContainer,
+                I18n.get(Keys.EDITOR_VARIANTS),
+                safeList(entry.getVariants()),
+                v -> {
+                    VariantEditor ve = new VariantEditor(currentDictionary);
+                    ve.setRelationTypes(currentDictionary.getHeader().getRelationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList());
+                    // ve.setRelationTypes(getKnownRelationTypes());
+                    ve.setVariant(
+                        v,
+                        // objLangs,
+                        // metaLangs,
+                        // factory != null ?
+                        createVariantAddActions(v)
+                        //  : null
+                    );
+                    return ve;
+                },
+                false,
+                // factory != null
+                //     ?
+                    () -> {
+                        currentDictionary.getComponentBuilder().variant(entry).build();
+                        //   factory.createVariant(
+                        //       new org.xml.sax.helpers.AttributesImpl(),
+                        //       entry
+                        //   );
+                          populateEntryEditor(entry);
+                      }
+                    // : null
+            );
+            addListSection(
+                editorContainer,
+                I18n.get(Keys.EDITOR_RELATIONS),
+                safeList(entry.getRelations()),
+                r -> {
+                    RelationEditor re = new RelationEditor(currentDictionary);
+                    re.setRelation(r);
+                    return re;
+                },
+                false
+            );
+            addListSection(
+                editorContainer,
+                I18n.get(Keys.EDITOR_ETYMOLOGIES),
+                safeList(entry.getEtymologies()),
+                et -> {
+                    EtymologyEditor ee = new EtymologyEditor(currentDictionary);
+                    ee.setEtymology(et, objLangs, metaLangs);
+                    return ee;
+                },
+                false
+            );
+            addSectionTitle(
+                editorContainer,
+                "editor.section.annotationsFields"
+            );
+            addListSection(
+                editorContainer,
+                I18n.get(Keys.EDITOR_ANNOTATIONS),
+                safeList(entry.getAnnotations()),
+                a -> {
+                    AnnotationEditor ae = new AnnotationEditor(currentDictionary);
+                    ae.setAnnotation(a, metaLangs, annotationNames);
+                    return ae;
+                },
+                false,
+                () -> {
+                          List<String> names = currentDictionary.getHeader().getAnnotationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
+                          Optional<String> nameOpt;
+                          if (names.isEmpty()) {
+                              TextInputDialog tid = new TextInputDialog();
+                              tid.setTitle(I18n.get("btn.addAnnotation"));
+                              tid.setHeaderText(I18n.get("col.name"));
+                              nameOpt = tid.showAndWait();
+                          } else {
+                              ChoiceDialog<String> dlg = new ChoiceDialog<>(
+                                  names.get(0),
+                                  names
+                              );
+                              dlg.setTitle(I18n.get("btn.addAnnotation"));
+                              dlg.setHeaderText(I18n.get("col.name"));
+                              nameOpt = dlg.showAndWait();
+                          }
+                          nameOpt
+                              .filter(n -> n != null && !n.isBlank())
+                              .ifPresent(name -> {
+                                  currentDictionary.getComponentBuilder().annotation(entry, name.trim());
+                                //   factory.createAnnotation(, entry);
+                                  populateEntryEditor(entry);
+                              });
+                      }
+            );
+            addListSection(
+                editorContainer,
+                I18n.get(Keys.EDITOR_NOTES),
+                new ArrayList<>(safeMapValues(entry.getNotes())),
+                n -> {
+                    NoteEditor ne = new NoteEditor(currentDictionary);
+                    ne.setNote(n);
+                    return ne;
+                },
+                false,
+                // factory != null
+                    // ?
+                    () -> {
+                          List<String> types = currentDictionary.getHeader().getNoteTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
+                          ChoiceDialog<String> dlg = new ChoiceDialog<>(
+                              types.isEmpty() ? null : types.get(0),
+                              types
+                          );
+                          dlg.setTitle(I18n.get("btn.addNote"));
+                          dlg.setHeaderText(I18n.get("col.type"));
+                          dlg.showAndWait().ifPresent(type -> {
+                            currentDictionary.getComponentBuilder().note(entry, type).build();
+                            //   factory.createNote(type, entry);
+                              populateEntryEditor(entry);
+                          });
+                      }
+                    // : null
+            );
+            addListSection(
+                editorContainer,
+                I18n.get(Keys.EDITOR_FIELDS),
+                safeList(entry.getFields().values().stream().toList()),
+                f -> {
+                    FieldEditor fe = new FieldEditor(currentDictionary);
+                    fe.setField(f);
+                    return fe;
+                },
+                false,
+                // factory != null
+                //     ?
+                    () -> {
+                          ChoiceDialog<String> dlg = new ChoiceDialog<>(
+                              fieldTypes.isEmpty() ? null : fieldTypes.get(0),
+                              fieldTypes
+                          );
+                          dlg.setTitle(I18n.get(Keys.BTN_ADD_FIELD));
+                          dlg.setHeaderText(I18n.get(Keys.COL_TYPE));
+                          dlg.showAndWait().ifPresent(type -> {
+                            //   factory.createField(type, entry);
+                              currentDictionary.getComponentBuilder().field(entry, type).build();
+                              populateEntryEditor(entry);
+                          });
+                      }
+                    // : null
+            );
+            addSectionTitle(editorContainer, "editor.section.metadata");
+            addSection(
+                editorContainer,
+                I18n.get("editor.identity"),
+                () -> {
+                    GridPane g = new GridPane();
+                    g.setHgap(8);
+                    g.setVgap(6);
+                    addReadOnlyRow(
+                        g,
+                        0,
+                        I18n.get("field.id"),
+                        entry.getId().orElse("")
+                    );
+
+                    g.add(new Label(I18n.get("field.dateCreated")), 0, 1);
+                    DatePicker dpCreated = buildDatePicker(
+                        entry.getDateCreated().orElse("")
+                    );
+                    styleReadOnlyDatePicker(dpCreated);
+                    GridPane.setHgrow(dpCreated, Priority.ALWAYS);
+                    g.add(dpCreated, 1, 1);
+
+                    g.add(new Label(I18n.get("field.dateModified")), 0, 2);
+                    DatePicker dpModified = buildDatePicker(
+                        entry.getDateModified().orElse("")
+                    );
+                    styleReadOnlyDatePicker(dpModified);
+                    GridPane.setHgrow(dpModified, Priority.ALWAYS);
+                    g.add(dpModified, 1, 2);
+                    return g;
+                },
+                true
+            );
+
+
+            FlowPane addButtons = new FlowPane(8, 6);
+            addButtons.setPadding(new Insets(8, 0, 0, 0));
+
+            Button addSenseBtn = new Button(I18n.get("btn.addSense"));
+            addSenseBtn.setOnAction(e -> {
+                // org.xml.sax.helpers.AttributesImpl senseAttrs =
+                //     new org.xml.sax.helpers.AttributesImpl();
+                // senseAttrs.addAttribute(
+                //     "",
+                //     "id",
+                //     "id",
+                //     "CDATA",
+                //     UUID.randomUUID().toString()
+                // );
+                // LiftSense newSense = factory.createSense(senseAttrs, entry);
+                SenseBuilder sb = currentDictionary.getComponentBuilder().sense(entry);
+                List<String> giValues = getKnownGramInfoValues();
+                if (!giValues.isEmpty()) {
+                    ChoiceDialog<String> dlg = new ChoiceDialog<>(
+                        giValues.get(0),
+                        giValues
+                    );
+                    dlg.setTitle(I18n.get("btn.addSense"));
+                    dlg.setHeaderText(I18n.get("col.gramInfo"));
+                    dlg.showAndWait()
+                        .filter(v -> v != null && !v.isBlank())
+                        .ifPresent(v ->
+                            sb.withPartOfSpeech(v.trim())
+                        );
+                }
+                sb.build();
+                populateEntryEditor(entry);
+            });
+
+            Button addVariantBtn = new Button(I18n.get("btn.addVariant"));
+            addVariantBtn.setOnAction(e -> {
+                // factory.createVariant(
+                //     new org.xml.sax.helpers.AttributesImpl(),
+                //     entry
+                // );
+                currentDictionary.getComponentBuilder().variant(entry).build();
+                populateEntryEditor(entry);
+            });
+
+            Button addPronBtn = new Button(
+                I18n.get("btn.addPronunciation")
+            );
+            addPronBtn.setOnAction(e -> {
+                // factory.createPronunciation(entry);
+                currentDictionary.getComponentBuilder().pronunciation(entry).build();
+                populateEntryEditor(entry);
+            });
+
+            Button addRelationBtn = new Button(I18n.get("btn.addRelation"));
+            List<String> relationTypes = currentDictionary.getHeader().getRelationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
+            boolean noRelationTypes = relationTypes.isEmpty();
+            addRelationBtn.setDisable(noRelationTypes);
+            addRelationBtn.setOnAction(e -> {
+                List<String> types = relationTypes;
+                if (types.isEmpty()) return;
+                ChoiceDialog<String> dlg = new ChoiceDialog<>(
+                    types.get(0),
+                    types
+                );
+                dlg.setTitle(I18n.get("btn.addRelation"));
+                dlg.setHeaderText(I18n.get("col.type"));
+                Optional<String> typeOpt = dlg.showAndWait();
+                typeOpt
+                    .filter(t -> t != null && !t.isBlank())
+                    .ifPresent(type -> {
+                        // org.xml.sax.helpers.AttributesImpl attrs =
+                        //     new org.xml.sax.helpers.AttributesImpl();
+                        // attrs.addAttribute(
+                        //     "",
+                        //     "type",
+                        //     "type",
+                        //     "CDATA",
+                        //     type.trim()
+                        // );
+                        // factory.createRelation(attrs, entry);
+                        currentDictionary.getComponentBuilder().entry().build();
+                        populateEntryEditor(entry);
+                    });
+            });
+            StackPane addRelationWrapper = new StackPane(addRelationBtn);
+            if (noRelationTypes) {
+                Tooltip.install(
+                    addRelationWrapper,
+                    new Tooltip(I18n.get("tooltip.noRelationTypes"))
+                );
+            }
+
+            Button addEtymologyBtn = new Button(
+                I18n.get("btn.addEtymology")
+            );
+            addEtymologyBtn.setOnAction(e -> {
+                showAddEtymologyDialog(entry);
+            });
+
+            addButtons
+                .getChildren()
+                .addAll(
+                    addSenseBtn,
+                    addVariantBtn,
+                    addPronBtn,
+                    addRelationWrapper,
+                    addEtymologyBtn
+                );
+            editorContainer.getChildren().add(addButtons);
+
+        } catch (Exception ex) {
+            LinkedHashMap<String, String> values = new LinkedHashMap<>();
+            values.put(
+                I18n.get("field.id"),
+                entry == null ? "" : entry.getId().orElse("")
+            );
+            values.put(
+                "Erreur",
+                Optional.ofNullable(ex.getMessage()).orElse(
+                    ex.getClass().getSimpleName()
+                )
+            );
+            populateSummaryEditor("Entrée (erreur d'affichage)", "", values);
+        }
+    }
+
+    private static <T> List<T> safeList(List<T> list) {
+        return list == null ? List.of() : list;
+    }
+
+    private static <K, V> Collection<V> safeMapValues(Map<K, V> map) {
+        return map == null ? List.of() : map.values();
+    }
+
+    /** Texte d'affichage d'un sens : glose(s) séparées par " / ", sinon définition, sinon "?". */
+    private static String senseDisplayText(LiftSense sense) {
+        if (sense == null) return "?";
+        String gloss = sense
+            .getGloss()
+            .getForms()
+            .stream()
+            .map(Form::toPlainText)
+            .filter(t -> t != null && !t.isBlank())
+            .collect(Collectors.joining(" / "));
+        if (!gloss.isEmpty()) return gloss;
+        String def = sense
+            .getDefinition()
+            .getForms()
+            .stream()
+            .map(Form::toPlainText)
+            .filter(t -> t != null && !t.isBlank())
+            .collect(Collectors.joining(" / "));
+        if (!def.isEmpty()) return def;
+        return "?";
+    }
+
+    private void populateSenseEditor(LiftSense sense) {
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        editEntryTitle.setText(senseDisplayText(sense));
+        editEntryCode.setText(
+            sense.getGrammaticalInfo().map(GrammaticalInfo::getValue).orElse("")
+        );
+        editorContainer.getChildren().clear();
+
+        Button deleteBtn = new Button(I18n.get(Keys.BTN_DELETE));
+        deleteBtn.getStyleClass().add("delete-btn");
+        deleteBtn.setStyle(
+            "-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 7 12 7 12;"
+        );
+        deleteBtn.setOnAction(e -> {
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle(I18n.get(Keys.CONFIRM_DELETE_TITLE));
+            confirm.setHeaderText(null);
+            confirm.setContentText(
+                I18n.get(Keys.CONFIRM_DELETE_SENSE, senseDisplayText(sense))
+            );
+            confirm
+                .showAndWait()
+                .filter(r -> r == ButtonType.OK)
+                .ifPresent(r -> {
+                    // findParentSenseListAndIndex(sense).ifPresent(pair -> {
+                    //     java.util.List<LiftSense> parentList = pair.getKey();
+                    //     int idx = pair.getValue();
+                        Runnable refresh = () -> {
+                            editorContainer.getChildren().clear();
+                            editEntryTitle.setText(
+                                I18n.get("panel.selectElement")
+                            );
+                            editEntryCode.setText("");
+                            showSenseView();
+                        };
+                        DeleteSenseCommand cmd = new DeleteSenseCommand(
+                            sense,
+                            ((HasSense) sense.getParent()),
+                            sense.getParentEntry(),
+                            sense.getParent().getSenses().indexOf(sense),
+                            () -> currentDictionary,
+                            refresh,
+                            refresh
+                        );
+                        cmd.redo();
+                        undoManager.execute(cmd);
+                    // });
+                });
+        });
+        editorContainer.getChildren().add(deleteBtn);
+        // Parent button: navigate back to entry view filtered to this sense's parent
+        // findParentEntry(sense).ifPresent(parentEntry -> {
+        LiftEntry parentEntry = sense.getParentEntry();
+            String entryForm = parentEntry
+                .getForms()
+                .getForms()
+                .stream()
+                .findFirst()
+                .map(Form::toPlainText)
+                .orElse("");
+            if (entryForm.isEmpty()) entryForm = "?";
+            Button backBtn = new Button(
+                I18n.get("sense.backToEntry", entryForm)
+            );
+            backBtn.getStyleClass().addAll("example-add-button", "back-btn");
+            backBtn.setOnAction(e -> navigateToEntryFromSense(parentEntry));
+            editorContainer.getChildren().add(backBtn);
+        // });
+
+        // Links to examples (one per example, showing example number)
+        List<LiftExample> examples = sense.getExamples();
+        for (int i = 0; i < examples.size(); i++) {
+            final int idx = i + 1;
+            final LiftExample ex = examples.get(i);
+            Hyperlink exLink = new Hyperlink(I18n.get("sense.exampleN", idx));
+            exLink.setOnAction(e -> navigateToExampleKeepingEntriesFocus(ex));
+            editorContainer.getChildren().add(exLink);
+        }
+
+        SenseEditor se = new SenseEditor(currentDictionary);
+        se.setRelationTypes(currentDictionary.getHeader().getRelationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList());
+        // se.setRelationTypes(getKnownRelationTypes());
+        se.setGrammaticalInfoValues(getHeaderRangeValues("grammatical-info"));
+        se.setOnGramInfoChanged(() -> senseTable.refresh());
+        BiConsumer<String, MultiText> onAddAnnotation =
+            // factory != null
+            //     ?
+                (name, mt) -> currentDictionary.getComponentBuilder().annotation(mt, name).build();
+                // : null;
+        se.setSense(
+            sense,
+            onAddAnnotation,
+            currentDictionary.getHeader().getAnnotationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList(),
+            this::createSenseAddActions,
+            this::createExampleAddActions
+        );
+        editorContainer.getChildren().add(se);
+        // if (factory != null) {
+            FlowPane addButtons = new FlowPane(8, 6);
+            addButtons.setPadding(new Insets(8, 0, 0, 0));
+
+            Button addExBtn = new Button(I18n.get("btn.addExample"));
+            addExBtn.setOnAction(e -> {
+                currentDictionary.getComponentBuilder().example(sense);
+                // factory.createExample(
+                //     new org.xml.sax.helpers.AttributesImpl(),
+                //     sense
+                // );
+                populateSenseEditor(sense);
+            });
+
+            Button addNoteBtn = new Button(I18n.get("btn.addNote"));
+            addNoteBtn.setOnAction(e -> {
+                List<String> types = currentDictionary.getHeader().getNoteTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
+                // List<String> types = getKnownNoteTypes();
+                ChoiceDialog<String> dlg = new ChoiceDialog<>(
+                    types.isEmpty() ? null : types.get(0),
+                    types
+                );
+                dlg.setTitle(I18n.get("btn.addNote"));
+                dlg.setHeaderText(I18n.get("col.type"));
+                dlg.showAndWait().ifPresent(type -> {
+                    // factory.createNote(type, sense);
+                    currentDictionary.getComponentBuilder().note(sense, type).build();
+                    populateSenseEditor(sense);
+                });
+            });
+
+            Button addRelationBtn = new Button(I18n.get("btn.addRelation"));
+            addRelationBtn.setOnAction(e -> {
+                List<String> types = currentDictionary.getHeader().getRelationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
+                Optional<String> typeOpt;
+                if (types.isEmpty()) {
+                    TextInputDialog tid = new TextInputDialog();
+                    tid.setTitle(I18n.get("btn.addRelation"));
+                    tid.setHeaderText(I18n.get("col.type"));
+                    typeOpt = tid.showAndWait();
+                } else {
+                    ChoiceDialog<String> dlg = new ChoiceDialog<>(
+                        types.get(0),
+                        types
+                    );
+                    dlg.setTitle(I18n.get("btn.addRelation"));
+                    dlg.setHeaderText(I18n.get("col.type"));
+                    typeOpt = dlg.showAndWait();
+                }
+                typeOpt
+                    .filter(t -> t != null && !t.isBlank())
+                    .ifPresent(type -> {
+                        // org.xml.sax.helpers.AttributesImpl attrs =
+                        //     new org.xml.sax.helpers.AttributesImpl();
+                        // attrs.addAttribute(
+                        //     "",
+                        //     "type",
+                        //     "type",
+                        //     "CDATA",
+                        //     type.trim()
+                        // );
+                        // factory.createRelation(attrs, sense);
+                        currentDictionary.getComponentBuilder().relation(type.trim(), sense).build();
+                        populateSenseEditor(sense);
+                    });
+            });
+
+            Button addReversalBtn = new Button(I18n.get("btn.addReversal"));
+            addReversalBtn.setOnAction(e -> {
+                // org.xml.sax.helpers.AttributesImpl attrs =
+                //     new org.xml.sax.helpers.AttributesImpl();
+                // factory.createReversal(attrs, sense);
+                currentDictionary.getComponentBuilder().reversal(sense).build();
+                populateSenseEditor(sense);
+            });
+
+            Button addSubSenseBtn = new Button(I18n.get("btn.addSubSense"));
+            addSubSenseBtn.setOnAction(e -> {
+                // org.xml.sax.helpers.AttributesImpl senseAttrs =
+                //     new org.xml.sax.helpers.AttributesImpl();
+                // senseAttrs.addAttribute(
+                //     "",
+                //     "id",
+                //     "id",
+                //     "CDATA",
+                //     UUID.randomUUID().toString()
+                // );
+                // factory.createSense(senseAttrs, sense);
+                currentDictionary.getComponentBuilder().sense(sense);
+                populateSenseEditor(sense);
+                refreshSenseTableAndFilters();
+            });
+
+            addButtons
+                .getChildren()
+                .addAll(
+                    addExBtn,
+                    addNoteBtn,
+                    addRelationBtn,
+                    addReversalBtn,
+                    addSubSenseBtn
+                );
+            editorContainer.getChildren().add(addButtons);
+        // }
+    }
+
+    /** Rebuilds the sense table and filter dropdowns (e.g. after adding a sub-sense). */
+    private void refreshSenseTableAndFilters() {
+        if (NAV_SENSES.equals(currentView) && currentDictionary != null) {
+            showSenseView();
+        }
+    }
+
+    // private Optional<LiftEntry> findParentEntry(LiftSense sense) {
+    //     if (currentDictionary == null) return Optional.empty();
+    //     return currentDictionary
+    //         .getLiftDictionaryRegistry()
+    //         .getEntries()
+    //         .stream()
+    //         .filter(e -> containsSense(e.getSenses(), sense))
+    //         .findFirst();
+    // }
+
+    private boolean containsSense(List<LiftSense> list, LiftSense target) {
+        if (list.contains(target)) return true;
+        for (LiftSense s : list) {
+            if (containsSense(s.getSenses(), target)) return true;
+        }
+        return false;
+    }
+
+    // private Optional<
+    //     Pair<List<LiftSense>, Integer>
+    // > findParentSenseListAndIndex(LiftSense sense) {
+    //     if (currentDictionary == null) return Optional.empty();
+    //     for (LiftEntry e : currentDictionary
+    //         .getLiftDictionaryRegistry()
+    //         .getEntries()) {
+    //         var found = findInList(e.getSenses(), sense);
+    //         if (found != null) return Optional.of(found);
+    //     }
+    //     return Optional.empty();
+    // }
+
+    // private Pair<List<LiftSense>, Integer> findInList(
+    //     List<LiftSense> list,
+    //     LiftSense target
+    // ) {
+    //     int idx = list.indexOf(target);
+    //     if (idx >= 0) return new Pair<>(list, idx);
+    //     for (LiftSense s : list) {
+    //         var sub = findInList(s.getSenses(), target);
+    //         if (sub != null) return sub;
+    //     }
+    //     return null;
+    // }
+
+    private void populateExampleEditor(LiftSense parentSense, LiftExample ex) {
+        editEntryTitle.setText(I18n.get("nav.examples"));
+        editEntryCode.setText(ex.getSource().orElse(""));
+        editorContainer.getChildren().clear();
+        Button deleteBtn = new Button(I18n.get(Keys.BTN_DELETE));
+        deleteBtn.getStyleClass().add("delete-btn");
+        deleteBtn.setStyle(
+            "-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 7 12 7 12;"
+        );
+        deleteBtn.setOnAction(e -> {
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle(I18n.get(Keys.CONFIRM_DELETE_TITLE));
+            confirm.setHeaderText(null);
+            confirm.setContentText(I18n.get("confirm.delete.example"));
+            confirm
+                .showAndWait()
+                .filter(r -> r == ButtonType.OK)
+                .ifPresent(r -> {
+                    // findParentSense(ex).ifPresent(parent -> {
+                    //     java.util.List<LiftExample> parentList =
+                    //         parent.getExamples();
+                    //     int idx = parentList.indexOf(ex);
+                        Runnable refresh = () -> {
+                            editorContainer.getChildren().clear();
+                            editEntryTitle.setText(
+                                I18n.get("panel.selectElement")
+                            );
+                            editEntryCode.setText("");
+                            showExampleView();
+                        };
+                        DeleteExampleCommand cmd = new DeleteExampleCommand(
+                            ex,
+                            ex.getParent(),
+                            ex.getParent().getExamples().indexOf(ex),
+                            () -> currentDictionary,
+                            refresh,
+                            refresh
+                        );
+                        cmd.redo();
+                        undoManager.execute(cmd);
+                    // });
+                });
+        });
+        editorContainer.getChildren().add(deleteBtn);
+
+        //LiftSense resolvedParent = ex.getParent();
+            // parentSense != null
+            //     ? parentSense
+            //     : findParentSense(ex).orElse(null);
+
+        if (parentSense != null) {
+            final LiftSense finalParent = parentSense;
+            String senseGloss = finalParent
+                .getGloss()
+                .getForms()
+                .stream()
+                .findFirst()
+                .map(Form::toPlainText)
+                .orElse("");
+            if (senseGloss.isEmpty()) senseGloss = "?";
+            Button backBtn = new Button(
+                I18n.get("sense.backToSense", senseGloss)
+            );
+            backBtn.getStyleClass().addAll("example-add-button", "back-btn");
+            backBtn.setOnAction(e -> {
+                switchView(NAV_SENSES);
+                if (senseTable.getItems().contains(finalParent)) {
+                    senseTable.getSelectionModel().select(finalParent);
+                    senseTable.scrollTo(finalParent);
+                }
+                selectNavItem(NAV_SENSES);
+                populateSenseEditor(finalParent);
+            });
+            editorContainer.getChildren().add(backBtn);
+        }
+
+        ExampleEditor ee = new ExampleEditor(currentDictionary);
+        // LiftXMLFactory factory = getFactory(currentDictionary);
+        BiConsumer<String, MultiText> onAddAnnotation =
+            // factory != null ?
+                (name, mt) -> currentDictionary.getComponentBuilder().annotation(mt, name).build();
+                // : null;
+        ee.setExample(
+            ex,
+            onAddAnnotation,
+            // factory != null ?
+            createExampleAddActions(ex)
+            //  : null
+        );
+        editorContainer.getChildren().add(ee);
+    }
+
+    private void populateExampleEditor(LiftExample ex) {
+        // Optional<LiftSense> parent = findParentSense(ex);
+        //populateExampleEditor(parent.orElse(null), ex);
+        populateExampleEditor(ex.getParent(), ex);
+    }
+
+    // private Optional<LiftSense> findParentSense(LiftExample ex) {
+    //     if (currentDictionary == null) return Optional.empty();
+    //     return currentDictionary
+    //         .getLiftDictionaryRegistry()
+    //         .getSenses()
+    //         .stream()
+    //         .filter(s -> containsExample(s, ex))
+    //         .findFirst();
+    // }
+
+    private boolean containsExample(LiftSense sense, LiftExample ex) {
+        if (sense.getExamples().contains(ex)) return true;
+        for (LiftSense sub : sense.getSenses())
+            if (containsExample(sub, ex)) return true;
+        return false;
+    }
+
+    private void navigateToSenseKeepingEntriesFocus(LiftSense sense) {
+        if (sense == null) return;
+        switchView(NAV_SENSES);
+        applySenseTableFilterByEntry(sense.getParentEntry());
+        // findParentEntry(sense).ifPresentOrElse(
+        //     this::applySenseTableFilterByEntry,
+        //     this::clearSearchAndVisibleColumnFilters
+        // );
+        if (senseTable.getItems().contains(sense)) {
+            senseTable.getSelectionModel().select(sense);
+            senseTable.scrollTo(sense);
+        }
+        selectNavItem(NAV_SENSES);
+    }
+
+    private void navigateToEntryFromSense(LiftEntry entry) {
+        if (entry == null) return;
+        switchView(NAV_ENTRIES);
+        clearSearchAndVisibleColumnFilters();
+        applyCurrentFilter();
+        if (filteredEntries.contains(entry)) {
+            entryTable.getSelectionModel().select(entry);
+            entryTable.scrollTo(entry);
+            populateEntryEditor(entry);
+        } else if (!filteredEntries.isEmpty()) {
+            LiftEntry first = filteredEntries.getFirst();
+            entryTable.getSelectionModel().select(first);
+            entryTable.scrollTo(first);
+            populateEntryEditor(first);
+        }
+    }
+
+    /** Navigue vers la fiche du sens (depuis une note ou autre objet enfant). */
+    private void navigateToSenseFromParent(LiftSense sense) {
+        if (sense == null) return;
+        switchView(NAV_SENSES);
+        if (senseTable.getItems().contains(sense)) {
+            senseTable.getSelectionModel().select(sense);
+            senseTable.scrollTo(sense);
+            populateSenseEditor(sense);
+        }
+    }
+
+    private void navigateToExampleKeepingEntriesFocus(LiftExample example) {
+        if (example == null) return;
+        switchView(NAV_EXAMPLES);
+        clearSearchAndVisibleColumnFilters();
+        if (exampleTable.getItems().contains(example)) {
+            exampleTable.getSelectionModel().select(example);
+            exampleTable.scrollTo(example);
+        }
+        selectNavItem(NAV_EXAMPLES);
+    }
+
+    private void selectNavItem(String navKey) {
+        if (navTree == null || navTree.getSelectionModel() == null) return;
+        TreeItem<String> item = findNavItemByKey(navKey);
+        if (item == null) return;
+        ignoreNavSelectionEvents = true;
+        try {
+            navTree.getSelectionModel().select(item);
+        } finally {
+            ignoreNavSelectionEvents = false;
+        }
+    }
+
+    private void clearSearchAndVisibleColumnFilters() {
+        if (searchField != null && !searchField.getText().isBlank()) {
+            searchField.clear();
+        }
+        if (
+            tableContainer == null || tableContainer.getChildren().isEmpty()
+        ) return;
+        javafx.scene.Node root = tableContainer.getChildren().get(0);
+        if (
+            !(root instanceof VBox wrapper) || wrapper.getChildren().size() < 2
+        ) return;
+        javafx.scene.Node filterNode = wrapper.getChildren().get(1);
+        if (!(filterNode instanceof Pane filterPane)) return;
+
+        String clearOption = I18n.get("filter.clear");
+        for (javafx.scene.Node child : filterPane.getChildren()) {
+            if (child instanceof ComboBox<?> rawCombo) {
+                @SuppressWarnings("unchecked")
+                ComboBox<String> combo = (ComboBox<String>) rawCombo;
+                combo.setValue(clearOption);
+            } else if (child instanceof TextField textField) {
+                textField.clear();
+            }
+        }
+    }
+
+    /**
+     * Applique un filtre sur le tableau des sens pour n'afficher que les sens de l'entrée donnée.
+     * Utilisé lors de la navigation depuis le formulaire d'une entrée vers le tableau des sens.
+     */
+    private void applySenseTableFilterByEntry(LiftEntry entry) {
+        if (
+            entry == null ||
+            tableContainer == null ||
+            tableContainer.getChildren().isEmpty()
+        ) return;
+        if (
+            searchField != null && !searchField.getText().isBlank()
+        ) searchField.clear();
+        javafx.scene.Node root = tableContainer.getChildren().get(0);
+        if (
+            !(root instanceof VBox wrapper) || wrapper.getChildren().size() < 2
+        ) return;
+        javafx.scene.Node filterNode = wrapper.getChildren().get(1);
+        if (
+            !(filterNode instanceof Pane filterPane) ||
+            filterPane.getChildren().isEmpty()
+        ) return;
+
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        String filterValue = null;
+        for (String lang : objLangs) {
+            String form = entry
+                .getForms()
+                .getForm(lang)
+                .map(Form::toPlainText)
+                .orElse("")
+                .trim();
+            if (!form.isEmpty()) {
+                filterValue = form;
+                break;
+            }
+        }
+        if (filterValue == null) {
+            filterValue = entry
+                .getForms()
+                .getForms()
+                .stream()
+                .findFirst()
+                .map(Form::toPlainText)
+                .orElse("")
+                .trim();
+        }
+        if (filterValue.isEmpty()) return;
+
+        javafx.scene.Node firstFilter = filterPane.getChildren().get(0);
+        if (firstFilter instanceof ComboBox<?> rawCombo) {
+            @SuppressWarnings("unchecked")
+            ComboBox<String> combo = (ComboBox<String>) rawCombo;
+            if (combo.getItems().contains(filterValue)) {
+                combo.setValue(filterValue);
+            }
+        } else if (firstFilter instanceof TextField tf) {
+            tf.setText(filterValue);
+        }
+    }
+
+    private void pinLeftNavigationOnEntries() {
+        if (navTree == null || navTree.getSelectionModel() == null) return;
+        TreeItem<String> entriesItem = findNavItemByKey(NAV_ENTRIES);
+        if (entriesItem == null) return;
+
+        ignoreNavSelectionEvents = true;
+        try {
+            navTree.getSelectionModel().select(entriesItem);
+        } finally {
+            ignoreNavSelectionEvents = false;
+        }
+    }
+
+    private TreeItem<String> findNavItemByKey(String navKey) {
+        for (Map.Entry<TreeItem<String>, String> entry : navKeyMap.entrySet()) {
+            if (Objects.equals(entry.getValue(), navKey)) return entry.getKey();
+        }
+        return null;
+    }
+
+    private void populateLangFieldEditor(MultiTextField row) {
+        editEntryTitle.setText(I18n.get(currentView));
+        editEntryCode.setText("");
+        editorContainer.getChildren().clear();
+
+        GridPane g = new GridPane();
+        g.setHgap(8);
+        g.setVgap(6);
+        int r = 0;
+        addReadOnlyRow(g, r++, I18n.get("col.parentType"), row.parentType());
+        g.add(new Label(I18n.get("col.parent")), 0, r);
+        if (row.parentObject() != null) {
+            Button parentLink = new Button(row.parentId());
+            parentLink.getStyleClass().add("hyperlink");
+            parentLink.setOnAction(e -> navigateToObject(row.parentObject()));
+            GridPane.setHgrow(parentLink, Priority.ALWAYS);
+            g.add(parentLink, 1, r);
+        } else {
+            TextField tf = new TextField(row.parentId());
+            styleReadOnlyTextField(tf);
+            GridPane.setHgrow(tf, Priority.ALWAYS);
+            g.add(tf, 1, r);
+        }
+        r++;
+        addReadOnlyRow(g, r++, I18n.get("nav.languages"), row.lang());
+
+        if (row.multiText() != null) {
+            editorContainer.getChildren().add(g);
+            MultiTextEditor mte = new MultiTextEditor(currentDictionary);
+            Set<String> availLangs = NAV_OBJ_LANGS.equals(currentView)
+                ? currentDictionary.getObjectLanguageManager().getLanguages()
+                : currentDictionary.getMetaLanguageManager().getLanguages();
+            // mte.setAvailableLanguages(
+            //     availLangs.isEmpty() ? List.of(row.lang()) : availLangs
+            // );
+            mte.setMultiText(row.multiText());
+            VBox textSection = new VBox(6);
+            textSection.getChildren().add(new Label(I18n.get("col.text")));
+            textSection.getChildren().add(mte);
+            VBox.setVgrow(mte, Priority.ALWAYS);
+            editorContainer.getChildren().add(textSection);
+        } else {
+            addReadOnlyRow(g, r, I18n.get("col.text"), row.text());
+            editorContainer.getChildren().add(g);
+        }
+    }
+
+    private void populateTraitSummaryEditor(TraitRow row) {
+        LinkedHashMap<String, String> values = new LinkedHashMap<>();
+        values.put(I18n.get("col.name"), row.name());
+        values.put(I18n.get("col.value"), row.value());
+        values.put(I18n.get("col.frequency"), String.valueOf(row.frequency()));
+        populateSummaryEditor(I18n.get("nav.traits"), "", values);
+        Button accessBtn = new Button(I18n.get("btn.accessObjects"));
+        accessBtn.getStyleClass().add("example-add-button");
+        accessBtn.setMaxWidth(Double.MAX_VALUE);
+        accessBtn.setOnAction(e ->
+            showObjectsWithTrait(row.name(), row.value())
+        );
+        editorContainer.getChildren().add(accessBtn);
+    }
+
+    private void populateNoteTypeSummaryEditor(NoteTypeRow row) {
+        LinkedHashMap<String, String> values = new LinkedHashMap<>();
+        values.put(I18n.get("col.type"), row.type());
+        values.put(I18n.get("col.parentType"), row.parentType());
+        values.put(I18n.get("col.frequency"), String.valueOf(row.frequency()));
+        populateSummaryEditor(I18n.get("nav.noteTypes"), "", values);
+        Button accessBtn = new Button(I18n.get("btn.accessObjects"));
+        accessBtn.getStyleClass().add("example-add-button");
+        accessBtn.setMaxWidth(Double.MAX_VALUE);
+        accessBtn.setOnAction(e -> showObjectsWithNoteType(row.type()));
+        editorContainer.getChildren().add(accessBtn);
+    }
+
+    private void setModifyButtonVisible(boolean visible) {
+        if (modifyButtonRow != null) modifyButtonRow.setVisible(visible);
+    }
+
+    private void showObjectsWithTrait(String traitName, String traitValue) {
+        if (currentDictionary == null) return;
+        List<LiftEntry> matches = new ArrayList<>();
+        var comps = currentDictionary.getLiftDictionaryRegistry();
+        for (LiftEntry e : comps.getEntries()) {
+            if (
+                e
+                    .getTraits()
+                    .stream()
+                    .anyMatch(
+                        t ->
+                            traitName.equals(t.getDefinition().getName()) &&
+                            traitValue.equals(t.getValue())
+                    )
+            ) matches.add(e);
+        }
+        for (LiftSense s : comps.getSenses()) {
+            if (
+                s
+                    .getTraits()
+                    .stream()
+                    .anyMatch(
+                        t ->
+                            traitName.equals(t.getDefinition().getName()) &&
+                            traitValue.equals(t.getValue())
+                    )
+            ) matches.add(s.getParentEntry());
+        }
+        for (LiftExample ex : comps.getExamples()) {
+            if (
+                ex
+                    .getTraits()
+                    .stream()
+                    .anyMatch(
+                        t ->
+                            traitName.equals(t.getDefinition().getName()) &&
+                            traitValue.equals(t.getValue())
+                    )
+            ) // findParentSense(ex)
+            //     .flatMap(this::findParentEntry)
+            //     .ifPresent(matches::add);
+            matches.add(ex.getParent().getParentEntry());
+        }
+        for (LiftVariant v : comps.getVariants()) {
+            if (
+                v.getTraits() != null &&
+                v
+                    .getTraits()
+                    .stream()
+                    .anyMatch(
+                        t ->
+                            traitName.equals(t.getDefinition().getName()) &&
+                            traitValue.equals(t.getValue())
+                    )
+            ) matches.add(v.getParent()); //Optional.ofNullable(v.getParent()).ifPresent(matches::add);
+        }
+        for (LiftEtymology et : comps
+            .getEntries()
+            .stream()
+            .flatMap(e -> e.getEtymologies().stream())
+            .toList()) {
+            if (
+                et
+                    .getTraits()
+                    .stream()
+                    .anyMatch(
+                        t ->
+                            traitName.equals(t.getDefinition().getName()) &&
+                            traitValue.equals(t.getValue())
+                    )
+            ) matches.add(et.getParent()); // Optional.ofNullable(et.getParent()).ifPresent(matches::add);
+        }
+        showMatchingEntries(
+            matches,
+            I18n.get("nav.traits") + ": " + traitName + " = " + traitValue
+        );
+    }
+
+    private void showObjectsWithNoteType(String noteType) {
+        if (currentDictionary == null) return;
+        List<LiftEntry> matches = new ArrayList<>();
+        for (LiftNote n : currentDictionary
+            .getLiftDictionaryRegistry()
+            .getNotes()) {
+            if (!noteType.equals(n.getType())) continue;
+            AbstractNotable parent = n.getParent();
+            if (parent instanceof LiftEntry e) matches.add(e);
+            else if (parent instanceof LiftSense s)
+                matches.add(s.getParentEntry());
+            //     findParentEntry(
+            //     s
+            // ).ifPresent(matches::add);
+        }
+        showMatchingEntries(
+            matches,
+            I18n.get("nav.noteTypes") + ": " + noteType
+        );
+    }
+
+    private void showMatchingEntries(List<LiftEntry> matches, String title) {
+        entrySubsetOverride = matches.stream().distinct().toList();
+        entrySubsetTitle = title;
+        keepEntrySubsetOnNextEntryView = true;
+        switchView(NAV_ENTRIES);
+    }
+
+    private void navigateToObject(Object obj) {
+        if (obj instanceof LiftEntry e) {
+            switchView(NAV_ENTRIES);
+            selectEntryInTable(e);
+            populateEntryEditor(e);
+        } else if (obj instanceof LiftSense s) {
+            LiftEntry entry = s.getParentEntry();
+            // findParentEntry(s).ifPresent(entry -> {
+                switchView(NAV_ENTRIES);
+                selectEntryInTable(entry);
+                populateEntryEditor(entry);
+            // });
+        } else if (obj instanceof LiftExample ex) {
+            LiftEntry entry = ex.getParent().getParentEntry();
+            // findParentSense(ex).ifPresent(sense -> {
+            //     findParentEntry(sense).ifPresent(entry -> {
+                    switchView(NAV_ENTRIES);
+                    selectEntryInTable(entry);
+                    populateEntryEditor(entry);
+            //     });
+            // });
+        } else if (obj instanceof LiftNote n) {
+            AbstractNotable p = n.getParent();
+            if (p instanceof LiftEntry e) {
+                switchView(NAV_ENTRIES);
+                selectEntryInTable(e);
+                populateEntryEditor(e);
+            } else if (p instanceof LiftSense s) {
+                LiftEntry entry = s.getParentEntry();
+                // findParentEntry(s).ifPresent(entry -> {
+                    switchView(NAV_ENTRIES);
+                    selectEntryInTable(entry);
+                    populateEntryEditor(entry);
+                // });
+            }
+        } else if (obj instanceof LiftVariant v) {
+            if (v.getParent() != null) {
+                switchView(NAV_ENTRIES);
+                selectEntryInTable(v.getParent());
+                populateEntryEditor(v.getParent());
+            }
+        } else if (obj instanceof LiftEtymology et) {
+            LiftEntry entry = et.getParent();
+            if (entry != null) {
+                switchView(NAV_ENTRIES);
+                selectEntryInTable(entry);
+                populateEntryEditor(entry);
+            }
+        } else if (obj instanceof LiftRelation r) {
+            HasRelations p = r.getParent();
+            if (p instanceof LiftEntry e) {
+                switchView(NAV_ENTRIES);
+                selectEntryInTable(e);
+                populateEntryEditor(e);
+            } else if (p instanceof LiftSense s) {
+                LiftEntry entry = s.getParentEntry();
+                // findParentEntry(s).ifPresent(entry -> {
+                    switchView(NAV_ENTRIES);
+                    selectEntryInTable(entry);
+                    populateEntryEditor(entry);
+                // });
+            } else if (p instanceof LiftVariant v) {
+                if (v.getParent() != null) {
+                    switchView(NAV_ENTRIES);
+                    selectEntryInTable(v.getParent());
+                    populateEntryEditor(v.getParent());
+                }
+            }
+        } else if (obj instanceof LiftPronunciation p) {
+            if (p.getParent() instanceof LiftEntry e) {
+                switchView(NAV_ENTRIES);
+                selectEntryInTable(e);
+                populateEntryEditor(e);
+            }
+        }
+    }
+
+    private void selectEntryInTable(LiftEntry entry) {
+        entryTable.getSelectionModel().select(entry);
+    }
+
+    private void populateAnnotationSummaryEditor(LiftAnnotation annotation) {
+        setModifyButtonVisible(false);
+        LinkedHashMap<String, String> values = new LinkedHashMap<>();
+        values.put(
+            I18n.get("col.parentType"),
+            describeParentType(annotation.getParent())
+        );
+        values.put(I18n.get("col.name"), annotation.getType().getId());
+        values.put(I18n.get("col.value"), annotation.getValue());
+        values.put(I18n.get("col.who"), annotation.getWho());
+        values.put(I18n.get("col.when"), annotation.getWhen());
+        populateSummaryEditor(I18n.get("nav.annotations"), "", values);
+        addGoToParentButton(annotation.getParent());
+    }
+
+    private void populateFieldSummaryEditor(LiftField field) {
+        setModifyButtonVisible(false);
+        LinkedHashMap<String, String> values = new LinkedHashMap<>();
+        values.put(
+            I18n.get("col.parentType"),
+            describeParentType(field.getParent())
+        );
+        values.put(I18n.get("col.type"), field.getType().getName());
+        values.put(
+            I18n.get("col.text"),
+            field
+                .getText()
+                .getForms()
+                .stream()
+                .findFirst()
+                .map(Form::toPlainText)
+                .orElse("")
+        );
+        populateSummaryEditor(I18n.get("nav.fields"), "", values);
+        addGoToParentButton(field.getParent());
+    }
+
+    private void showObjectsWithFieldType(String fieldType) {
+        if (currentDictionary == null) return;
+        List<LiftEntry> matches = currentDictionary
+            .getLiftDictionaryRegistry()
+            .getFields()
+            .stream()
+            .filter(f -> fieldType.equals(f.getType()))
+            .map(LiftField::getParent)
+            .map(parent -> {
+                if (parent instanceof LiftEntry e) return Optional.of(e);
+                if (parent instanceof LiftSense s) return Optional.of(s.getParentEntry()); //findParentEntry(s);
+                return Optional.<LiftEntry>empty();
+            })
+            .flatMap(Optional::stream)
+            .collect(Collectors.toList());
+        showMatchingEntries(matches, I18n.get("nav.fields") + ": " + fieldType);
+    }
+
+    private void addGoToParentButton(Object parent) {
+        if (parent == null) return;
+        Button goBtn = new Button(I18n.get("btn.goToParent"));
+        goBtn.getStyleClass().add("example-add-button");
+        goBtn.setMaxWidth(Double.MAX_VALUE);
+        goBtn.setOnAction(e -> navigateToObject(parent));
+        editorContainer.getChildren().add(goBtn);
+    }
+
+    private void populateCategorySummaryEditor(String title, CategoryRow row) {
+        populateCategorySummaryEditor(title, row, null);
+    }
+
+    private void populateCategorySummaryEditor(
+        String title,
+        CategoryRow row,
+        String categoryKind
+    ) {
+        setModifyButtonVisible(false);
+        LinkedHashMap<String, String> values = new LinkedHashMap<>();
+        values.put(I18n.get("col.value"), row.value());
+        values.put(I18n.get("col.frequency"), String.valueOf(row.frequency()));
+        populateSummaryEditor(title, "", values);
+        if (categoryKind != null) {
+            Button accessBtn = new Button(I18n.get("btn.accessObjects"));
+            accessBtn.getStyleClass().add("example-add-button");
+            accessBtn.setMaxWidth(Double.MAX_VALUE);
+            final String val = row.value();
+            accessBtn.setOnAction(e -> {
+                if (
+                    "grammatical-info".equals(categoryKind)
+                ) showObjectsWithGramInfo(val);
+                else if (
+                    "translation-type".equals(categoryKind)
+                ) showObjectsWithTranslationType(val);
+                else if (
+                    "relation-type".equals(categoryKind)
+                ) showObjectsWithRelationType(val);
+            });
+            editorContainer.getChildren().add(accessBtn);
+        }
+    }
+
+    private void showObjectsWithGramInfo(String gramInfoValue) {
+        if (currentDictionary == null) return;
+        List<LiftSense> matches = currentDictionary
+            .getLiftDictionaryRegistry()
+            .getSenses()
+            .stream()
+            .filter(s ->
+                s
+                    .getGrammaticalInfo()
+                    .map(g -> gramInfoValue.equals(g.getValue()))
+                    .orElse(false)
+            )
+            .distinct()
+            .collect(Collectors.toList());
+        showMatchingSenses(matches);
+    }
+
+    private void showMatchingSenses(List<LiftSense> matches) {
+        senseSubsetOverride = matches;
+        keepSenseSubsetOnNextSenseView = true;
+        switchView(NAV_SENSES);
+    }
+
+    private void showObjectsWithTranslationType(String transType) {
+        if (currentDictionary == null) return;
+        List<LiftEntry> matches = currentDictionary
+            .getLiftDictionaryRegistry()
+            .getExamples()
+            .stream()
+            .filter(ex -> ex.getTranslations().containsKey(transType))
+            .map(x -> x.getParent().getParentEntry())
+            // .map(this::findParentSense)
+            // .flatMap(Optional::stream)
+            // .map(this::findParentEntry)
+            // .flatMap(Optional::stream)
+            .collect(Collectors.toList());
+        showMatchingEntries(
+            matches,
+            I18n.get("nav.transTypes") + ": " + transType
+        );
+    }
+
+    private void showObjectsWithRelationType(String relationType) {
+        if (currentDictionary == null) return;
+        List<LiftEntry> matches = currentDictionary
+            .getLiftDictionaryRegistry()
+            .getRelations()
+            .stream()
+            .filter(r -> relationType.equals(r.getType()))
+            .map(LiftRelation::getParent)
+            .map(parent -> {
+                if (parent instanceof LiftEntry e) return Optional.of(e);
+                if (parent instanceof LiftSense s) return Optional.of(s.getParentEntry()); //findParentEntry(s);
+                if (parent instanceof LiftVariant v) return Optional.ofNullable(
+                    v.getParent()
+                );
+                return Optional.<LiftEntry>empty();
+            })
+            .flatMap(Optional::stream)
+            .collect(Collectors.toList());
+        showMatchingEntries(
+            matches,
+            I18n.get("nav.relationTypes") + ": " + relationType
+        );
+    }
+
+    private void populateSummaryEditor(
+        String title,
+        String code,
+        LinkedHashMap<String, String> values
+    ) {
+        editEntryTitle.setText(title);
+        editEntryCode.setText(code == null ? "" : code);
+        editorContainer.getChildren().clear();
+
+        GridPane g = new GridPane();
+        g.setHgap(8);
+        g.setVgap(6);
+        int row = 0;
+        for (Map.Entry<String, String> e : values.entrySet()) {
+            addReadOnlyRow(
+                g,
+                row++,
+                e.getKey(),
+                e.getValue() == null ? "" : e.getValue()
+            );
+        }
+        editorContainer.getChildren().add(g);
+    }
+
+    private void populateNoteEditor(LiftNote note) {
+        editEntryTitle.setText(
+            I18n.get("nav.notes") + " : " + note.getType()
+        );
+        editEntryCode.setText("");
+        editorContainer.getChildren().clear();
+        AbstractNotable parent = note.getParent();
+        if (parent != null) {
+            if (parent instanceof LiftEntry entry) {
+                String entryForm = entry
+                    .getForms()
+                    .getForms()
+                    .stream()
+                    .findFirst()
+                    .map(Form::toPlainText)
+                    .orElse("");
+                if (entryForm.isEmpty()) entryForm = "?";
+                Button backBtn = new Button(
+                    I18n.get("sense.backToEntry", entryForm)
+                );
+                backBtn
+                    .getStyleClass()
+                    .addAll("example-add-button", "back-btn");
+                backBtn.setOnAction(e -> navigateToEntryFromSense(entry));
+                editorContainer.getChildren().add(backBtn);
+            } else if (parent instanceof LiftSense sense) {
+                Button backBtn = new Button(
+                    I18n.get("sense.backToSense", senseDisplayText(sense))
+                );
+                backBtn
+                    .getStyleClass()
+                    .addAll("example-add-button", "back-btn");
+                backBtn.setOnAction(e -> navigateToSenseFromParent(sense));
+                editorContainer.getChildren().add(backBtn);
+            }
+        }
+        NoteEditor ne = new NoteEditor(currentDictionary);
+        ne.setNote(note);
+        editorContainer.getChildren().add(ne);
+    }
+
+    private void populateVariantEditor(LiftVariant v) {
+        editEntryTitle.setText(
+            I18n.get("nav.variants") + " : " + v.getRefId().orElse("?")
+        );
+        editEntryCode.setText("");
+        editorContainer.getChildren().clear();
+        LiftEntry parentEntry = v.getParent();
+        if (parentEntry != null) {
+            String entryForm = parentEntry
+                .getForms()
+                .getForms()
+                .stream()
+                .findFirst()
+                .map(Form::toPlainText)
+                .orElse("");
+            if (entryForm.isEmpty()) entryForm = "?";
+            Button backBtn = new Button(
+                I18n.get("sense.backToEntry", entryForm)
+            );
+            backBtn.getStyleClass().addAll("example-add-button", "back-btn");
+            backBtn.setOnAction(e -> navigateToEntryFromSense(parentEntry));
+            editorContainer.getChildren().add(backBtn);
+        }
+        VariantEditor ve = new VariantEditor(currentDictionary);
+        ve.setRelationTypes(currentDictionary.getHeader().getRelationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList());
+        // ve.setRelationTypes(getKnownRelationTypes());
+        ve.setVariantTypes(
+            currentDictionary.getHeader().getVariantTypeManager().getRangeElements().values().stream().map(x->x.getId()).toList()
+            // new ArrayList<>(
+            //     getKnownTraitValues().getOrDefault("variant-type", Set.of())
+            // )
+        );
+        ve.setVariant(
+            v,
+            createVariantAddActions(v)
+        );
+        editorContainer.getChildren().add(ve);
+    }
+
+    private ExtensibleAddActions createSenseAddActions(LiftSense s) {
+        return new ExtensibleAddActions() {
+            @Override
+            public void addTrait(String name, String value) {
+                currentDictionary.getComponentBuilder().trait(s, name, value);
+                // f.createTrait(name, value, s);
+            }
+
+            @Override
+            public void addAnnotation(String name) {
+                // f.createAnnotation(name, s);
+                currentDictionary.getComponentBuilder().annotation(s, name).build();
+            }
+
+            @Override
+            public void addField(String type) {
+                // f.createField(type, s);
+                currentDictionary.getComponentBuilder().field(s, type).build();
+            }
+
+            @Override
+            public void addNote(String type) {
+                // f.createNote(type, s);
+                currentDictionary.getComponentBuilder().note(s, type).build();
+            }
+
+            @Override
+            public void refresh() {
+                populateSenseEditor(s);
+            }
+
+            // @Override
+            // public List<String> getKnownTraitNames() {
+            //     return getKnownTraitNamesFor(
+            //         LiftFieldAndTraitDefinitionTarget.SENSE
+            //     );
+            // }
+
+            // @Override
+            // public List<String> getKnownAnnotationNames() {
+            //     return getKnownAnnotationNames();
+            // }
+
+            // @Override
+            // public List<String> getKnownFieldTypes() {
+            //     return getKnownFieldTypesFor(
+            //         LiftFieldAndTraitDefinitionTarget.SENSE
+            //     );
+            // }
+
+            // @Override
+            // public List<String> getKnownNoteTypes() {
+            //     return getKnownNoteTypes();
+            // }
+        };
+    }
+
+    private ExtensibleAddActions createExampleAddActions(LiftExample ex) {
+        // LiftXMLFactory f = getFactory(currentDictionary);
+        // if (f == null) return null;
+        return new ExtensibleAddActions() {
+            @Override
+            public void addTrait(String name, String value) {
+                // f.createTrait(name, value, ex);
+                currentDictionary.getComponentBuilder().trait(ex, name, value);
+            }
+
+            @Override
+            public void addAnnotation(String name) {
+                // f.createAnnotation(name, ex);
+                currentDictionary.getComponentBuilder().annotation(ex, name).build();
+            }
+
+            @Override
+            public void addField(String type) {
+                // f.createField(type, ex);
+                currentDictionary.getComponentBuilder().field(ex, type).build();
+            }
+
+            @Override
+            public void addNote(String type) {
+                currentDictionary.getComponentBuilder().note(ex, type).build();
+                // f.createNote(type, ex);
+            }
+
+            @Override
+            public void refresh() {
+                populateExampleEditor(ex);
+            }
+
+            // @Override
+            // public List<String> getKnownTraitNames() {
+            //     return getKnownTraitNamesFor(
+            //         LiftFieldAndTraitDefinitionTarget.EXAMPLE
+            //     );
+            // }
+
+            // @Override
+            // public List<String> getKnownAnnotationNames() {
+            //     return getKnownAnnotationNames();
+            // }
+
+            // @Override
+            // public List<String> getKnownFieldTypes() {
+            //     return getKnownFieldTypesFor(
+            //         LiftFieldAndTraitDefinitionTarget.EXAMPLE
+            //     );
+            // }
+
+            // @Override
+            // public List<String> getKnownNoteTypes() {
+            //     return getKnownNoteTypes();
+            // }
+        };
+    }
+
+    private ExtensibleAddActions createVariantAddActions(LiftVariant v) {
+        return new ExtensibleAddActions() {
+            @Override
+            public void addTrait(String name, String value) {
+                currentDictionary.getComponentBuilder().trait(v, name, value).build();
+            }
+
+            @Override
+            public void addAnnotation(String name) {
+                currentDictionary.getComponentBuilder().annotation(v, name).build();
+            }
+
+            @Override
+            public void addField(String type) {
+                currentDictionary.getComponentBuilder().field(v, type).build();
+            }
+
+            @Override
+            public void addPronunciation() {
+                currentDictionary.getComponentBuilder().pronunciation(v).build();
+            }
+
+            @Override
+            public void addRelation(String type) {
+                currentDictionary.getComponentBuilder().relation(type, v).build();
+            }
+
+            @Override
+            public void refresh() {
+                populateVariantEditor(v);
+            }
+
+            // @Override
+            // public List<String> getKnownTraitNames() {
+            //     return getKnownTraitNamesFor(
+            //         LiftFieldAndTraitDefinitionTarget.VARIANT
+            //     );
+            // }
+
+            // @Override
+            // public List<String> getKnownAnnotationNames() {
+            //     return getKnownAnnotationNames();
+            // }
+
+            // @Override
+            // public List<String> getKnownFieldTypes() {
+            //     return getKnownFieldTypesFor(
+            //         LiftFieldAndTraitDefinitionTarget.VARIANT
+            //     );
+            // }
+
+            // @Override
+            // public List<String> getKnownRelationTypes() {
+            //     return getKnownRelationTypes();
+            // }
+        };
+    }
+
+    /* ─── Setup generic tables ─── */
+
+    private void setupGenericTables() {
+        entryTable.setPlaceholder(new Label(I18n.get("placeholder.noData")));
+        senseTable.setPlaceholder(new Label(I18n.get("placeholder.noSense")));
+        exampleTable.setPlaceholder(
+            new Label(I18n.get("placeholder.noExample"))
+        );
+        variantTable.setPlaceholder(
+            new Label(I18n.get("placeholder.noVariant"))
+        );
+        relationTable.setPlaceholder(
+            new Label(I18n.get("placeholder.noRelation"))
+        );
+        traitTable.setPlaceholder(new Label(I18n.get("placeholder.noTrait")));
+        annotationTable.setPlaceholder(
+            new Label(I18n.get("placeholder.noAnnotation"))
+        );
+        fieldTable.setPlaceholder(new Label(I18n.get("placeholder.noField")));
+        langFieldTable.setPlaceholder(
+            new Label(I18n.get("placeholder.noMultiField"))
+        );
+        quickEntryTable.setPlaceholder(
+            new Label(I18n.get("placeholder.quickEntryHint"))
+        );
+    }
+
+    /* ────────────────── FILTER / SEARCH ────────────────── */
+
+    private void applyCurrentFilter() {
+        String q = Optional.ofNullable(searchField.getText())
+            .orElse("")
+            .trim()
+            .toLowerCase(Locale.ROOT);
+        if (currentView.equals(NAV_ENTRIES)) {
+            List<LiftEntry> entrySource =
+                entrySubsetOverride != null ? entrySubsetOverride : baseEntries;
+            List<TableColumn<LiftEntry, ?>> leaves = collectLeafColumns(
+                entryTable
+            );
+            String clearOption = I18n.get("filter.clear");
+            filteredEntries.setPredicate(entry -> {
+                if (!entrySource.contains(entry)) return false;
+                if (entry == null) return false;
+                if (
+                    !q.isEmpty() &&
+                    !buildSearchText(entry).toLowerCase(Locale.ROOT).contains(q)
+                ) return false;
+                for (
+                    int i = 0;
+                    i < entryColumnFilters.size() && i < leaves.size();
+                    i++
+                ) {
+                    String selected = entryColumnFilters.get(i).getValue();
+                    if (!isActiveFilter(selected, clearOption)) continue;
+                    Object val =
+                        leaves.get(i).getCellObservableValue(entry) != null
+                            ? leaves
+                                  .get(i)
+                                  .getCellObservableValue(entry)
+                                  .getValue()
+                            : null;
+                    String cellText = val != null ? val.toString() : "";
+                    if (!selected.equals(cellText)) return false;
+                }
+                return true;
+            });
+            refreshEntryFacetChoices(q, leaves, clearOption, entrySource);
+            updateCountLabel(filteredEntries.size(), entrySource.size());
+        }
+    }
+
+    private void refreshEntryFacetChoices(
+        String q,
+        List<TableColumn<LiftEntry, ?>> leaves,
+        String clearOption,
+        List<LiftEntry> entrySource
+    ) {
+        if (entryColumnFilters.isEmpty()) return;
+        entryFilterInternalUpdate = true;
+        try {
+            for (
+                int i = 0;
+                i < entryColumnFilters.size() && i < leaves.size();
+                i++
+            ) {
+                ComboBox<String> combo = entryColumnFilters.get(i);
+                String currentValue = combo.getValue();
+                final int colIndex = i;
+
+                List<String> values = entrySource
+                    .stream()
+                    .filter(
+                        e ->
+                            e != null &&
+                            (q.isEmpty() ||
+                                buildSearchText(e)
+                                    .toLowerCase(Locale.ROOT)
+                                    .contains(q))
+                    )
+                    .filter(e ->
+                        rowMatchesEntryFiltersExcluding(
+                            e,
+                            leaves,
+                            clearOption,
+                            colIndex
+                        )
+                    )
+                    .map(e -> {
+                        Object v =
+                            leaves.get(colIndex).getCellObservableValue(e) !=
+                            null
+                                ? leaves
+                                      .get(colIndex)
+                                      .getCellObservableValue(e)
+                                      .getValue()
+                                : null;
+                        return v == null ? "" : v.toString();
+                    })
+                    .filter(s -> !s.isBlank())
+                    .distinct()
+                    .sorted(String.CASE_INSENSITIVE_ORDER)
+                    .toList();
+
+                ObservableList<String> items =
+                    FXCollections.observableArrayList();
+                items.add(clearOption);
+                items.addAll(values);
+                combo.setItems(items);
+
+                if (
+                    currentValue != null && items.contains(currentValue)
+                ) combo.setValue(currentValue);
+                else combo.setValue(clearOption);
+            }
+        } finally {
+            entryFilterInternalUpdate = false;
+        }
+    }
+
+    private boolean rowMatchesEntryFiltersExcluding(
+        LiftEntry entry,
+        List<TableColumn<LiftEntry, ?>> leaves,
+        String clearOption,
+        int ignoredColumn
+    ) {
+        for (
+            int i = 0;
+            i < entryColumnFilters.size() && i < leaves.size();
+            i++
+        ) {
+            if (i == ignoredColumn) continue;
+            String selected = entryColumnFilters.get(i).getValue();
+            if (!isActiveFilter(selected, clearOption)) continue;
+            Object val =
+                leaves.get(i).getCellObservableValue(entry) != null
+                    ? leaves.get(i).getCellObservableValue(entry).getValue()
+                    : null;
+            String cellText = val != null ? val.toString() : "";
+            if (!selected.equals(cellText)) return false;
+        }
+        return true;
+    }
+
+    /* ────────────────── DICTIONARY MANAGEMENT ────────────────── */
+
+    private void setDictionary(LiftDictionary dictionary) {
+        this.currentDictionary = dictionary;
+        undoManager.clear();
+        baseEntries.clear();
+        if (dictionary == null) {
+            updateCountLabel(0, 0);
+            return;
+        }
+        ensureHeaderComplete();
+        rebuildHeaderCfgChildren();
+        baseEntries.addAll(
+            dictionary.getLiftDictionaryRegistry().getEntries()
+        );
+        configureEntryTableColumns();
+        if (currentView.equals(NAV_ENTRIES)) {
+            applyCurrentFilter();
+            if (!filteredEntries.isEmpty()) entryTable
+                .getSelectionModel()
+                .selectFirst();
+        }
+    }
+
+    /* ────────────────── MENU HANDLERS ────────────────── */
+
+    @FXML
+    private void onImportLift() {
+        FileChooser ch = new FileChooser();
+        ch.setTitle(I18n.get("dialog.openLift"));
+        // ← Utilise le chemin par défaut sauvegardé
+        String defaultPath = PREFS.get(
+            "ui.defaultPath",
+            System.getProperty("user.home")
+        );
+        File defaultDir = new File(defaultPath);
+        if (defaultDir.exists()) ch.setInitialDirectory(defaultDir);
+        ch.getExtensionFilters().addAll(
+            new FileChooser.ExtensionFilter(
+                I18n.get("dialog.liftFilter"),
+                "*.lift"
+            ),
+            new FileChooser.ExtensionFilter(I18n.get("dialog.allFilter"), "*.*")
+        );
+        File f = ch.showOpenDialog(navTree.getScene().getWindow());
+        if (f == null) return;
+        try {
+            setDictionary(dictionaryService.loadFromFile(f));
+            switchView(NAV_ENTRIES);
+            saveRecentFile(f);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Ouverture du fichier LIFT", e);
+            showError(
+                I18n.get("error.open"),
+                I18n.formatErrorMessage("error.open.detail", e)
+            );
+        }
+    }
+
+    @FXML
+    private void onSave() {
+        if (currentDictionary == null) {
+            showError(I18n.get("error.save"), I18n.get("error.noDictionary"));
+            return;
+        }
+        try {
+            currentDictionary.save();
+        } catch (Exception e) {
+            showError(
+                I18n.get("error.save"),
+                I18n.formatErrorMessage("error.save.detail", e)
+            );
+        }
+    }
+
+    @FXML
+    private void onNewDictionary() {
+        setDictionary(null);
+        switchView(NAV_ENTRIES);
+    }
+
+    @FXML
+    private void onSaveAs() {
+        if (currentDictionary == null) {
+            showError(
+                I18n.get("error.saveAs"),
+                I18n.get("error.noDictionaryShort")
+            );
+            return;
+        }
+        FileChooser ch = new FileChooser();
+        ch.setTitle(I18n.get("dialog.saveLift"));
+        ch.getExtensionFilters().add(
+            new FileChooser.ExtensionFilter(
+                I18n.get("dialog.liftFilter"),
+                "*.lift"
+            )
+        );
+        File f = ch.showSaveDialog(navTree.getScene().getWindow());
+        if (f != null) {
+            try {
+                currentDictionary.save(f);
+            } catch (Exception e) {
+                LOGGER.log(
+                    Level.SEVERE,
+                    "Sauvegarde du dictionnaire sous un autre fichier",
+                    e
+                );
+                showError(
+                    I18n.get("error.saveAs"),
+                    I18n.formatErrorMessage("error.saveAs.detail", e)
+                );
+            }
+        }
+    }
+
+    @FXML
+    private void onPreferences() {
+        showPreferencesDialog();
+    }
+
+    @FXML
+    private void onQuit() {
+        Platform.exit();
+    }
+
+    @FXML
+    private void onCopy() {
+        javafx.scene.Node focused = menuBar.getScene().getFocusOwner();
+        if (focused instanceof TextField tf) {
+            tf.copy();
+        } else {
+            copySelectedToClipboard();
+        }
+    }
+
+    @FXML
+    private void onPaste() {
+        javafx.scene.Node focused = menuBar.getScene().getFocusOwner();
+        if (focused instanceof TextField tf) {
+            tf.paste();
+        } else {
+            // Colle depuis le presse-papiers comme nouvelle entrée
+            String text = Clipboard.getSystemClipboard().getString();
+            if (text == null || text.isBlank()) return;
+            // LiftXMLFactory factory = getFactory(currentDictionary);
+            // if (factory == null) return;
+            // // Crée une entrée avec le texte collé comme forme
+            // org.xml.sax.helpers.AttributesImpl attrs =
+            //     new org.xml.sax.helpers.AttributesImpl();
+            // attrs.addAttribute(
+            //     "",
+            //     "id",
+            //     "id",
+            //     "CDATA",
+            //     UUID.randomUUID().toString()
+            // );
+            // LiftEntry entry = factory.createEntry(attrs);
+            LiftEntry entry = currentDictionary.getComponentBuilder().entry().build();
+            Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+            if (!objLangs.isEmpty()) entry
+                .getForms()
+                .add(new Form(objLangs.stream().findFirst().get(), text.trim()));
+            baseEntries.add(entry);
+            switchView(NAV_ENTRIES);
+            entryTable.getSelectionModel().select(entry);
+            entryTable.scrollTo(entry);
+        }
+    }
+
+    @FXML
+    private void onCut() {
+        javafx.scene.Node focused = menuBar.getScene().getFocusOwner();
+        if (focused instanceof TextField tf) {
+            tf.cut();
+        } else {
+            copySelectedToClipboard();
+        }
+    }
+
+    private void copySelectedToClipboard() {
+        LiftEntry e = entryTable.getSelectionModel().getSelectedItem();
+        if (e == null) return;
+        ClipboardContent cc = new ClipboardContent();
+        StringBuilder sb = new StringBuilder();
+        sb.append(e.getId().orElse(""));
+        for (Form f : e.getForms().getForms())
+            sb.append("\t").append(f.toPlainText());
+        cc.putString(sb.toString());
+        Clipboard.getSystemClipboard().setContent(cc);
+    }
+
+    /* ─── Vue menu items: delegate to switchView ─── */
+    @FXML
+    private void onViewEntries() {
+        switchView(NAV_ENTRIES);
+    }
+
+    @FXML
+    private void onViewSenses() {
+        switchView(NAV_SENSES);
+    }
+
+    @FXML
+    private void onViewExamples() {
+        switchView(NAV_EXAMPLES);
+    }
+
+    @FXML
+    private void onViewNotes() {
+        switchView(NAV_NOTES);
+    }
+
+    @FXML
+    private void onViewVariants() {
+        switchView(NAV_VARIANTS);
+    }
+
+    @FXML
+    private void onViewEtymologies() {
+        switchView(NAV_ETYMOLOGIES);
+    }
+
+    @FXML
+    private void onViewObjectLangs() {
+        switchView(NAV_OBJ_LANGS);
+    }
+
+    @FXML
+    private void onViewMetaLangs() {
+        switchView(NAV_META_LANGS);
+    }
+
+    @FXML
+    private void onViewTraits() {
+        switchView(NAV_TRAITS);
+    }
+
+    @FXML
+    private void onViewAnnotations() {
+        switchView(NAV_ANNOTATIONS);
+    }
+
+    @FXML
+    private void onViewFields() {
+        switchView(NAV_FIELDS);
+    }
+
+    @FXML
+    private void onViewGramInfo() {
+        switchView(NAV_GRAM_INFO);
+    }
+
+    @FXML
+    private void onViewTransTypes() {
+        switchView(NAV_TRANS_TYPES);
+    }
+
+    @FXML
+    private void onViewNoteTypes() {
+        switchView(NAV_NOTE_TYPES);
+    }
+
+    @FXML
+    private void onViewRelationTypes() {
+        switchView(NAV_RELATION_TYPES);
+    }
+
+    /* ─── Configuration menu ─── */
+    @FXML
+    private void onConfigNoteTypes() {
+        switchView(NAV_CFG_MANAGE_NOTE_TYPES);
+    }
+
+    private void showConfigNoteTypesView() {
+        showConfigInlineView(
+            I18n.get("menu.config.noteTypes"),
+            () ->
+                currentDictionary == null
+                    ? List.of()
+                    : currentDictionary
+                          .getLiftDictionaryRegistry()
+                          .getNotes()
+                          .stream()
+                          .map(x -> x.getType().getId())
+                          .distinct()
+                          .sorted()
+                          .toList(),
+            val ->
+                currentDictionary == null
+                    ? 0L
+                    : currentDictionary
+                          .getLiftDictionaryRegistry()
+                          .getNotes()
+                          .stream()
+                          .filter(n -> val.equals(n.getType()))
+                          .count()
+        );
+    }
+
+    @FXML
+    private void onConfigTranslationTypes() {
+        switchView(NAV_CFG_MANAGE_TRANS_TYPES);
+    }
+
+    private void showConfigTranslationTypesView() {
+        showConfigInlineView(
+            I18n.get("menu.config.translationTypes"),
+            () ->
+                currentDictionary == null
+                    ? List.of()
+                    : currentDictionary
+                          .getLiftDictionaryRegistry()
+                          .getExamples()
+                          .stream()
+                          .flatMap(ex -> ex.getTranslations().keySet().stream())
+                          .map(x -> x.getId())
+                          .distinct()
+                          .sorted()
+                          .toList(),
+            val ->
+                currentDictionary == null
+                    ? 0L
+                    : currentDictionary
+                          .getLiftDictionaryRegistry()
+                          .getExamples()
+                          .stream()
+                          .filter(ex -> ex.getTranslations().containsKey(val))
+                          .count()
+        );
+    }
+
+    @FXML
+    private void onConfigLanguages() {
+        switchView(NAV_CFG_MANAGE_LANGS);
+    }
+
+    @FXML
+    private void onConfigTraitTypes() {
+        switchView(NAV_TRAITS);
+    }
+
+    @FXML
+    private void onConfigAnnotationTypes() {
+        switchView(NAV_CFG_MANAGE_ANNOTATION_TYPES);
+    }
+
+    private void showConfigAnnotationTypesView() {
+        showConfigInlineView(
+            I18n.get("menu.config.annotationTypes"),
+            () ->
+                currentDictionary == null
+                    ? List.of()
+                    : currentDictionary
+                          .getLiftDictionaryRegistry()
+                          .getAnnotations()
+                          .stream()
+                          .map(x -> x.getType().getId())
+                          .distinct()
+                          .sorted()
+                          .toList(),
+            val ->
+                currentDictionary == null
+                    ? 0L
+                    : currentDictionary
+                          .getLiftDictionaryRegistry()
+                          .getAnnotations()
+                          .stream()
+                          .filter(a -> val.equals(a.getType().getId()))
+                          .count()
+        );
+    }
+
+    @FXML
+    private void onConfigFieldTypes() {
+        switchView(NAV_FIELD_TYPES);
+    }
+
+    private void onConfigRelationTypes() {
+        switchView(NAV_CFG_MANAGE_RELATION_TYPES);
+    }
+
+    private void showConfigRelationTypesView() {
+        showConfigInlineView(
+            I18n.get("nav.cfgManageRelationTypes"),
+            () ->
+                currentDictionary == null
+                    ? List.of()
+                    : currentDictionary
+                          .getLiftDictionaryRegistry()
+                          .getRelations()
+                          .stream()
+                          .map(r -> r.getType().getId())
+                          .distinct()
+                          .sorted()
+                          .toList(),
+            val ->
+                currentDictionary == null
+                    ? 0L
+                    : currentDictionary
+                          .getLiftDictionaryRegistry()
+                          .getRelations()
+                          .stream()
+                          .filter(r -> val.equals(r.getType()))
+                          .count()
+        );
+    }
+
+    private void showManageLanguagesView() {
+        if (currentDictionary == null) {
+            tableContainer
+                .getChildren()
+                .setAll(new Label(I18n.get("cfg.noHeader")));
+            return;
+        }
+        var ldc = currentDictionary.getLiftDictionaryRegistry();
+        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
+
+        VBox box = new VBox(10);
+        box.setPadding(new Insets(12));
+        Label title = new Label(I18n.get("nav.cfgManageLangs"));
+        title.setStyle(
+            "-fx-font-size:15px; -fx-font-weight:bold; -fx-text-fill:#4c6f76;"
+        );
+
+        TitledPane objPane = new TitledPane(
+            I18n.get("nav.objectLangs"),
+            buildEditableLanguagePanel(
+                objLangs,
+                true,
+                currentDictionary.getLiftDictionaryRegistry().getObjectText()
+            )
+        );
+        objPane.setExpanded(true);
+        objPane.setAnimated(false);
+        TitledPane metaPane = new TitledPane(
+            I18n.get("nav.metaLangs"),
+            buildEditableLanguagePanel(
+                metaLangs,
+                false,
+                currentDictionary.getLiftDictionaryRegistry().getMetaText()
+            )
+        );
+        metaPane.setExpanded(true);
+        metaPane.setAnimated(false);
+
+        box.getChildren().addAll(title, objPane, metaPane);
+        tableContainer.getChildren().setAll(box);
+        editorContainer.getChildren().clear();
+        editEntryTitle.setText(I18n.get("nav.cfgManageLangs"));
+        editEntryCode.setText("");
+    }
+
+    /** Builds an editable panel for a language list (object or meta) with add/delete. */
+    private VBox buildEditableLanguagePanel(
+        Set<String> langs,
+        boolean isObject,
+        ObservableList<MultiText> multiTexts
+    ) {
+        TableView<String> table = new TableView<>(
+            FXCollections.observableArrayList(langs)
+        );
+        table.setPrefHeight(140);
+        TableColumn<String, String> langCol = new TableColumn<>(
+            I18n.get("col.code")
+        );
+        langCol.setCellValueFactory(cd ->
+            new ReadOnlyStringWrapper(cd.getValue())
+        );
+        langCol.setPrefWidth(120);
+        TableColumn<String, String> usageCol = new TableColumn<>(
+            I18n.get("cfg.usageCount")
+        );
+        usageCol.setCellValueFactory(cd -> {
+            long n = countLanguageUsage(cd.getValue(), multiTexts);
+            return new ReadOnlyStringWrapper(String.valueOf(n));
+        });
+        usageCol.setPrefWidth(80);
+        table.getColumns().addAll(langCol, usageCol);
+
+        TextField addField = new TextField();
+        addField.setPromptText(I18n.get("config.addAbbr"));
+        Button addBtn = new Button(I18n.get("btn.add"));
+        addBtn.setOnAction(e -> {
+            String code = addField.getText().trim();
+            if (code.isEmpty()) return;
+            if (langs.contains(code)) return;
+            if (addLanguageToDictionary(code, isObject)) {
+                langs.add(code);
+                new ArrayList<String>(langs).sort(Comparator.naturalOrder());
+                table.setItems(FXCollections.observableArrayList(langs));
+                addField.clear();
+            }
+        });
+        Button removeBtn = new Button(I18n.get("btn.delete"));
+        removeBtn.setOnAction(e -> {
+            String sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null) return;
+            long usage = countLanguageUsage(sel, multiTexts);
+            if (usage > 0) {
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+                confirm.setTitle(I18n.get("btn.delete"));
+                confirm.setHeaderText(
+                    I18n.get("config.deleteWarning", sel, usage)
+                );
+                confirm.setContentText(I18n.get("config.deleteConfirm"));
+                if (
+                    confirm
+                        .showAndWait()
+                        .filter(r -> r == ButtonType.OK)
+                        .isEmpty()
+                ) return;
+            }
+            removeLanguageFromMultiTexts(sel, multiTexts);
+            langs.remove(sel);
+            table.setItems(FXCollections.observableArrayList(langs));
+        });
+
+        HBox controls = new HBox(8, addField, addBtn, removeBtn);
+        controls.setPadding(new Insets(6, 0, 0, 0));
+        HBox.setHgrow(addField, Priority.ALWAYS);
+        return new VBox(6, table, controls);
+    }
+
+    private long countLanguageUsage(String lang, List<MultiText> multiTexts) {
+        if (lang == null || lang.isBlank() || multiTexts == null) return 0;
+        return multiTexts
+            .stream()
+            .filter(mt -> mt.getForm(lang).isPresent())
+            .count();
+    }
+
+    private void removeLanguageFromMultiTexts(
+        String lang,
+        List<MultiText> multiTexts
+    ) {
+        if (lang == null || lang.isBlank() || multiTexts == null) return;
+        for (MultiText mt : multiTexts) {
+            if (mt.getForm(lang).isPresent() && !mt.isEmpty()) {
+                try {
+                    mt.removeForm(lang);
+                } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    /** Adds a language by inserting an empty form in the first available multitext of the appropriate type. */
+    private boolean addLanguageToDictionary(String lang, boolean isObject) {
+        if (
+            currentDictionary == null || lang == null || lang.isBlank()
+        ) return false;
+        var ldc = currentDictionary.getLiftDictionaryRegistry();
+        List<MultiText> targets = isObject
+            ? ldc.getObjectText()
+            : ldc.getMetaText();
+        for (MultiText mt : targets) {
+            if (!mt.getForm(lang).isPresent()) {
+                try {
+                    mt.add(new Form(lang, ""));
+                    return true;
+                } catch (Exception ignored) {}
+            }
+        }
+        return false;
+    }
+
+    private void showAddEtymologyDialog(
+        LiftEntry entry
+        // ,
+        // LiftXMLFactory factory
+    ) {
+        Dialog<Pair<String, String>> dlg = new Dialog<>();
+        dlg.setTitle(I18n.get("btn.addEtymology"));
+        dlg.getDialogPane()
+            .getButtonTypes()
+            .addAll(ButtonType.OK, ButtonType.CANCEL);
+        TextField sourceField = new TextField();
+        sourceField.setPromptText(I18n.get("col.source"));
+        List<String> knownTypes = currentDictionary.getHeader().getEtymologyTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
+            // currentDictionary == null
+            //     ? List.of()
+            //     : currentDictionary
+            //           .getLiftDictionaryRegistry()
+            //           .getEntries()
+            //           .stream()
+            //           .flatMap(e -> e.getEtymologies().stream())
+            //           .map(LiftEtymology::getType)
+            //           // TODO null or empty policy
+            //           .filter(x -> x != null && !x.getId().isEmpty())
+            //           .map(LiftHeaderRangeElement::getId)
+            //           .distinct()
+            //           .sorted()
+            //           .toList();
+        ComboBox<String> typeCombo = new ComboBox<>(
+            FXCollections.observableArrayList(knownTypes)
+        );
+        typeCombo.setEditable(true);
+        typeCombo.setPromptText(I18n.get("col.type"));
+        GridPane grid = new GridPane();
+        grid.setHgap(8);
+        grid.setVgap(8);
+        grid.add(new Label(I18n.get("col.type")), 0, 0);
+        grid.add(typeCombo, 1, 0);
+        grid.add(new Label(I18n.get("col.source")), 0, 1);
+        grid.add(sourceField, 1, 1);
+        dlg.getDialogPane().setContent(grid);
+        dlg.setResultConverter(btn ->
+            btn == ButtonType.OK
+                ? new Pair<>(
+                      typeCombo.getValue() != null
+                          ? typeCombo.getValue()
+                          : typeCombo.getEditor().getText(),
+                      sourceField.getText()
+                  )
+                : null
+        );
+        dlg.showAndWait().ifPresent(pair -> {
+            String type = pair.getKey() != null ? pair.getKey().trim() : "";
+            String source =
+                pair.getValue() != null ? pair.getValue().trim() : "";
+            if (type.isEmpty()) type = "unknown";
+            // org.xml.sax.helpers.AttributesImpl attrs =
+            //     new org.xml.sax.helpers.AttributesImpl();
+            // attrs.addAttribute("", "type", "type", "CDATA", type);
+            // attrs.addAttribute("", "source", "source", "CDATA", source);
+            // factory.createEtymology(attrs, entry);
+            currentDictionary.getComponentBuilder().etymology(entry, type, source);
+            populateEntryEditor(entry);
+        });
+    }
+
+    /* ─── Outil menu ─── */
+    @FXML
+    private void onValidateDictionary() {
+        if (currentDictionary == null) {
+            showError(
+                I18n.get("error.validation"),
+                I18n.get("error.noDictionaryShort")
+            );
+            return;
+        }
+        var c = currentDictionary.getLiftDictionaryRegistry();
+        showInfo(
+            I18n.get("error.validation"),
+            I18n.get(
+                "info.validationResult",
+                c.getEntries().size(),
+                c.getSenses().size(),
+                c.getExamples().size(),
+                String.join(", ", currentDictionary.getObjectLanguageManager().getLanguages()),
+                String.join(", ", currentDictionary.getMetaLanguageManager().getLanguages())
+            )
+        );
+    }
+
+    @FXML
+    private void onExportCsv() {
+        if (currentDictionary == null) {
+            showError(
+                I18n.get("error.export"),
+                I18n.get("error.noDictionaryShort")
+            );
+            return;
+        }
+        TableView<?> table = getCurrentTableView();
+        if (table == null) {
+            showError(
+                I18n.get("error.export"),
+                I18n.get("error.exportNoTable")
+            );
+            return;
+        }
+        FileChooser ch = new FileChooser();
+        ch.setTitle(I18n.get("dialog.exportCsv"));
+        ch.getExtensionFilters().add(
+            new FileChooser.ExtensionFilter(
+                I18n.get("dialog.csvFilter"),
+                "*.csv"
+            )
+        );
+        File f = ch.showSaveDialog(navTree.getScene().getWindow());
+        if (f == null) return;
+        try {
+            exportTableToCsv(table, f);
+            showInfo(
+                I18n.get("error.export"),
+                I18n.get("info.exportSuccess", f.getAbsolutePath())
+            );
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Export CSV", e);
+            showError(
+                I18n.get("error.export"),
+                I18n.formatErrorMessage("error.export.detail", e)
+            );
+        }
+    }
+
+    /** Returns the TableView currently displayed in tableContainer, or null. */
+    private TableView<?> getCurrentTableView() {
+        if (tableContainer.getChildren().isEmpty()) return null;
+        javafx.scene.Node first = tableContainer.getChildren().get(0);
+        if (first instanceof TableView<?> tv) return tv;
+        if (first instanceof VBox vbox && vbox.getChildren().size() >= 3) {
+            javafx.scene.Node third = vbox.getChildren().get(2);
+            if (third instanceof TableView<?> tv) return tv;
+        }
+        return null;
+    }
+
+    /** Export table to CSV: column headers match table, comma-separated, values escaped per RFC 4180. */
+    private static <T> void exportTableToCsv(TableView<T> table, File file)
+        throws IOException {
+        List<TableColumn<T, ?>> leaves = collectLeafColumns(table);
+        if (leaves.isEmpty()) return;
+        try (
+            PrintWriter pw = new PrintWriter(
+                file,
+                java.nio.charset.StandardCharsets.UTF_8
+            )
+        ) {
+            pw.print('\uFEFF'); // BOM for Excel UTF-8 recognition
+            pw.print(escapeCsv(getColumnHeader(leaves.get(0))));
+            for (int i = 1; i < leaves.size(); i++) {
+                pw.print(",");
+                pw.print(escapeCsv(getColumnHeader(leaves.get(i))));
+            }
+            pw.println();
+            for (T row : table.getItems()) {
+                pw.print(escapeCsv(cellText(row, leaves.get(0))));
+                for (int i = 1; i < leaves.size(); i++) {
+                    pw.print(",");
+                    pw.print(escapeCsv(cellText(row, leaves.get(i))));
+                }
+                pw.println();
+            }
+        }
+    }
+
+    private static String getColumnHeader(TableColumn<?, ?> col) {
+        String t = col.getText();
+        return t != null ? t : "";
+    }
+
+    /** RFC 4180: wrap in quotes if contains comma, quote, or newline; double internal quotes. */
+    private static String escapeCsv(String value) {
+        if (value == null) return "";
+        if (
+            value.contains(",") ||
+            value.contains("\"") ||
+            value.contains("\n") ||
+            value.contains("\r")
+        ) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
+    }
+
+    /* ════════════════════ GRAMMATICAL INFO VIEW ════════════════════ */
+
+    private void showGramInfoView() {
+        if (currentDictionary == null) {
+            tableContainer
+                .getChildren()
+                .setAll(new Label(I18n.get("placeholder.noDictionary")));
+            return;
+        }
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (LiftSense s : currentDictionary
+            .getLiftDictionaryRegistry()
+            .getSenses()) {
+            s.getGrammaticalInfo().ifPresent(gi ->
+                counts.merge(gi.getValue(), 1L, Long::sum)
+            );
+        }
+        showCategoryTable(
+            I18n.get("nav.gramInfo"),
+            I18n.get("col.value"),
+            counts,
+            "grammatical-info"
+        );
+    }
+
+    /* ════════════════════ TRANSLATION TYPES VIEW ════════════════════ */
+
+    private void showTranslationTypesView() {
+        if (currentDictionary == null) {
+            tableContainer
+                .getChildren()
+                .setAll(new Label(I18n.get("placeholder.noDictionary")));
+            return;
+        }
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (LiftExample ex : currentDictionary
+            .getLiftDictionaryRegistry()
+            .getExamples()) {
+            for (String type : ex.getTranslations().keySet().stream().map(x -> x.getId()).toList())
+                counts.merge(type, 1L, Long::sum);
+        }
+        showCategoryTable(
+            I18n.get("nav.transTypes"),
+            I18n.get("col.type"),
+            counts,
+            "translation-type"
+        );
+    }
+
+    /* ════════════════════ NOTE TYPES VIEW ════════════════════ */
+
+    private record NoteTypeRow(
+        String type,
+        String parentType,
+        long frequency
+    ) {}
+
+    private void showNoteTypesView() {
+        if (currentDictionary == null) {
+            tableContainer
+                .getChildren()
+                .setAll(new Label(I18n.get("placeholder.noDictionary")));
+            return;
+        }
+        Map<String, NoteTypeRow> counts = new LinkedHashMap<>();
+        for (LiftNote n : currentDictionary
+            .getLiftDictionaryRegistry()
+            .getNotes()) {
+            String type = n.getType().getId();
+            String pt = describeParentType(n.getParent());
+            String key = type + "|" + pt;
+            counts.compute(key, (k, row) -> {
+                if (row == null) return new NoteTypeRow(type, pt, 1);
+                return new NoteTypeRow(type, pt, row.frequency + 1);
+            });
+        }
+        TableView<NoteTypeRow> table = new TableView<>();
+        TableColumn<NoteTypeRow, String> noteFreqCol = col(
+            I18n.get("col.frequency"),
+            r -> String.valueOf(r.frequency())
+        );
+        noteFreqCol.getProperties().put("filterMode", FILTER_MODE_TEXT);
+        table
+            .getColumns()
+            .addAll(
+                col(I18n.get("col.type"), NoteTypeRow::type),
+                col(I18n.get("col.parentType"), NoteTypeRow::parentType),
+                noteFreqCol
+            );
+        counts
+            .values()
+            .stream()
+            .sorted(Comparator.comparingLong(NoteTypeRow::frequency).reversed())
+            .forEach(table.getItems()::add);
+        table
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) populateNoteTypeSummaryEditor(n);
+            });
+        VBox wrapper = wrapTableWithFilters(
+            table,
+            (f, t) -> updateCountLabel(f, t),
+            searchField != null ? searchField.textProperty() : null
+        );
+        tableContainer.getChildren().setAll(wrapper);
+        updateCountLabel(table.getItems().size(), table.getItems().size());
+    }
+
+    /* ════════════════════ RELATION TYPES VIEW ════════════════════ */
+
+    private void showRelationTypesView() {
+        if (currentDictionary == null) {
+            tableContainer
+                .getChildren()
+                .setAll(new Label(I18n.get("placeholder.noDictionary")));
+            return;
+        }
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (LiftRelation r : currentDictionary
+            .getLiftDictionaryRegistry()
+            .getRelations()) {
+            counts.merge(
+                r.getType().getId().isEmpty() ? I18n.get("placeholder.noType") : r.getType().getId(),
+                1L,
+                Long::sum
+            );
+        }
+        showCategoryTable(
+            I18n.get("nav.relationTypes"),
+            I18n.get("col.type"),
+            counts,
+            "relation-type"
+        );
+    }
+
+    /* ════════════════════ FIELD TYPES VIEW ════════════════════ */
+
+    private record FieldTypeRow(String fieldType, long frequency) {}
+
+    private void showFieldTypesView() {
+        if (currentDictionary == null) {
+            tableContainer
+                .getChildren()
+                .setAll(new Label(I18n.get("placeholder.noDictionary")));
+            return;
+        }
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (LiftField f : currentDictionary
+            .getLiftDictionaryRegistry()
+            .getFields()) {
+            counts.merge(f.getType().getName(), 1L, Long::sum);
+        }
+        TableView<FieldTypeRow> table = new TableView<>();
+        TableColumn<FieldTypeRow, String> typeCol = new TableColumn<>(
+            I18n.get("col.type")
+        );
+        typeCol.setCellValueFactory(cd ->
+            new ReadOnlyStringWrapper(cd.getValue().fieldType())
+        );
+        typeCol.setPrefWidth(250);
+        TableColumn<FieldTypeRow, String> freqCol = new TableColumn<>(
+            I18n.get("col.frequency")
+        );
+        freqCol.setCellValueFactory(cd ->
+            new ReadOnlyStringWrapper(String.valueOf(cd.getValue().frequency()))
+        );
+        freqCol.setPrefWidth(100);
+        freqCol.getProperties().put("filterMode", FILTER_MODE_TEXT);
+        table.getColumns().addAll(typeCol, freqCol);
+        counts
+            .entrySet()
+            .stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+            .forEach(e ->
+                table.getItems().add(new FieldTypeRow(e.getKey(), e.getValue()))
+            );
+        table
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) populateFieldTypeSummaryEditor(n);
+            });
+        VBox wrapper = wrapTableWithFilters(table);
+        tableContainer.getChildren().setAll(wrapper);
+        updateCountLabel(table.getItems().size(), table.getItems().size());
+    }
+
+    private void populateFieldTypeSummaryEditor(FieldTypeRow row) {
+        setModifyButtonVisible(false);
+        LinkedHashMap<String, String> values = new LinkedHashMap<>();
+        values.put(I18n.get("col.type"), row.fieldType());
+        values.put(I18n.get("col.frequency"), String.valueOf(row.frequency()));
+        populateSummaryEditor(I18n.get("nav.fieldTypes"), "", values);
+        Button accessBtn = new Button(I18n.get("btn.accessObjects"));
+        accessBtn.getStyleClass().add("example-add-button");
+        accessBtn.setMaxWidth(Double.MAX_VALUE);
+        accessBtn.setOnAction(e -> showObjectsWithFieldType(row.fieldType()));
+        editorContainer.getChildren().add(accessBtn);
+    }
+
+    /** Shared helper: show a simple value + frequency table for category views. */
+    private record CategoryRow(String value, long frequency) {}
+
+    private void showCategoryTable(
+        String title,
+        String colLabel,
+        Map<String, Long> counts
+    ) {
+        showCategoryTable(title, colLabel, counts, null);
+    }
+
+    private void showCategoryTable(
+        String title,
+        String colLabel,
+        Map<String, Long> counts,
+        String categoryKind
+    ) {
+        TableView<CategoryRow> table = new TableView<>();
+        TableColumn<CategoryRow, String> valCol = new TableColumn<>(colLabel);
+        valCol.setCellValueFactory(cd ->
+            new ReadOnlyStringWrapper(cd.getValue().value())
+        );
+        valCol.setPrefWidth(250);
+        TableColumn<CategoryRow, String> freqCol = new TableColumn<>(
+            I18n.get("col.frequency")
+        );
+        freqCol.setCellValueFactory(cd ->
+            new ReadOnlyStringWrapper(String.valueOf(cd.getValue().frequency()))
+        );
+        freqCol.setPrefWidth(100);
+        freqCol.getProperties().put("filterMode", FILTER_MODE_TEXT);
+        table.getColumns().addAll(valCol, freqCol);
+        counts
+            .entrySet()
+            .stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+            .forEach(e ->
+                table.getItems().add(new CategoryRow(e.getKey(), e.getValue()))
+            );
+        table
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) populateCategorySummaryEditor(
+                    title,
+                    n,
+                    categoryKind
+                );
+            });
+        VBox wrapper = wrapTableWithFilters(table);
+        tableContainer.getChildren().setAll(wrapper);
+        updateCountLabel(table.getItems().size(), table.getItems().size());
+    }
+
+    /* ════════════════════ COLUMN FILTERS (5.8) ════════════════════ */
+
+    /**
+     * Wraps a TableView in a VBox with a row of TextFields below the headers.
+     * Each TextField filters its column; only rows matching ALL column filters are shown.
+     * If searchTextProperty is non-null, the global search bar also filters rows (any visible column).
+     */
+    @SuppressWarnings("unchecked")
+    private static <T> VBox wrapTableWithFilters(
+        TableView<T> table,
+        java.util.function.BiConsumer<Integer, Integer> onCountChanged,
+        javafx.beans.property.StringProperty searchTextProperty
+    ) {
+        ObservableList<T> sourceItems = FXCollections.observableArrayList(
+            table.getItems()
+        );
+        FilteredList<T> filtered = new FilteredList<>(sourceItems, t -> true);
+        javafx.collections.transformation.SortedList<T> sorted =
+            new javafx.collections.transformation.SortedList<>(filtered);
+        sorted.comparatorProperty().bind(table.comparatorProperty());
+        table.setItems(sorted);
+
+        List<TableColumn<T, ?>> leaves = collectLeafColumns(table);
+        List<javafx.scene.Node> filterInputs = new ArrayList<>();
+        List<Boolean> textFilterColumns = new ArrayList<>();
+        String clearOption = I18n.get("filter.clear");
+        AtomicBoolean internalUpdate = new AtomicBoolean(false);
+
+        GridPane filterRow = new GridPane();
+        filterRow.setHgap(0);
+        filterRow.setPadding(new Insets(4, 0, 4, 0));
+        filterRow.setStyle("-fx-background-color: #eef2f3;");
+        filterRow.setMinWidth(0);
+
+        java.util.function.Supplier<String> searchTextSupplier = () ->
+            searchTextProperty != null
+                ? Optional.ofNullable(searchTextProperty.get())
+                      .orElse("")
+                      .trim()
+                      .toLowerCase(Locale.ROOT)
+                : "";
+
+        Runnable refreshPredicate = () -> {
+            String q = searchTextSupplier.get();
+            filtered.setPredicate(
+                row ->
+                    rowMatchesAllFilters(
+                        row,
+                        leaves,
+                        filterInputs,
+                        textFilterColumns,
+                        clearOption,
+                        -1
+                    ) && rowMatchesSearch(row, leaves, q)
+            );
+            if (onCountChanged != null) javafx.application.Platform.runLater(
+                () -> onCountChanged.accept(filtered.size(), sourceItems.size())
+            );
+        };
+
+        Runnable refreshFacetChoices = () -> {
+            if (internalUpdate.get()) return;
+            internalUpdate.set(true);
+            try {
+                String q = searchTextSupplier.get();
+                for (int i = 0; i < leaves.size(); i++) {
+                    if (textFilterColumns.get(i)) continue;
+                    ComboBox<String> combo =
+                        (ComboBox<String>) filterInputs.get(i);
+                    String currentValue = combo.getValue();
+                    final int colIndex = i;
+
+                    List<String> values = sourceItems
+                        .stream()
+                        .filter(
+                            row ->
+                                rowMatchesAllFilters(
+                                    row,
+                                    leaves,
+                                    filterInputs,
+                                    textFilterColumns,
+                                    clearOption,
+                                    colIndex
+                                ) && rowMatchesSearch(row, leaves, q)
+                        )
+                        .map(row -> cellText(row, leaves.get(colIndex)))
+                        .filter(s -> s != null && !s.isBlank())
+                        .distinct()
+                        .sorted(String.CASE_INSENSITIVE_ORDER)
+                        .toList();
+
+                    ObservableList<String> items =
+                        FXCollections.observableArrayList();
+                    items.add(clearOption);
+                    items.addAll(values);
+                    combo.setItems(items);
+
+                    if (
+                        currentValue != null && items.contains(currentValue)
+                    ) combo.setValue(currentValue);
+                    else combo.setValue(clearOption);
+                }
+            } finally {
+                internalUpdate.set(false);
+            }
+        };
+
+        if (searchTextProperty != null) {
+            searchTextProperty.addListener((obs, o, n) -> {
+                refreshPredicate.run();
+                refreshFacetChoices.run();
+            });
+        }
+
+        Button clearBtn = new Button(I18n.get("filter.resetAll"));
+        clearBtn.setOnAction(e -> {
+            if (
+                searchTextProperty != null &&
+                !searchTextProperty.get().isBlank()
+            ) {
+                searchTextProperty.set("");
+            }
+            internalUpdate.set(true);
+            try {
+                for (int i = 0; i < filterInputs.size(); i++) {
+                    if (textFilterColumns.get(i)) (
+                        (TextField) filterInputs.get(i)
+                    ).clear();
+                    else ((ComboBox<String>) filterInputs.get(i)).setValue(
+                        clearOption
+                    );
+                }
+            } finally {
+                internalUpdate.set(false);
+            }
+            refreshPredicate.run();
+            refreshFacetChoices.run();
+            table.getSelectionModel().clearSelection();
+        });
+
+        HBox header = new HBox();
+        header.setPadding(new Insets(0, 6, 4, 6));
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        header.getChildren().addAll(spacer, clearBtn);
+
+        for (int i = 0; i < leaves.size(); i++) {
+            TableColumn<T, ?> column = leaves.get(i);
+            column.setMinWidth(85);
+            boolean forceText = FILTER_MODE_TEXT.equals(
+                column.getProperties().get("filterMode")
+            );
+            final int colIdx = i;
+            long distinct = sourceItems
+                .stream()
+                .map(row -> cellText(row, leaves.get(colIdx)))
+                .filter(s -> s != null && !s.isBlank())
+                .distinct()
+                .count();
+            boolean hasRepeatedValues =
+                distinct < sourceItems.size() && distinct > 0;
+            boolean textFilter = forceText || !hasRepeatedValues;
+            textFilterColumns.add(textFilter);
+
+            ColumnConstraints cc = new ColumnConstraints();
+            cc.prefWidthProperty().bind(column.widthProperty());
+            filterRow.getColumnConstraints().add(cc);
+
+            if (textFilter) {
+                TextField tf = new TextField();
+                tf.setPromptText(I18n.get("filter.prompt"));
+                tf.setMaxWidth(Double.MAX_VALUE);
+                tf.setMinWidth(0);
+                tf.setMinHeight(26);
+                tf.setPrefHeight(26);
+                tf.setStyle("-fx-font-size: 11px; -fx-padding: 4 6 4 6;");
+                filterInputs.add(tf);
+                GridPane.setHgrow(tf, Priority.ALWAYS);
+                filterRow.add(tf, i, 0);
+                tf.textProperty().addListener((obs, o, n) -> {
+                    if (internalUpdate.get()) return;
+                    refreshPredicate.run();
+                    refreshFacetChoices.run();
+                });
+                continue;
+            }
+
+            ComboBox<String> cb = new ComboBox<>();
+            cb.getStyleClass().add("filter-combo");
+            cb.setPromptText(I18n.get("filter.prompt"));
+            cb.setEditable(false);
+            cb.setMaxWidth(Double.MAX_VALUE);
+            cb.setMinWidth(0);
+            cb.setMinHeight(26);
+            cb.setPrefHeight(26);
+            cb.setStyle("-fx-font-size: 11px;");
+            cb.setCellFactory(list ->
+                new ListCell<>() {
+                    @Override
+                    protected void updateItem(String item, boolean empty) {
+                        super.updateItem(item, empty);
+                        if (empty || item == null) {
+                            setText(null);
+                            setDisable(false);
+                            setStyle("");
+                            return;
+                        }
+                        setText(item);
+                        boolean isClearItem = clearOption.equals(item);
+                        boolean activeFilter = isActiveFilter(
+                            cb.getValue(),
+                            clearOption
+                        );
+                        boolean disableClear = isClearItem && !activeFilter;
+                        setDisable(disableClear);
+                        setStyle(disableClear ? "-fx-opacity: 0.45;" : "");
+                    }
+                }
+            );
+            cb.setButtonCell(
+                new ListCell<>() {
+                    @Override
+                    protected void updateItem(String item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setText(empty || item == null ? null : item);
+                    }
+                }
+            );
+            filterInputs.add(cb);
+            GridPane.setHgrow(cb, Priority.ALWAYS);
+            filterRow.add(cb, i, 0);
+
+            cb.valueProperty().addListener((obs, o, n) -> {
+                if (clearOption.equals(n) && !isActiveFilter(o, clearOption)) {
+                    cb.setValue(o);
+                    return;
+                }
+                if (internalUpdate.get()) return;
+                refreshPredicate.run();
+                refreshFacetChoices.run();
+            });
+        }
+
+        internalUpdate.set(true);
+        try {
+            for (int i = 0; i < filterInputs.size(); i++) {
+                if (textFilterColumns.get(i)) (
+                    (TextField) filterInputs.get(i)
+                ).clear();
+                else ((ComboBox<String>) filterInputs.get(i)).setValue(
+                    clearOption
+                );
+            }
+        } finally {
+            internalUpdate.set(false);
+        }
+        refreshPredicate.run();
+        refreshFacetChoices.run();
+
+        // Aligner la largeur des filtres sur la zone des colonnes (prend en compte la scrollbar verticale)
+        filterRow.maxWidthProperty().bind(
+            Bindings.createDoubleBinding(
+                () ->
+                    leaves
+                        .stream()
+                        .mapToDouble(c -> c.getWidth())
+                        .sum(),
+                leaves
+                    .stream()
+                    .<javafx.beans.Observable>map(TableColumn::widthProperty)
+                    .toArray(javafx.beans.Observable[]::new)
+            )
+        );
+
+        VBox wrapper = new VBox(header, filterRow, table);
+        wrapper.setMinWidth(0);
+        filterRow.setMinWidth(0);
+        table.setMinWidth(0);
+        VBox.setVgrow(table, Priority.ALWAYS);
+        return wrapper;
+    }
+
+    private static <T> VBox wrapTableWithFilters(TableView<T> table) {
+        return wrapTableWithFilters(table, null, null);
+    }
+
+    private static <T> VBox wrapTableWithFilters(
+        TableView<T> table,
+        java.util.function.BiConsumer<Integer, Integer> onCountChanged
+    ) {
+        return wrapTableWithFilters(table, onCountChanged, null);
+    }
+
+    private static <T> boolean rowMatchesSearch(
+        T row,
+        List<TableColumn<T, ?>> leaves,
+        String searchText
+    ) {
+        if (searchText == null || searchText.isEmpty()) return true;
+        StringBuilder sb = new StringBuilder();
+        for (TableColumn<T, ?> col : leaves) {
+            String ct = cellText(row, col);
+            if (ct != null) sb.append(" ").append(ct);
+        }
+        return sb.toString().toLowerCase(Locale.ROOT).contains(searchText);
+    }
+
+    private static <T> boolean rowMatchesAllFilters(
+        T row,
+        List<TableColumn<T, ?>> leaves,
+        List<javafx.scene.Node> filterInputs,
+        List<Boolean> textFilterColumns,
+        String clearOption,
+        int ignoredColumn
+    ) {
+        for (int i = 0; i < filterInputs.size(); i++) {
+            if (i == ignoredColumn) continue;
+            String cellValue = cellText(row, leaves.get(i));
+            if (textFilterColumns.get(i)) {
+                String query = ((TextField) filterInputs.get(i)).getText();
+                if (query == null || query.isBlank()) continue;
+                if (
+                    !cellValue
+                        .toLowerCase(Locale.ROOT)
+                        .contains(query.trim().toLowerCase(Locale.ROOT))
+                ) return false;
+                continue;
+            }
+            String selected = (
+                (ComboBox<String>) filterInputs.get(i)
+            ).getValue();
+            if (
+                selected == null ||
+                selected.isBlank() ||
+                clearOption.equals(selected)
+            ) continue;
+            if (!selected.equals(cellValue)) return false;
+        }
+        return true;
+    }
+
+    private static boolean isActiveFilter(String selected, String clearOption) {
+        return (
+            selected != null &&
+            !selected.isBlank() &&
+            !clearOption.equals(selected)
+        );
+    }
+
+    private static <T> String cellText(T row, TableColumn<T, ?> col) {
+        Object cellVal =
+            col.getCellObservableValue(row) != null
+                ? col.getCellObservableValue(row).getValue()
+                : null;
+        return cellVal != null ? cellVal.toString() : "";
+    }
+
+    /** Collect leaf (non-grouped) columns in display order. */
+    private static <T> List<TableColumn<T, ?>> collectLeafColumns(
+        TableView<T> table
+    ) {
+        List<TableColumn<T, ?>> leaves = new ArrayList<>();
+        for (TableColumn<T, ?> c : table.getColumns()) collectLeaves(c, leaves);
+        return leaves;
+    }
+
+    private static <T> void collectLeaves(
+        TableColumn<T, ?> col,
+        List<TableColumn<T, ?>> leaves
+    ) {
+        if (col.getColumns().isEmpty()) {
+            leaves.add(col);
+        } else {
+            for (TableColumn<T, ?> child : col.getColumns())
+                collectLeaves(child, leaves);
+        }
+    }
+
+    /* ════════════════════ HEADER CONFIGURATION VIEWS ════════════════════ */
+
+    private void showHeaderRangeView(String rangeId) {
+        if (currentDictionary == null) {
+            tableContainer
+                .getChildren()
+                .setAll(new Label(I18n.get("cfg.noHeader")));
+            return;
+        }
+        LiftHeader header = currentDictionary.getHeader();
+        // LiftXMLFactory factory = getFactory(currentDictionary);
+        // if (header == null || factory == null) {
+        //     tableContainer
+        //         .getChildren()
+        //         .setAll(new Label(I18n.get("cfg.noHeader")));
+        //     return;
+        // }
+
+        LiftHeaderRange range = header.hasRanges(rangeId)
+            ? header.getRange(rangeId)
+            : currentDictionary
+                  .getComponentBuilder()
+                  .range(rangeId)
+                  .build();
+
+        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
+
+        // ── Top: Range properties (description, label, abbrev) ─────────────
+        TitledPane rangePropsPane = new TitledPane(
+            I18n.get("cfg.rangeProperties"),
+            buildRangePropertiesEditor(range, metaLangs)
+        );
+        rangePropsPane.setExpanded(true);
+        rangePropsPane.setAnimated(false);
+
+        // ── Middle: editable tree of range-elements ─────────────────────────
+        TreeView<LiftHeaderRangeElement> tree = buildRangeElementTree(range);
+        tree.setShowRoot(false);
+        tree.getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (
+                    n != null && n.getValue() != null
+                ) populateRangeElementEditor(range, n.getValue());
+            });
+
+        // Add controls
+        TextField newIdField = new TextField();
+        newIdField.setPromptText(I18n.get("cfg.newElementLabel"));
+
+        ComboBox<String> parentCombo = new ComboBox<>();
+        parentCombo.setPromptText(I18n.get("cfg.parentElement"));
+        parentCombo.getItems().add("");
+        range
+            .getRangeElements()
+            .keySet()
+            .stream()
+            .forEach(parentCombo.getItems()::add);
+
+        Button addBtn = new Button(I18n.get("cfg.addElement"));
+        addBtn.setOnAction(e -> {
+            String newId = newIdField.getText().trim();
+            if (!newId.isEmpty() && !range.hasRangeElements(newId)) {
+                LiftHeaderRangeElement newElem = range.createRangeElement(
+                    newId
+                );
+                String parentSel = parentCombo.getValue();
+                if (
+                    parentSel != null && !parentSel.isBlank()
+                ) {
+                    // There is a hierarchy between LiftHeaderRangeElement
+                    LiftHeaderRangeElement parentRangeElement = range.getRangeElement(parentSel);
+                    newElem.setParentElement(parentRangeElement);
+                }
+                if (!metaLangs.isEmpty()) newElem
+                    .getDescription()
+                    .add(new Form(metaLangs.get(0), I18n.get("cfg.autoAdded")));
+                newIdField.clear();
+                showHeaderRangeView(rangeId);
+            }
+        });
+
+        Button deleteBtn = new Button(I18n.get(Keys.BTN_DELETE));
+        deleteBtn.setOnAction(e -> {
+            TreeItem<LiftHeaderRangeElement> selItem = tree
+                .getSelectionModel()
+                .getSelectedItem();
+            if (selItem == null) return;
+            if (selItem == null || selItem.getValue() == null) return;
+            LiftHeaderRangeElement sel = selItem.getValue();
+            long usage = countRangeElementUsage(rangeId, sel.getId());
+            if (usage > 0) showError(
+                I18n.get("btn.delete"),
+                I18n.get("cfg.deleteNotAllowed", usage)
+            );
+            else {
+                range.removeRangeElement(sel.getId());
+                showHeaderRangeView(rangeId);
+            }
+        });
+
+        Button renameBtn = new Button(I18n.get("cfg.rename"));
+        renameBtn.setOnAction(e -> {
+            TreeItem<LiftHeaderRangeElement> selItem = tree
+                .getSelectionModel()
+                .getSelectedItem();
+            if (selItem == null || selItem.getValue() == null) return;
+            TextInputDialog dlg = new TextInputDialog(
+                selItem.getValue().getId()
+            );
+            dlg.setTitle(I18n.get("cfg.rename"));
+            dlg.setHeaderText(
+                I18n.get("cfg.renamePrompt", selItem.getValue().getId())
+            );
+            dlg.showAndWait().ifPresent(newName -> {
+                if (!newName.isBlank()) {
+                    renameRangeElementInData(
+                        rangeId,
+                        selItem.getValue().getId(),
+                        newName
+                    );
+                    showHeaderRangeView(rangeId);
+                }
+            });
+        });
+
+        Label countLbl = new Label(
+            range.getRangeElements().size() + " " + I18n.get("cfg.elements")
+        );
+        countLbl.setStyle("-fx-text-fill: #66767a; -fx-font-size: 12px;");
+
+        HBox addRow = new HBox(8, newIdField, parentCombo, addBtn);
+        HBox.setHgrow(newIdField, Priority.ALWAYS);
+        HBox actionRow = new HBox(
+            8,
+            deleteBtn,
+            renameBtn,
+            new HBox(),
+            countLbl
+        );
+        HBox.setHgrow(actionRow.getChildren().get(2), Priority.ALWAYS);
+
+        Label elemTitle = new Label(I18n.get("cfg.rangeElements2"));
+        elemTitle.setStyle(
+            "-fx-font-size:13px; -fx-font-weight:bold; -fx-text-fill:#4c6f76;"
+        );
+
+        VBox.setVgrow(tree, Priority.ALWAYS);
+        VBox centerBox = new VBox(
+            8,
+            rangePropsPane,
+            elemTitle,
+            tree,
+            addRow,
+            actionRow
+        );
+        centerBox.setPadding(new Insets(8));
+        VBox.setVgrow(centerBox.getChildren().get(2), Priority.ALWAYS);
+        tableContainer.getChildren().setAll(centerBox);
+        updateCountLabel(
+            range.getRangeElements().size(),
+            range.getRangeElements().size()
+        );
+    }
+
+    /** Build a small GridPane of MultiTextEditors for description / label / abbrev of a range. */
+    private VBox buildRangePropertiesEditor(
+        LiftHeaderRange range,
+        List<String> metaLangs
+    ) {
+        VBox box = new VBox(8);
+        box.setPadding(new Insets(6));
+        addMultiTextRow(
+            box,
+            I18n.get("cfg.description"),
+            range.getDescription(),
+            metaLangs
+        );
+        addMultiTextRow(
+            box,
+            I18n.get("cfg.label"),
+            range.getLabel(),
+            metaLangs
+        );
+        addMultiTextRow(
+            box,
+            I18n.get("cfg.abbrev"),
+            range.getAbbrev(),
+            metaLangs
+        );
+        return box;
+    }
+
+    private void addMultiTextRow(
+        VBox box,
+        String lbl,
+        MultiText mt,
+        List<String> langs
+    ) {
+        Label l = new Label(lbl);
+        l.setStyle("-fx-font-weight:bold; -fx-font-size:12px;");
+        MultiTextEditor ed = new MultiTextEditor(currentDictionary);
+        // ed.setAvailableLanguages(langs);
+        ed.setMultiText(mt);
+        box.getChildren().addAll(l, ed);
+    }
+
+    /** Show description editor for the LiftHeader itself. */
+    private void showHeaderDescView() {
+        if (currentDictionary == null) {
+            tableContainer
+                .getChildren()
+                .setAll(new Label(I18n.get("cfg.noHeader")));
+            return;
+        }
+        LiftHeader header = currentDictionary
+            .getHeader();
+        if (header == null) {
+            tableContainer
+                .getChildren()
+                .setAll(new Label(I18n.get("cfg.noHeader")));
+            return;
+        }
+        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
+        VBox box = new VBox(10);
+        box.setPadding(new Insets(12));
+        Label title = new Label(I18n.get("nav.cfgDesc"));
+        title.setStyle(
+            "-fx-font-size:15px; -fx-font-weight:bold; -fx-text-fill:#4c6f76;"
+        );
+        box.getChildren().add(title);
+
+        GridPane infoGrid = new GridPane();
+        infoGrid.setHgap(12);
+        infoGrid.setVgap(6);
+        int row = 0;
+        LiftVersion version = currentDictionary.getLiftVersion();
+        if (version != null) {
+            Label vLabel = new Label("LIFT version :");
+            vLabel.setStyle("-fx-font-weight:bold;");
+            TextField vField = new TextField(version.toString());
+            vField.setEditable(false);
+            vField.setPrefWidth(200);
+            vField.setStyle("-fx-background-color: #eee;");
+            infoGrid.add(vLabel, 0, row);
+            infoGrid.add(vField, 1, row);
+            row++;
+        }
+        String producer = currentDictionary.getLiftProducer();
+        if (producer != null && !producer.isBlank()) {
+            Label pLabel = new Label("Producer :");
+            pLabel.setStyle("-fx-font-weight:bold;");
+            TextField pField = new TextField(producer);
+            pField.setEditable(false);
+            pField.setPrefWidth(200);
+            pField.setStyle("-fx-background-color: #eee;");
+            infoGrid.add(pLabel, 0, row);
+            infoGrid.add(pField, 1, row);
+        }
+        box.getChildren().add(infoGrid);
+
+        addMultiTextRow(
+            box,
+            I18n.get("cfg.description"),
+            header.getDescription(),
+            metaLangs
+        );
+        tableContainer.getChildren().setAll(box);
+        editorContainer.getChildren().clear();
+        editEntryTitle.setText(I18n.get("nav.cfgDesc"));
+        editEntryCode.setText("");
+    }
+
+    /** Build a TreeView of LiftHeaderRangeElements respecting the @parent hierarchy. */
+    private TreeView<LiftHeaderRangeElement> buildRangeElementTree(
+        LiftHeaderRange range
+    ) {
+        TreeItem<LiftHeaderRangeElement> root = new TreeItem<>(null);
+        root.setExpanded(true);
+        Map<String, TreeItem<LiftHeaderRangeElement>> itemMap =
+            new java.util.LinkedHashMap<>();
+
+        // First pass: create all items
+        for (LiftHeaderRangeElement re : range.getRangeElements().values()) {
+            TreeItem<LiftHeaderRangeElement> item = new TreeItem<>(re);
+            item.setExpanded(true);
+            itemMap.put(re.getId(), item);
+        }
+        // Second pass: wire parent-child relationships
+        for (LiftHeaderRangeElement re : range.getRangeElements().values()) {
+            TreeItem<LiftHeaderRangeElement> item = itemMap.get(re.getId());
+            LiftHeaderRangeElement pid = re.getParentElement().orElse(null);
+            if (pid != null && itemMap.containsKey(pid.getId())) {
+                itemMap.get(pid.getId()).getChildren().add(item);
+            } else {
+                root.getChildren().add(item);
+            }
+        }
+
+        TreeView<LiftHeaderRangeElement> tree = new TreeView<>(root);
+        tree.setCellFactory(tv ->
+            new TreeCell<>() {
+                @Override
+                protected void updateItem(
+                    LiftHeaderRangeElement item,
+                    boolean empty
+                ) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null) {
+                        setText(null);
+                    } else {
+                        String abbrev = item
+                            .getAbbrev()
+                            .getForms()
+                            .stream()
+                            .findFirst()
+                            .map(Form::toPlainText)
+                            .orElse("");
+                        String label = item
+                            .getLabel()
+                            .getForms()
+                            .stream()
+                            .findFirst()
+                            .map(Form::toPlainText)
+                            .orElse("");
+                        String display = item.getId();
+                        if (!abbrev.isBlank()) display += "  [" + abbrev + "]";
+                        if (!label.isBlank()) display += "  – " + label;
+                        setText(display);
+                    }
+                }
+            }
+        );
+        return tree;
+    }
+
+    private void showHeaderAllRangesView() {
+        if (currentDictionary == null) {
+            tableContainer
+                .getChildren()
+                .setAll(new Label(I18n.get("cfg.noHeader")));
+            return;
+        }
+        LiftHeader header = currentDictionary
+            .getHeader();
+        if (header == null) {
+            tableContainer
+                .getChildren()
+                .setAll(new Label(I18n.get("cfg.noHeader")));
+            return;
+        }
+
+        TableView<LiftHeaderRange> rangeTable = new TableView<>();
+        rangeTable
+            .getColumns()
+            .addAll(
+                col(I18n.get("cfg.rangeId"), LiftHeaderRange::getId),
+                col(I18n.get("cfg.usageCount"), r ->
+                    String.valueOf(r.getRangeElements().values().size())
+                ),
+                col(I18n.get("cfg.description"), r ->
+                    r
+                        .getDescription()
+                        .getForms()
+                        .stream()
+                        .findFirst()
+                        .map(Form::toPlainText)
+                        .orElse("")
+                )
+            );
+        rangeTable.getItems().addAll(header.getRanges());
+
+        rangeTable
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) {
+                    editorContainer.getChildren().clear();
+                    editEntryTitle.setText(
+                        I18n.get("cfg.rangeElements", n.getId())
+                    );
+                    editEntryCode.setText(n.getId());
+
+                    VBox elemBox = new VBox(4);
+                    for (LiftHeaderRangeElement re : n
+                        .getRangeElements()
+                        .values()) {
+                        String label =
+                            re.getId() +
+                            " – " +
+                            re
+                                .getDescription()
+                                .getForms()
+                                .stream()
+                                .findFirst()
+                                .map(Form::toPlainText)
+                                .orElse("");
+                        elemBox.getChildren().add(new Label(label));
+                    }
+                    Hyperlink editLink = new Hyperlink(
+                        I18n.get("cfg.rangeElements", n.getId())
+                    );
+                    editLink.setOnAction(e -> showHeaderRangeView(n.getId()));
+                    editorContainer.getChildren().addAll(editLink, elemBox);
+                }
+            });
+
+        // LiftXMLFactory factory = getFactory(currentDictionary);
+        TextField newRangeField = new TextField();
+        newRangeField.setPromptText(I18n.get("cfg.rangeId"));
+        Button addBtn = new Button(I18n.get("cfg.addElement"));
+        addBtn.setOnAction(e -> {
+            String id = newRangeField.getText().trim();
+            if (!id.isEmpty() && !header.hasRanges(id)) {
+                LiftHeaderRange newRange = header.createRange(id);
+                rangeTable.getItems().add(newRange);
+                newRangeField.clear();
+            }
+        });
+
+        HBox controls = new HBox(8, newRangeField, addBtn);
+        controls.setPadding(new Insets(6, 0, 0, 0));
+        HBox.setHgrow(newRangeField, Priority.ALWAYS);
+
+        VBox wrapper = new VBox(6, wrapTableWithFilters(rangeTable), controls);
+        VBox.setVgrow(wrapper.getChildren().get(0), Priority.ALWAYS);
+        tableContainer.getChildren().setAll(wrapper);
+        updateCountLabel(
+            rangeTable.getItems().size(),
+            rangeTable.getItems().size()
+        );
+    }
+
+    private void showHeaderFieldDefsView() {
+        if (currentDictionary == null) {
+            tableContainer
+                .getChildren()
+                .setAll(new Label(I18n.get("cfg.noHeader")));
+            return;
+        }
+        LiftHeader header = currentDictionary
+            .getHeader();
+        // LiftXMLFactory factory = getFactory(currentDictionary);
+        // if (header == null || factory == null) {
+        //     tableContainer
+        //         .getChildren()
+        //         .setAll(new Label(I18n.get("cfg.noHeader")));
+        //     return;
+        // }
+
+        TableView<LiftFieldAndTraitDefinition> table = new TableView<>();
+        table
+            .getColumns()
+            .addAll(
+                col(
+                    I18n.get("cfg.fieldDefName"),
+                    LiftFieldAndTraitDefinition::getName
+                ),
+                col(I18n.get("cfg.kind"), fd -> fieldDefKindLabel(fd)),
+                col(I18n.get("cfg.fieldDefType"), fd ->
+                    fd.getTypeStr().orElse("")
+                ),
+                col(I18n.get("cfg.targets"), fd -> fd.getTargetAsString()),
+                col(I18n.get("cfg.description"), fd ->
+                    fd
+                        .getDescription()
+                        .getForms()
+                        .stream()
+                        .findFirst()
+                        .map(Form::toPlainText)
+                        .orElse("")
+                ),
+                col(I18n.get("cfg.usageCount"), fd ->
+                    String.valueOf(countFieldOrTraitUsage(fd))
+                )
+            );
+        table.getItems().addAll(header.getFieldsAndTraitsDefinitions());
+
+        table
+            .getSelectionModel()
+            .selectedItemProperty()
+            .addListener((obs, o, n) -> {
+                if (n != null) populateFieldDefEditor(n);
+            });
+
+        Button addBtn = new Button(I18n.get("cfg.newFieldOrTrait"));
+        addBtn.setOnAction(e -> showNewFieldDefDialog(table));
+
+        Button deleteBtn = new Button(I18n.get(Keys.BTN_DELETE));
+        deleteBtn.setOnAction(e -> {
+            LiftFieldAndTraitDefinition sel = table
+                .getSelectionModel()
+                .getSelectedItem();
+            if (sel == null) return;
+            long usage = countFieldOrTraitUsage(sel);
+            if (usage > 0) {
+                showError(
+                    I18n.get("btn.delete"),
+                    I18n.get("cfg.deleteNotAllowed", usage)
+                );
+            } else {
+                header.getFieldsAndTraitsDefinitions().remove(sel);
+                table.getItems().remove(sel);
+            }
+        });
+
+        HBox controls = new HBox(8, addBtn, deleteBtn);
+        controls.setPadding(new Insets(6, 0, 0, 0));
+
+        VBox wrapper = new VBox(6, wrapTableWithFilters(table), controls);
+        VBox.setVgrow(wrapper.getChildren().get(0), Priority.ALWAYS);
+        tableContainer.getChildren().setAll(wrapper);
+        updateCountLabel(table.getItems().size(), table.getItems().size());
+    }
+
+    private void showNewFieldDefDialog(
+        TableView<LiftFieldAndTraitDefinition> table
+    ) {
+        LiftHeader header = currentDictionary.getHeader();
+        Dialog<LiftFieldAndTraitDefinition> dlg = new Dialog<>();
+        dlg.setTitle(I18n.get("cfg.newFieldOrTrait"));
+        dlg.setHeaderText(I18n.get("cfg.chooseKind"));
+        dlg.getDialogPane()
+            .getButtonTypes()
+            .addAll(ButtonType.OK, ButtonType.CANCEL);
+        dlg.setResizable(true);
+        dlg.getDialogPane().setPrefWidth(450);
+
+        TextField nameField = new TextField();
+        nameField.setPromptText(I18n.get("cfg.fieldDefName"));
+
+        ToggleGroup kindGroup = new ToggleGroup();
+        RadioButton rbField = new RadioButton(I18n.get("cfg.kindField"));
+        rbField.setToggleGroup(kindGroup);
+        rbField.setSelected(true);
+        RadioButton rbTrait = new RadioButton(I18n.get("cfg.kindTrait"));
+        rbTrait.setToggleGroup(kindGroup);
+
+        ComboBox<String> typeCombo = new ComboBox<>();
+        typeCombo.setEditable(true);
+        typeCombo.setPromptText(I18n.get("cfg.fieldDefType"));
+        Runnable updateTypes = () -> {
+            typeCombo.getItems().clear();
+            if (rbField.isSelected()) {
+                typeCombo.getItems().addAll("multistring", "multitext");
+                typeCombo.setValue("multitext");
+            } else {
+                typeCombo
+                    .getItems()
+                    .addAll(
+                        "datetime",
+                        "integer",
+                        "option",
+                        "option-collection",
+                        "option-sequence"
+                    );
+                typeCombo.setValue("option");
+            }
+        };
+        updateTypes.run();
+        rbField.setOnAction(e -> updateTypes.run());
+        rbTrait.setOnAction(e -> updateTypes.run());
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(10));
+        grid.add(new Label(I18n.get("cfg.fieldDefName")), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label(I18n.get("cfg.kind")), 0, 1);
+        grid.add(new HBox(12, rbField, rbTrait), 1, 1);
+        grid.add(new Label(I18n.get("cfg.fieldDefType")), 0, 2);
+        grid.add(typeCombo, 1, 2);
+        GridPane.setHgrow(nameField, Priority.ALWAYS);
+        GridPane.setHgrow(typeCombo, Priority.ALWAYS);
+        dlg.getDialogPane().setContent(grid);
+
+        dlg.setResultConverter(bt -> {
+            if (bt != ButtonType.OK) return null;
+            String name = nameField.getText().trim();
+            if (
+                name.isEmpty() ||
+                header
+                    .getFieldsAndTraitsDefinitions()
+                    .stream()
+                    .anyMatch(fd -> fd.getName().equals(name))
+            ) return null;
+            LiftFieldAndTraitDefinition fd = header.createFieldDefinition(name);
+            String typeVal = typeCombo.getValue();
+            if (typeVal != null && !typeVal.isBlank()) fd.setDataModel(
+                Optional.of(typeVal)
+            );
+            List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
+            if (!metaLangs.isEmpty()) fd.getDescription().add(
+                new Form(metaLangs.get(0), I18n.get("cfg.autoAdded"))
+            );
+            return fd;
+        });
+
+        dlg.showAndWait().ifPresent(fd -> table.getItems().add(fd));
+    }
+
+    private void populateRangeElementEditor(
+        LiftHeaderRange range,
+        LiftHeaderRangeElement elem
+    ) {
+        // No id/guid shown to the user — only human-readable MultiText fields
+        String firstLabel = elem
+            .getLabel()
+            .getForms()
+            .stream()
+            .findFirst()
+            .map(Form::toPlainText)
+            .orElse("");
+        String firstAbbrev = elem
+            .getAbbrev()
+            .getForms()
+            .stream()
+            .findFirst()
+            .map(Form::toPlainText)
+            .orElse("");
+        editEntryTitle.setText(
+            firstLabel.isBlank()
+                ? firstAbbrev.isBlank()
+                    ? I18n.get("cfg.rangeElement")
+                    : firstAbbrev
+                : firstLabel
+        );
+        editEntryCode.setText(range.getId());
+        editorContainer.getChildren().clear();
+        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
+
+        addSection(
+            editorContainer,
+            I18n.get("cfg.label"),
+            () -> {
+                MultiTextEditor m = new MultiTextEditor(currentDictionary);
+                // m.setAvailableLanguages(metaLangs);
+                m.setMultiText(elem.getLabel());
+                return m;
+            },
+            true
+        );
+        addSection(
+            editorContainer,
+            I18n.get("cfg.abbrev"),
+            () -> {
+                MultiTextEditor m = new MultiTextEditor(currentDictionary);
+                // m.setAvailableLanguages(metaLangs);
+                m.setMultiText(elem.getAbbrev());
+                return m;
+            },
+            true
+        );
+        addSection(
+            editorContainer,
+            I18n.get("cfg.description"),
+            () -> {
+                MultiTextEditor m = new MultiTextEditor(currentDictionary);
+                // m.setAvailableLanguages(metaLangs);
+                m.setMultiText(elem.getDescription());
+                return m;
+            },
+            false
+        );
+    }
+
+    private void populateFieldDefEditor(LiftFieldAndTraitDefinition fd) {
+        editEntryTitle.setText(fd.getName());
+        String kindLabel = fieldDefKindLabel(fd);
+        editEntryCode.setText(kindLabel + " – " + fd.getTypeStr().orElse(""));
+        editorContainer.getChildren().clear();
+        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
+
+        addSection(
+            editorContainer,
+            I18n.get("editor.identity"),
+            () -> {
+                GridPane g = new GridPane();
+                g.setHgap(8);
+                g.setVgap(6);
+                addReadOnlyRow(
+                    g,
+                    0,
+                    I18n.get("cfg.fieldDefName"),
+                    fd.getName()
+                );
+                addReadOnlyRow(g, 1, I18n.get("cfg.kind"), kindLabel);
+
+                g.add(new Label(I18n.get("cfg.fieldDefType")), 0, 2);
+                ComboBox<String> typeCombo = new ComboBox<>();
+                typeCombo.setEditable(true);
+                typeCombo
+                    .getItems()
+                    .addAll(
+                        "multistring",
+                        "multitext",
+                        "datetime",
+                        "integer",
+                        "option",
+                        "option-collection",
+                        "option-sequence"
+                    );
+                typeCombo.setValue(fd.getTypeStr().orElse(""));
+                typeCombo.valueProperty().addListener((obs, o, n) -> {
+                    fd.setDataModel(
+                        n == null || n.isBlank()
+                            ? Optional.empty()
+                            : Optional.of(n)
+                    );
+                });
+                GridPane.setHgrow(typeCombo, Priority.ALWAYS);
+                g.add(typeCombo, 1, 2);
+
+                g.add(new Label(I18n.get("cfg.targets")), 0, 3);
+                TextField classTf = new TextField(fd.getTargetAsString());
+                classTf.setPromptText("entry sense variant ...");
+                classTf
+                    .textProperty()
+                    .addListener((obs, o, n) -> {
+                        if (!n.isBlank()) {
+                           fd.setTargets(n);
+                        }
+                    });
+                GridPane.setHgrow(classTf, Priority.ALWAYS);
+                g.add(classTf, 1, 3);
+
+                g.add(new Label(I18n.get("cfg.optionRange")), 0, 4);
+                ComboBox<LiftHeaderRange> orCb = new ComboBox<>();
+                orCb.setItems(currentDictionary.getHeader().getRanges());
+                orCb.getSelectionModel().selectedItemProperty().addListener((obs, o, n) ->
+                    fd.setResolvedRange(Optional.of(n))
+                );
+
+                //TextField orTf = new TextField(fd.getOptionRange().orElse(""));
+                //orTf.setPromptText("range id...");
+                //orTf.textProperty().addListener((obs, o, n) ->
+                //    fd.setOptionRange(
+                //        n.isBlank() ? Optional.empty() : Optional.of(n)
+                //    )
+                //);
+                //GridPane.setHgrow(orTf, Priority.ALWAYS);
+                //g.add(orTf, 1, 4);
+                GridPane.setHgrow(orCb, Priority.ALWAYS);
+                g.add(orCb, 1, 4);
+                return g;
+            },
+            true
+        );
+
+        addSection(
+            editorContainer,
+            I18n.get("cfg.label"),
+            () -> {
+                MultiTextEditor m = new MultiTextEditor(currentDictionary);
+                // m.setAvailableLanguages(metaLangs);
+                m.setMultiText(fd.getLabel());
+                return m;
+            },
+            true
+        );
+        addSection(
+            editorContainer,
+            I18n.get("cfg.description"),
+            () -> {
+                MultiTextEditor m = new MultiTextEditor(currentDictionary);
+                // m.setAvailableLanguages(metaLangs);
+                m.setMultiText(fd.getDescription());
+                return m;
+            },
+            true
+        );
+    }
+
+    private long countFieldOrTraitUsage(LiftFieldAndTraitDefinition fd) {
+        if (currentDictionary == null) return 0;
+        var comps = currentDictionary.getLiftDictionaryRegistry();
+        long fieldCount = comps
+            .getFields()
+            .stream()
+            .filter(f -> fd.getName().equals(f.getType()))
+            .count();
+        long traitCount = comps
+            .getTraits()
+            .stream()
+            .filter(t -> fd.getName().equals(t.getDefinition().getName()))
+            .count();
+        return fieldCount + traitCount;
+    }
+
+    /* ─── Header usage counting & renaming ─── */
+
+    private long countRangeElementUsage(String rangeId, String elementId) {
+        if (currentDictionary == null) return 0;
+        var comps = currentDictionary.getLiftDictionaryRegistry();
+        if ("note-type".equals(rangeId)) return comps
+            .getNotes()
+            .stream()
+            .filter(n -> elementId.equals(n.getType()))
+            .count();
+        if ("translation-type".equals(rangeId)) return comps
+            .getExamples()
+            .stream()
+            .filter(ex -> ex.getTranslations().containsKey(elementId))
+            .count();
+        if ("grammatical-info".equals(rangeId)) return comps
+            .getSenses()
+            .stream()
+            .filter(s ->
+                s
+                    .getGrammaticalInfo()
+                    .map(g -> elementId.equals(g.getValue()))
+                    .orElse(false)
+            )
+            .count();
+        return comps
+            .getTraits()
+            .stream()
+            .filter(
+                t ->
+                    rangeId.equals(t.getDefinition().getName()) &&
+                    elementId.equals(t.getValue())
+            )
+            .count();
+    }
+
+    private long countFieldUsage(String fieldName) {
+        if (currentDictionary == null) return 0;
+        return currentDictionary
+            .getLiftDictionaryRegistry()
+            .getFields()
+            .stream()
+            .filter(f -> fieldName.equals(f.getType()))
+            .count();
+    }
+
+    private void renameRangeElementInData(
+        String rangeId,
+        String oldId,
+        String newId
+    ) {
+        //if (currentDictionary == null) return;
+        var comps = currentDictionary.getLiftDictionaryRegistry();
+        LiftHeader header = currentDictionary.getHeader();
+        if (header != null) {
+            LiftHeaderRange range = header.getRange(rangeId);
+            LiftHeaderRangeElement element = range.getRangeElement(oldId);
+            range.changeElementId(element, newId);
+        }
+        // No need any more since those object have reference to Definition objects, not to the actual string.
+        // if ("note-type".equals(rangeId)) {
+        //     currentDictionary.getHeader().getRange(rangeId).changeElementId(oldId, newId);
+        //     // comps
+        //     //     .getAllNotes()
+        //     //     .stream()
+        //     //     .filter(n -> oldId.equals(n.getType()))
+        //     //     .forEach(n -> n.setType(newId));
+        // } else if ("grammatical-info".equals(rangeId)) {
+        //     comps
+        //         .getSenses()
+        //         .stream()
+        //         .filter(s ->
+        //             s
+        //                 .getGrammaticalInfo()
+        //                 .map(g -> oldId.equals(g.getValue()))
+        //                 .orElse(false)
+        //         )
+        //         .forEach(s -> s.setGrammaticalInfo(newId));
+        // } else {
+        //     comps
+        //         .getTraitsReadOnly()
+        //         .stream()
+        //         .filter(
+        //             t ->
+        //                 rangeId.equals(t.getDefinition().getName()) &&
+        //                 oldId.equals(t.getValue())
+        //         )
+        //         .forEach(t -> t.setValue(newId));
+        // }
+    }
+
+    /* ════════════════════ AUTO-POPULATE HEADER ════════════════════ */
+
+    private void ensureHeaderComplete() {
+        if (currentDictionary == null) return;
+        DictionaryObjectBuilderFactory factory = currentDictionary.getComponentBuilder();
+        if (factory == null) return;
+        var comps = currentDictionary.getLiftDictionaryRegistry();
+        LiftHeader header = currentDictionary.getHeader();
+        //if (header == null) header = factory.createHeader();
+
+        String autoDesc = I18n.get("cfg.autoAdded");
+        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
+        String descLang = metaLangs.isEmpty() ? "en" : metaLangs.get(0);
+
+        // ensureRange(
+        //     factory,
+        //     header,
+        //     "note-type",
+        //     comps
+        //         .getAllNotes()
+        //         .stream()
+        //         //.map(LiftNote::getType)
+        //         .map(x -> x.getType().getId())
+        //         .filter(Objects::nonNull)
+        //         .collect(Collectors.toSet()),
+        //     descLang,
+        //     autoDesc
+        // );
+
+        // ensureRange(
+        //     factory,
+        //     header,
+        //     "translation-type",
+        //     comps
+        //         .getAllExamples()
+        //         .stream()
+        //         .flatMap(ex -> ex.getTranslations().keySet().stream())
+        //         .collect(Collectors.toSet()),
+        //     descLang,
+        //     autoDesc
+        // );
+
+        // ensureRange(
+        //     factory,
+        //     header,
+        //     "grammatical-info",
+        //     comps
+        //         .getAllSenses()
+        //         .stream()
+        //         .map(s ->
+        //             s
+        //                 .getGrammaticalInfo()
+        //                 .map(GrammaticalInfo::getValue)
+        //                 .orElse(null)
+        //         )
+        //         .filter(Objects::nonNull)
+        //         .collect(Collectors.toSet()),
+        //     descLang,
+        //     autoDesc
+        // );
+
+        // Map<String, Set<String>> traitsByName = new HashMap<>();
+        // for (LiftTrait t : comps.getTraitsReadOnly()) {
+        //     traitsByName
+        //         .computeIfAbsent(t.getDefinition().getName(), k -> new TreeSet<>())
+        //         .add(t.getValue());
+        // }
+        // for (var entry : traitsByName.entrySet()) {
+        //     ensureRange(
+        //         factory,
+        //         header,
+        //         entry.getKey(),
+        //         entry.getValue(),
+        //         descLang,
+        //         autoDesc
+        //     );
+        // }
+
+        // Set<String> definedFieldDefs = header
+        //     .getFieldsAndTraitsDefinitions()
+        //     .stream()
+        //     .map(LiftFieldAndTraitDefinition::getName)
+        //     .collect(Collectors.toSet());
+
+        // Set<String> fieldNames = comps
+        //     .getFieldsReadOnly()
+        //     .stream()
+        //     .map(LiftField::getName)
+        //     .map(LiftFieldAndTraitDefinition::getName)
+        //     .collect(Collectors.toSet());
+        // for (String fn : fieldNames) {
+        //     if (!definedFieldDefs.contains(fn)) {
+        //         LiftFieldAndTraitDefinition fd = header.createFieldDefinition(fn);
+        //         fd.setType(Optional.of("multitext"));
+        //         fd.getDescription().add(new Form(descLang, autoDesc));
+        //         definedFieldDefs.add(fn);
+        //     }
+        // }
+
+        // Set<String> traitNames = comps
+        //     .getTraitsReadOnly()
+        //     .stream()
+        //     .map(x -> x.getDefinition().getName())
+        //     .collect(Collectors.toSet());
+        // for (String tn : traitNames) {
+        //     if (!definedFieldDefs.contains(tn)) {
+        //         LiftFieldAndTraitDefinition fd = header.createTraitDefinition(tn);
+        //         fd.setType(Optional.of("option"));
+        //         fd.getDescription().add(new Form(descLang, autoDesc));
+        //     }
+        // }
+    }
+
+    private static String fieldDefKindLabel(LiftFieldAndTraitDefinition fd) {
+        if (fd == null) return "";
+        if (fd.isFieldDefinition()) return I18n.get("cfg.kindField");
+        if (fd.isTraitDefinition()) return I18n.get("cfg.kindTrait");
+        return I18n.get("cfg.kindUnknown");
+    }
+
+    // /** Find the LiftFieldAndTraitDefinition for a given trait/field name in the current dictionary header. */
+    // private Optional<LiftFieldAndTraitDefinition> findFieldDef(String name) {
+    //     if (currentDictionary == null || name == null) return Optional.empty();
+    //     LiftHeader header = currentDictionary
+    //         .getHeader();
+    //     if (header == null) return Optional.empty();
+    //     return header
+    //         .getFieldsAndTraitsDefinitions()
+    //         .stream()
+    //         .filter(fd -> name.equals(fd.getName()))
+    //         .findFirst();
+    // }
+
+    // private static void ensureRange(
+    //     LiftXMLFactory factory,
+    //     LiftHeader header,
+    //     String rangeId,
+    //     Set<String> values,
+    //     String descLang,
+    //     String autoDesc
+    // ) {
+    //     LiftHeaderRange range = header
+    //         .getRanges()
+    //         .stream()
+    //         .filter(r -> rangeId.equals(r.getId()))
+    //         .findFirst()
+    //         .orElseGet(() -> header.createRange(rangeId));
+    //     Set<String> existing = range
+    //         .getRangeElements()
+    //         .values()
+    //         .stream()
+    //         .map(LiftHeaderRangeElement::getId)
+    //         .collect(Collectors.toSet());
+    //     for (String val : values) {
+    //         if (!existing.contains(val)) {
+    //             LiftHeaderRangeElement newElem = range.createRangeElement(val);
+    //             newElem.getDescription().add(new Form(descLang, autoDesc));
+    //         }
+    //     }
+    // }
+
+    /* ────────────────── UTILITIES ────────────────── */
+
+    @FunctionalInterface
+    private interface NodeFactory {
+        javafx.scene.Node create();
+    }
+
+    @FunctionalInterface
+    private interface ItemRenderer<T> {
+        javafx.scene.Node render(T item);
+    }
+
+    @FunctionalInterface
+    private interface ListSupplier {
+        List<String> get();
+    }
+
+    private static TableColumn<CategoryRow, String> colCat(
+        String title,
+        java.util.function.Function<CategoryRow, String> extractor
+    ) {
+        TableColumn<CategoryRow, String> c = new TableColumn<>(title);
+        c.setCellValueFactory(cd ->
+            new ReadOnlyStringWrapper(
+                cd.getValue() == null ? "" : extractor.apply(cd.getValue())
+            )
+        );
+        c.setPrefWidth(title.equals("Fréquence") ? 100 : 250);
+        return c;
+    }
+
+    private static <T> TableColumn<T, String> col(
+        String title,
+        java.util.function.Function<T, String> extractor
+    ) {
+        TableColumn<T, String> c = new TableColumn<>(title);
+        c.setCellValueFactory(cd ->
+            new ReadOnlyStringWrapper(
+                cd.getValue() == null ? "" : extractor.apply(cd.getValue())
+            )
+        );
+        c.setPrefWidth(140);
+        return c;
+    }
+
+    private static <T> TableColumn<T, String> makeCol(
+        String title,
+        Callback<
+            TableColumn.CellDataFeatures<T, String>,
+            ObservableValue<String>
+        > extractor
+    ) {
+        TableColumn<T, String> c = new TableColumn<>(title);
+        c.setCellValueFactory(extractor);
+        c.setPrefWidth(140);
+        return c;
+    }
+
+    private static void addSectionTitle(VBox container, String i18nKey) {
+        Label lbl = new Label(I18n.get(i18nKey));
+        lbl.getStyleClass().add("editor-section-title");
+        container.getChildren().add(lbl);
+    }
+
+    private static void addSection(
+        VBox container,
+        String title,
+        NodeFactory factory,
+        boolean expanded
+    ) {
+        TitledPane tp = new TitledPane(title, factory.create());
+        tp.setExpanded(expanded);
+        tp.setAnimated(false);
+        container.getChildren().add(tp);
+    }
+
+    private static <T> void addListSection(
+        VBox container,
+        String title,
+        List<T> items,
+        ItemRenderer<T> renderer,
+        boolean expanded
+    ) {
+        addListSection(container, title, items, renderer, expanded, null);
+    }
+
+    private static <T> void addListSection(
+        VBox container,
+        String title,
+        List<T> items,
+        ItemRenderer<T> renderer,
+        boolean expanded,
+        Runnable onAdd
+    ) {
+        VBox box = new VBox(4);
+        if (onAdd != null) {
+            Button addBtn = new Button(I18n.get("btn.add"));
+            addBtn.getStyleClass().add("example-add-button");
+            addBtn.setOnAction(e -> onAdd.run());
+            box.getChildren().add(addBtn);
+        }
+        if (items == null || items.isEmpty()) {
+            box.getChildren().add(new Label(I18n.get("editor.none")));
+            TitledPane tp = new TitledPane(title + " (0)", box);
+            tp.setExpanded(false);
+            tp.setAnimated(false);
+            container.getChildren().add(tp);
+            return;
+        }
+        int i = 1;
+        for (T item : items) {
+            TitledPane ip = new TitledPane("#" + i++, renderer.render(item));
+            ip.setExpanded(false);
+            ip.setAnimated(false);
+            box.getChildren().add(ip);
+        }
+        TitledPane tp = new TitledPane(title + " (" + items.size() + ")", box);
+        tp.setExpanded(expanded);
+        tp.setAnimated(false);
+        container.getChildren().add(tp);
+    }
+
+    private static void addReadOnlyRow(
+        GridPane grid,
+        int row,
+        String label,
+        String value
+    ) {
+        grid.add(new Label(label), 0, row);
+        TextField tf = new TextField(value);
+        styleReadOnlyTextField(tf);
+        GridPane.setHgrow(tf, Priority.ALWAYS);
+        grid.add(tf, 1, row);
+    }
+
+    private static void styleReadOnlyTextField(TextField tf) {
+        tf.setEditable(false);
+        tf.setFocusTraversable(false);
+        tf.getStyleClass().add("read-only-meta-field");
+    }
+
+    private static void styleReadOnlyDatePicker(DatePicker dp) {
+        dp.setEditable(false);
+        dp.setDisable(true);
+        dp.setFocusTraversable(false);
+        dp.getStyleClass().add("read-only-meta-picker");
+    }
+
+    private void updateCountLabel(int shown, int total) {
+        if (tableCountLabel == null) return;
+        if (shown == total) {
+            tableCountLabel.setText(I18n.get("table.count.total", shown));
+            return;
+        }
+        tableCountLabel.setText(I18n.get("table.count.filtered", shown, total));
+    }
+
+    private static DatePicker buildDatePicker(String isoDate) {
+        DatePicker dp = new DatePicker();
+        dp.setEditable(true);
+        dp.setPromptText("yyyy-MM-dd");
+        if (isoDate != null && !isoDate.isBlank()) {
+            try {
+                String datePart =
+                    isoDate.length() > 10 ? isoDate.substring(0, 10) : isoDate;
+                dp.setValue(LocalDate.parse(datePart));
+            } catch (DateTimeParseException ignored) {}
+        }
+        return dp;
+    }
+
+    private static String getTraitValue(LiftEntry e, String name) {
+        return e == null
+            ? ""
+            : e
+                  .getTraits()
+                  .stream()
+                  .filter(t -> name.equals(t.getDefinition().getName()))
+                  .findFirst()
+                  .map(LiftTrait::getValue)
+                  .orElse("");
+    }
+
+    private static String getTraitValueFor(LiftVariant v, String name) {
+        return v == null || v.getTraits() == null
+            ? ""
+            : v
+                  .getTraits()
+                  .stream()
+                  .filter(t -> name.equals(t.getDefinition().getName()))
+                  .findFirst()
+                  .map(LiftTrait::getValue)
+                  .orElse("");
+    }
+
+    private MultiText getParentEntryForms(LiftRelation r) {
+        if (r == null || r.getParent() == null) return null;
+        HasRelations p = r.getParent();
+        if (p instanceof LiftEntry e) return e.getForms();
+        if (p instanceof LiftSense s) return s.getParentEntry().getForms(); //findParentEntry(s)
+            // .map(LiftEntry::getForms)
+            // .orElse(null);
+        if (p instanceof LiftVariant v) return v.getParent() != null
+            ? v.getParent().getForms()
+            : null;
+        return null;
+    }
+
+    private static String buildSearchText(LiftEntry entry) {
+        if (entry == null) return "";
+        StringBuilder sb = new StringBuilder();
+        appendSep(sb, getTraitValue(entry, "code"));
+        for (Form f : entry.getForms().getForms())
+            appendSep(sb, f.toPlainText());
+        for (LiftPronunciation p : entry.getPronunciations())
+            for (Form f : p.getPronunciation().getForms())
+                appendSep(sb, f.toPlainText());
+        for (LiftSense s : entry.getSenses()) {
+            for (Form f : s.getDefinition().getForms())
+                appendSep(sb, f.toPlainText());
+            for (Form f : s.getGloss().getForms())
+                appendSep(sb, f.toPlainText());
+        }
+        return sb.toString();
+    }
+
+    private static String describeParent(Object parent) {
+        if (parent == null) return "";
+        if (parent instanceof LiftEntry e) return (
+            "entry:" + e.getId().orElse("?")
+        );
+        if (parent instanceof LiftSense s) return (
+            "sense:" + s.getId().orElse("?")
+        );
+        if (parent instanceof GrammaticalInfo) return "gram-info";
+        return parent.getClass().getSimpleName();
+    }
+
+    private static String describeParentType(Object parent) {
+        if (parent == null) return "";
+        if (parent instanceof LiftEntry) return I18n.get("nav.entries");
+        if (parent instanceof LiftSense) return I18n.get("nav.senses");
+        if (parent instanceof LiftExample) return I18n.get("nav.examples");
+        if (parent instanceof LiftNote) return I18n.get("nav.notes");
+        if (parent instanceof LiftVariant) return I18n.get("nav.variants");
+        if (parent instanceof LiftEtymology) return I18n.get("nav.etymologies");
+        if (parent instanceof GrammaticalInfo) return I18n.get("nav.gramInfo");
+        return parent.getClass().getSimpleName();
+    }
+
+    /* ─── Known dropdown values from header ranges ─── */
+
+    // private List<String> getKnownTraitNames() {
+    //     return getKnownTraitNamesFor(null);
+    // }
+
+    // /**
+    //  * Returns trait names allowed for the given target element type.
+    //  * If {@code target} is null, returns all trait names.
+    //  * Filters via field-definition/@class: only include a trait name if its
+    //  * LiftFieldAndTraitDefinition has no @class restriction, or if it includes {@code target}.
+    //  */
+    // private List<String> getKnownTraitNamesFor(
+    //     LiftFieldAndTraitDefinitionTarget target
+    // ) {
+    //     if (currentDictionary == null) return List.of();
+    //     LiftHeader h = currentDictionary
+    //         .getHeader();
+    //     if (h != null && !h.getFieldsAndTraitsDefinitions().isEmpty()) {
+    //         return h
+    //             .getFieldsAndTraitsDefinitions()
+    //             .stream()
+    //             .filter(
+    //                 fd ->
+    //                     fd.getKind() == LiftFieldAndTraitDefinitionKind.TRAIT ||
+    //                     fd.getKind() == LiftFieldAndTraitDefinitionKind.UNKNOWN
+    //             )
+    //             .filter(
+    //                 fd ->
+    //                     target == null ||
+    //                     fd.getTargets().isEmpty() ||
+    //                     fd.getTargets().contains(target)
+    //             )
+    //             .map(LiftFieldAndTraitDefinition::getName)
+    //             .sorted()
+    //             .toList();
+    //     }
+    //     // Fallback: scan data
+    //     Set<String> standardRanges = Set.of(
+    //         "note-type",
+    //         "translation-type",
+    //         "grammatical-info"
+    //     );
+    //     if (h != null) {
+    //         return h
+    //             .getRanges()
+    //             .stream()
+    //             .map(LiftHeaderRange::getId)
+    //             .filter(id -> !standardRanges.contains(id))
+    //             .sorted()
+    //             .toList();
+    //     }
+    //     return currentDictionary.getTraitName().stream().sorted().toList();
+    // }
+
+    // private Map<String, Set<String>> getKnownTraitValues() {
+    //     if (currentDictionary == null) return Map.of();
+    //     Map<String, Set<String>> result = new HashMap<>();
+    //     LiftHeader h = currentDictionary
+    //         .getHeader();
+    //     if (h != null) {
+    //         Set<String> standardRanges = Set.of(
+    //             "note-type",
+    //             "translation-type",
+    //             "grammatical-info"
+    //         );
+    //         for (LiftHeaderRange r : h.getRanges()) {
+    //             if (standardRanges.contains(r.getId())) continue;
+    //             Set<String> vals = r
+    //                 .getRangeElements()
+    //                 .values()
+    //                 .stream()
+    //                 .map(LiftHeaderRangeElement::getId)
+    //                 .collect(Collectors.toCollection(TreeSet::new));
+    //             result.put(r.getId(), vals);
+    //         }
+    //     }
+    //     if (result.isEmpty()) {
+    //         for (LiftTrait t : currentDictionary
+    //             .getLiftDictionaryRegistry()
+    //             .getTraitsReadOnly()) {
+    //             result
+    //                 .computeIfAbsent(t.getDefinition().getName(), k -> new TreeSet<>())
+    //                 .add(t.getValue());
+    //         }
+    //     }
+    //     return result;
+    // }
+
+    // private List<String> getKnownAnnotationNames() {
+    //     return currentDictionary == null
+    //         ? List.of()
+    //         : currentDictionary
+    //               .getLiftDictionaryRegistry()
+    //               .getAnnotationsReadOnly()
+    //               .stream()
+    //               .map(LiftAnnotation::getName)
+    //               .filter(Objects::nonNull)
+    //               .distinct()
+    //               .sorted()
+    //               .toList();
+    // }
+
+    // /** Returns field (not trait) type names allowed for the given target element type. */
+    // private List<String> getKnownFieldTypesFor(
+    //     LiftFieldAndTraitDefinitionTarget target
+    // ) {
+    //     if (currentDictionary == null) return List.of();
+    //     LiftHeader h = currentDictionary
+    //         .getHeader();
+    //     if (h != null && !h.getFieldsAndTraitsDefinitions().isEmpty()) {
+    //         return h
+    //             .getFieldsAndTraitsDefinitions()
+    //             .stream()
+    //             .filter(
+    //                 fd ->
+    //                     fd.getKind() == LiftFieldAndTraitDefinitionKind.FIELD ||
+    //                     fd.getKind() == LiftFieldAndTraitDefinitionKind.UNKNOWN
+    //             )
+    //             .filter(
+    //                 fd ->
+    //                     target == null ||
+    //                     fd.getTargets().isEmpty() ||
+    //                     fd.getTargets().contains(target)
+    //             )
+    //             .map(LiftFieldAndTraitDefinition::getName)
+    //             .sorted()
+    //             .toList();
+    //     }
+    //     return currentDictionary.getFieldType().stream().sorted().toList();
+    // }
+
+    // private List<String> getKnownNoteTypes() {
+    //     return getHeaderRangeValues("note-type");
+    // }
+
+    // private List<String> getKnownRelationTypes() {
+    //     return getHeaderRangeValues("lexical-relation");
+    // }
+
+    private List<String> getKnownGramInfoValues() {
+        return getHeaderRangeValues("grammatical-info");
+    }
+
+    private List<String> getHeaderRangeValues(String rangeId) {
+        if (currentDictionary == null) return List.of();
+        LiftHeader h = currentDictionary
+            .getHeader();
+        if (h != null) {
+            return h
+                .getRanges()
+                .stream()
+                .filter(r -> rangeId.equals(r.getId()))
+                .findFirst()
+                .map(r ->
+                    r
+                        .getRangeElements()
+                        .values()
+                        .stream()
+                        .map(LiftHeaderRangeElement::getId)
+                        .sorted()
+                        .toList()
+                )
+                .orElse(List.of());
+        }
+        return List.of();
+    }
+
+    private void showError(String title, String msg) {
+        Alert a = new Alert(Alert.AlertType.ERROR);
+        a.setTitle(title);
+        a.setHeaderText(null);
+        a.setContentText(msg);
+        a.showAndWait();
+    }
+
+    private void showInfo(String title, String msg) {
+        Alert a = new Alert(Alert.AlertType.INFORMATION);
+        a.setTitle(title);
+        a.setHeaderText(null);
+        a.setContentText(msg);
+        a.showAndWait();
+    }
+
+    private void showPreferencesDialog() {
+        Dialog<Void> dlg = new Dialog<>();
+        dlg.setTitle(I18n.get("prefs.title"));
+        dlg.setHeaderText(I18n.get("prefs.title"));
+        dlg.setResizable(true);
+        dlg.getDialogPane().setPrefSize(480, 380);
+        dlg.getDialogPane()
+            .getButtonTypes()
+            .addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        // ── Langue ──
+        Label langLabel = new Label(I18n.get("prefs.language"));
+        ComboBox<String> langCombo = new ComboBox<>(
+            FXCollections.observableArrayList("Français", "English")
+        );
+        langCombo.setValue(
+            "fr".equals(I18n.getLocale().getLanguage()) ? "Français" : "English"
+        );
+
+        // ── Taille de police ──
+        Label fontLabel = new Label(I18n.get("prefs.fontSize"));
+        Slider fontSlider = new Slider(
+            10,
+            20,
+            Double.parseDouble(PREFS.get("ui.fontSize", "13"))
+        );
+        fontSlider.setShowTickLabels(true);
+        fontSlider.setShowTickMarks(true);
+        fontSlider.setMajorTickUnit(2);
+        fontSlider.setBlockIncrement(1);
+        fontSlider.setSnapToTicks(true);
+        Label fontValueLabel = new Label(
+            String.valueOf((int) fontSlider.getValue()) + "px"
+        );
+        fontSlider
+            .valueProperty()
+            .addListener((obs, o, n) ->
+                fontValueLabel.setText((int) n.doubleValue() + "px")
+            );
+
+        // ── Thème ──
+        Label themeLabel = new Label(I18n.get("prefs.theme"));
+        ToggleGroup themeGroup = new ToggleGroup();
+        RadioButton lightBtn = new RadioButton(I18n.get("prefs.themeLight"));
+        lightBtn.setToggleGroup(themeGroup);
+        RadioButton darkBtn = new RadioButton(I18n.get("prefs.themeDark"));
+        darkBtn.setToggleGroup(themeGroup);
+        String savedTheme = PREFS.get("ui.theme", "light");
+        if ("dark".equals(savedTheme)) darkBtn.setSelected(true);
+        else lightBtn.setSelected(true);
+
+        // ── Chemin par défaut ──
+        Label pathLabel = new Label(I18n.get("prefs.defaultPath"));
+        TextField pathField = new TextField(
+            PREFS.get("ui.defaultPath", System.getProperty("user.home"))
+        );
+        pathField.setPromptText(System.getProperty("user.home"));
+        Button browseBtn = new Button(I18n.get("prefs.browse"));
+        browseBtn.setOnAction(e -> {
+            javafx.stage.DirectoryChooser dc =
+                new javafx.stage.DirectoryChooser();
+            dc.setTitle(I18n.get("prefs.defaultPath"));
+            File dir = dc.showDialog(
+                dlg.getDialogPane().getScene().getWindow()
+            );
+            if (dir != null) pathField.setText(dir.getAbsolutePath());
+        });
+        HBox pathBox = new HBox(8, pathField, browseBtn);
+        HBox.setHgrow(pathField, Priority.ALWAYS);
+
+        // ── Layout ──
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(14);
+        grid.setPadding(new Insets(16));
+
+        grid.add(langLabel, 0, 0);
+        grid.add(langCombo, 1, 0);
+
+        grid.add(fontLabel, 0, 1);
+        HBox fontBox = new HBox(8, fontSlider, fontValueLabel);
+        HBox.setHgrow(fontSlider, Priority.ALWAYS);
+        grid.add(fontBox, 1, 1);
+
+        grid.add(themeLabel, 0, 2);
+        grid.add(new HBox(12, lightBtn, darkBtn), 1, 2);
+
+        grid.add(pathLabel, 0, 3);
+        grid.add(pathBox, 1, 3);
+
+        GridPane.setHgrow(langCombo, Priority.ALWAYS);
+        GridPane.setHgrow(fontBox, Priority.ALWAYS);
+        GridPane.setHgrow(pathBox, Priority.ALWAYS);
+
+        dlg.getDialogPane().setContent(grid);
+
+        dlg.setResultConverter(bt -> {
+            if (bt == ButtonType.OK) {
+                // Sauvegarde taille de police
+                int fontSize = (int) fontSlider.getValue();
+                PREFS.put("ui.fontSize", String.valueOf(fontSize));
+                applyFontSize(fontSize);
+
+                // Sauvegarde thème
+                String theme = darkBtn.isSelected() ? "dark" : "light";
+                PREFS.put("ui.theme", theme);
+                applyTheme(theme);
+
+                // Sauvegarde chemin par défaut
+                PREFS.put("ui.defaultPath", pathField.getText().trim());
+
+                // Applique langue si changée
+                String sel = langCombo.getValue();
+                Locale newLocale = "Français".equals(sel)
+                    ? Locale.FRENCH
+                    : Locale.ENGLISH;
+                if (
+                    !newLocale
+                        .getLanguage()
+                        .equals(I18n.getLocale().getLanguage())
+                ) {
+                    I18n.setLocale(newLocale);
+                    Platform.runLater(
+                        fr.cnrs.lacito.liftgui.MainApp::reloadScene
+                    );
+                }
+            }
+            return null;
+        });
+
+        dlg.showAndWait();
+    }
+
+    private void applyFontSize(int size) {
+        if (menuBar == null || menuBar.getScene() == null) return;
+        menuBar
+            .getScene()
+            .getRoot()
+            .setStyle("-fx-font-size: " + size + "px;");
+    }
+
+    private void applyTheme(String theme) {
+        if (menuBar == null || menuBar.getScene() == null) return;
+        javafx.collections.ObservableList<String> sheets = menuBar
+            .getScene()
+            .getStylesheets();
+        sheets.removeIf(s -> s.contains("dark") || s.contains("light"));
+        if ("dark".equals(theme)) {
+            String darkCss =
+                fr.cnrs.lacito.liftgui.MainApp.class.getResource(
+                    "/fr/cnrs/lacito/liftgui/ui/dark.css"
+                ) != null
+                    ? fr.cnrs.lacito.liftgui.MainApp.class
+                          .getResource("/fr/cnrs/lacito/liftgui/ui/dark.css")
+                          .toExternalForm()
+                    : null;
+            if (darkCss != null) sheets.add(darkCss);
+            else menuBar
+                .getScene()
+                .getRoot()
+                .setStyle(
+                    menuBar.getScene().getRoot().getStyle() +
+                        "; -fx-base: #2b2b2b; -fx-background: #3c3f41; -fx-control-inner-background: #45494a;"
+                );
+        }
+    }
+
+    private record ConfigRow(
+        javafx.beans.property.StringProperty abbrev,
+        javafx.beans.property.StringProperty description
+    ) {
+        ConfigRow(String a, String d) {
+            this(
+                new javafx.beans.property.SimpleStringProperty(a),
+                new javafx.beans.property.SimpleStringProperty(d)
+            );
+        }
+    }
+
+    @FunctionalInterface
+    private interface UsageChecker {
+        long count(String value);
+    }
+
+    private void showConfigDialog(String title, ListSupplier supplier) {
+        showConfigDialog(title, supplier, val -> 0L);
+    }
+
+    private void showConfigDialog(
+        String title,
+        ListSupplier supplier,
+        UsageChecker usageChecker
+    ) {
+        List<String> items = supplier.get();
+        Dialog<Void> dlg = new Dialog<>();
+        dlg.setTitle(I18n.get("config.title", title));
+        dlg.setHeaderText(I18n.get("config.header", title, items.size()));
+        dlg.setResizable(true);
+        dlg.getDialogPane().setPrefSize(620, 480);
+        // ← Remplace CLOSE par OK + CANCEL
+        dlg.getDialogPane()
+            .getButtonTypes()
+            .addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        TableView<ConfigRow> configTable = new TableView<>();
+        configTable.setEditable(true);
+        configTable.setPrefHeight(320);
+
+        TableColumn<ConfigRow, String> abbrCol = new TableColumn<>(
+            I18n.get("col.abbreviation")
+        );
+        abbrCol.setCellValueFactory(cd -> cd.getValue().abbrev());
+        abbrCol.setCellFactory(TextFieldTableCell.forTableColumn());
+        abbrCol.setOnEditCommit(e ->
+            e.getRowValue().abbrev().set(e.getNewValue())
+        );
+        abbrCol.setPrefWidth(180);
+
+        TableColumn<ConfigRow, String> usageCol = new TableColumn<>(
+            I18n.get("cfg.usageCount")
+        );
+        usageCol.setCellValueFactory(cd -> {
+            long n = usageChecker.count(cd.getValue().abbrev().get());
+            return new javafx.beans.property.ReadOnlyStringWrapper(
+                String.valueOf(n)
+            );
+        });
+        usageCol.setPrefWidth(80);
+
+        TableColumn<ConfigRow, String> descCol = new TableColumn<>(
+            I18n.get("col.description")
+        );
+        descCol.setCellValueFactory(cd -> cd.getValue().description());
+        descCol.setCellFactory(TextFieldTableCell.forTableColumn());
+        descCol.setOnEditCommit(e ->
+            e.getRowValue().description().set(e.getNewValue())
+        );
+        descCol.setPrefWidth(320);
+
+        configTable.getColumns().addAll(abbrCol, usageCol, descCol);
+        for (String item : items)
+            configTable.getItems().add(new ConfigRow(item, ""));
+
+        TextField addAbbrField = new TextField();
+        addAbbrField.setPromptText(I18n.get("config.addAbbr"));
+        TextField addDescField = new TextField();
+        addDescField.setPromptText(I18n.get("config.addDesc"));
+        Button addBtn = new Button(I18n.get("btn.add"));
+        addBtn.setOnAction(e -> {
+            String a = addAbbrField.getText().trim();
+            if (!a.isEmpty()) {
+                configTable
+                    .getItems()
+                    .add(new ConfigRow(a, addDescField.getText().trim()));
+                addAbbrField.clear();
+                addDescField.clear();
+            }
+        });
+
+        Button removeBtn = new Button(I18n.get("btn.delete"));
+        removeBtn.setOnAction(e -> {
+            ConfigRow sel = configTable.getSelectionModel().getSelectedItem();
+            if (sel == null) return;
+            long usage = usageChecker.count(sel.abbrev().get());
+            if (usage > 0) {
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+                confirm.setTitle(I18n.get("btn.delete"));
+                confirm.setHeaderText(
+                    I18n.get("config.deleteWarning", sel.abbrev().get(), usage)
+                );
+                confirm.setContentText(I18n.get("config.deleteConfirm"));
+                confirm
+                    .showAndWait()
+                    .filter(r -> r == ButtonType.OK)
+                    .ifPresent(r -> configTable.getItems().remove(sel));
+            } else {
+                configTable.getItems().remove(sel);
+            }
+        });
+
+        HBox controls = new HBox(
+            8,
+            addAbbrField,
+            addDescField,
+            addBtn,
+            removeBtn
+        );
+        controls.setPadding(new Insets(6, 0, 0, 0));
+        HBox.setHgrow(addAbbrField, Priority.ALWAYS);
+        HBox.setHgrow(addDescField, Priority.ALWAYS);
+
+        VBox content = new VBox(6, configTable, controls);
+        dlg.getDialogPane().setContent(content);
+
+        // ← Sauvegarde dans le header LIFT si OK
+        dlg.setResultConverter(bt -> {
+            if (bt == ButtonType.OK) {
+                persistConfigToHeader(title, configTable.getItems());
+            }
+            return null;
+        });
+
+        dlg.showAndWait();
+    }
+
+    private void showConfigInlineView(
+        String title,
+        ListSupplier supplier,
+        UsageChecker usageChecker
+    ) {
+        List<String> items = supplier.get();
+
+        VBox box = new VBox(10);
+        box.setPadding(new Insets(12));
+        Label heading = new Label(title);
+        heading.setStyle(
+            "-fx-font-size:15px; -fx-font-weight:bold; -fx-text-fill:#4c6f76;"
+        );
+        Label countLabel = new Label(
+            I18n.get("config.header", title, items.size())
+        );
+        countLabel.setStyle("-fx-text-fill:#666;");
+
+        TableView<ConfigRow> configTable = new TableView<>();
+        configTable.setEditable(true);
+
+        TableColumn<ConfigRow, String> abbrCol = new TableColumn<>(
+            I18n.get("col.abbreviation")
+        );
+        abbrCol.setCellValueFactory(cd -> cd.getValue().abbrev());
+        abbrCol.setCellFactory(TextFieldTableCell.forTableColumn());
+        abbrCol.setOnEditCommit(e ->
+            e.getRowValue().abbrev().set(e.getNewValue())
+        );
+        abbrCol.setPrefWidth(180);
+
+        TableColumn<ConfigRow, String> usageCol = new TableColumn<>(
+            I18n.get("cfg.usageCount")
+        );
+        usageCol.setCellValueFactory(cd -> {
+            long n = usageChecker.count(cd.getValue().abbrev().get());
+            return new javafx.beans.property.ReadOnlyStringWrapper(
+                String.valueOf(n)
+            );
+        });
+        usageCol.setPrefWidth(80);
+
+        TableColumn<ConfigRow, String> descCol = new TableColumn<>(
+            I18n.get("col.description")
+        );
+        descCol.setCellValueFactory(cd -> cd.getValue().description());
+        descCol.setCellFactory(TextFieldTableCell.forTableColumn());
+        descCol.setOnEditCommit(e ->
+            e.getRowValue().description().set(e.getNewValue())
+        );
+        descCol.setPrefWidth(320);
+
+        configTable.getColumns().addAll(abbrCol, usageCol, descCol);
+        for (String item : items)
+            configTable.getItems().add(new ConfigRow(item, ""));
+
+        TextField addAbbrField = new TextField();
+        addAbbrField.setPromptText(I18n.get("config.addAbbr"));
+        TextField addDescField = new TextField();
+        addDescField.setPromptText(I18n.get("config.addDesc"));
+        Button addBtn = new Button(I18n.get("btn.add"));
+        addBtn.setOnAction(e -> {
+            String a = addAbbrField.getText().trim();
+            if (!a.isEmpty()) {
+                configTable
+                    .getItems()
+                    .add(new ConfigRow(a, addDescField.getText().trim()));
+                addAbbrField.clear();
+                addDescField.clear();
+                countLabel.setText(
+                    I18n.get(
+                        "config.header",
+                        title,
+                        configTable.getItems().size()
+                    )
+                );
+            }
+        });
+
+        Button removeBtn = new Button(I18n.get("btn.delete"));
+        removeBtn.setOnAction(e -> {
+            ConfigRow sel = configTable.getSelectionModel().getSelectedItem();
+            if (sel == null) return;
+            long usage = usageChecker.count(sel.abbrev().get());
+            if (usage > 0) {
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+                confirm.setTitle(I18n.get("btn.delete"));
+                confirm.setHeaderText(
+                    I18n.get("config.deleteWarning", sel.abbrev().get(), usage)
+                );
+                confirm.setContentText(I18n.get("config.deleteConfirm"));
+                confirm
+                    .showAndWait()
+                    .filter(r -> r == ButtonType.OK)
+                    .ifPresent(r -> {
+                        configTable.getItems().remove(sel);
+                        countLabel.setText(
+                            I18n.get(
+                                "config.header",
+                                title,
+                                configTable.getItems().size()
+                            )
+                        );
+                    });
+            } else {
+                configTable.getItems().remove(sel);
+                countLabel.setText(
+                    I18n.get(
+                        "config.header",
+                        title,
+                        configTable.getItems().size()
+                    )
+                );
+            }
+        });
+
+        Button saveBtn = new Button(I18n.get("btn.save"));
+        saveBtn.setStyle(
+            "-fx-background-color: #4c6f76; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 7 16 7 16;"
+        );
+        saveBtn.setOnAction(e -> {
+            persistConfigToHeader(title, configTable.getItems());
+            showInfo(title, I18n.get("info.saved"));
+        });
+
+        HBox controls = new HBox(
+            8,
+            addAbbrField,
+            addDescField,
+            addBtn,
+            removeBtn,
+            saveBtn
+        );
+        controls.setPadding(new Insets(6, 0, 0, 0));
+        HBox.setHgrow(addAbbrField, Priority.ALWAYS);
+        HBox.setHgrow(addDescField, Priority.ALWAYS);
+
+        box.getChildren().addAll(heading, countLabel, configTable, controls);
+        tableContainer.getChildren().setAll(box);
+        editorContainer.getChildren().clear();
+        editEntryTitle.setText(title);
+        editEntryCode.setText("");
+    }
+
+    private void persistConfigToHeader(
+        String dialogTitle,
+        List<ConfigRow> rows
+    ) {
+        if (currentDictionary == null) return;
+        // LiftXMLFactory factory = getFactory(currentDictionary);
+        // if (factory == null) return;
+        LiftHeader header = currentDictionary
+            .getHeader();
+        // if (header == null) return;
+
+        // Détermine le rangeId selon le titre du dialogue
+        String rangeId = null;
+        if (
+            dialogTitle.equals(I18n.get("menu.config.noteTypes")) ||
+            dialogTitle.equals(I18n.get("nav.cfgManageNoteTypes"))
+        ) rangeId = "note-type";
+        else if (
+            dialogTitle.equals(I18n.get("menu.config.translationTypes")) ||
+            dialogTitle.equals(I18n.get("nav.cfgManageTransTypes"))
+        ) rangeId = "translation-type";
+        else if (
+            dialogTitle.equals(I18n.get("menu.config.traitTypes"))
+        ) rangeId = "grammatical-info";
+        else if (
+            dialogTitle.equals(I18n.get("menu.config.annotationTypes")) ||
+            dialogTitle.equals(I18n.get("nav.cfgManageAnnotationTypes"))
+        ) rangeId = "annotation-type";
+        else if (
+            dialogTitle.equals(I18n.get("nav.cfgManageRelationTypes"))
+        ) rangeId = "lexical-relation";
+
+        if (rangeId != null) {
+            // Trouve ou crée le range
+            final String finalRangeId = rangeId;
+            LiftHeaderRange range = header
+                .getRanges()
+                .stream()
+                .filter(r -> finalRangeId.equals(r.getId()))
+                .findFirst()
+                .orElseGet(() -> header.createRange(finalRangeId));
+
+            // Ajoute les nouveaux éléments manquants
+            Set<String> existing = range
+                .getRangeElements()
+                .values()
+                .stream()
+                .map(LiftHeaderRangeElement::getId)
+                .collect(Collectors.toSet());
+            List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
+            String descLang = metaLangs.isEmpty() ? "en" : metaLangs.get(0);
+
+            for (ConfigRow row : rows) {
+                String val = row.abbrev().get();
+                if (val == null || val.isBlank()) continue;
+                if (!existing.contains(val)) {
+                    LiftHeaderRangeElement elem = range.createRangeElement(val);
+                    String desc = row.description().get();
+                    if (desc != null && !desc.isBlank()) {
+                        elem.getDescription().add(new Form(descLang, desc));
+                    }
+                }
+            }
+
+            // Retire les éléments supprimés (non utilisés)
+            Set<String> newValues = rows
+                .stream()
+                .map(r -> r.abbrev().get())
+                .filter(v -> v != null && !v.isBlank())
+                .collect(Collectors.toSet());
+            range
+                .getRangeElements()
+                .values()
+                .removeIf(re -> !newValues.contains(re.getId()));
+
+            rebuildHeaderCfgChildren();
+        }
+    }
+
+    private LiftDictionary loadDemoDictionary() {
+        try {
+            java.nio.file.Path tempDir = Files.createTempDirectory(
+                "dict-default-"
+            );
+            tempDir.toFile().deleteOnExit();
+            File liftFile = tempDir.resolve("20260302.lift").toFile();
+            File rangesFile = tempDir.resolve("20260302.lift-ranges").toFile();
+            try (
+                InputStream inLift = MainController.class.getResourceAsStream(
+                    "/lift/20260302.lift"
+                );
+                InputStream inRanges = MainController.class.getResourceAsStream(
+                    "/lift/20260302.lift-ranges"
+                )
+            ) {
+                if (inLift == null) return loadFallbackDemo();
+                try (
+                    FileOutputStream outLift = new FileOutputStream(liftFile)
+                ) {
+                    inLift.transferTo(outLift);
+                }
+                if (inRanges != null) {
+                    try (
+                        FileOutputStream outRanges = new FileOutputStream(
+                            rangesFile
+                        )
+                    ) {
+                        inRanges.transferTo(outRanges);
+                    }
+                }
+            }
+            return LiftDictionary.loadDictionaryFromFile(liftFile);
+        } catch (Exception e) {
+            return loadFallbackDemo();
+        }
+    }
+
+    private LiftDictionary loadFallbackDemo() {
+        try (
+            InputStream in = MainController.class.getResourceAsStream(
+                "/lift/demo.lift"
+            )
+        ) {
+            if (in == null) return null;
+            File tmp = Files.createTempFile("dict-demo-", ".lift").toFile();
+            tmp.deleteOnExit();
+            try (FileOutputStream out = new FileOutputStream(tmp)) {
+                in.transferTo(out);
+            }
+            return LiftDictionary.loadDictionaryFromFile(tmp);
+        } catch (Exception e) {
+            LOGGER.log(
+                Level.WARNING,
+                "Impossible de charger le dictionnaire de démonstration",
+                e
+            );
+            return null;
+        }
+    }
+
+    // private static LiftXMLFactoryNew getFactory(LiftDictionary d) {
+    //     return d != null &&
+    //         d.getLiftDictionaryComponents() instanceof LiftXMLFactoryNew lf
+    //         ? lf
+    //         : null;
+    // }
+
+    private static void appendSep(StringBuilder sb, String part) {
+        if (part != null && !part.isBlank()) {
+            if (!sb.isEmpty()) sb.append("; ");
+            sb.append(part);
+        }
+    }
+}
