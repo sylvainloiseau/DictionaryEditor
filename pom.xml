@@ -15,7 +15,7 @@
 
   <modules>
     <module>lift-api</module>
-    <module>dictionary-editor-fx</module>
+    <module>lift-gui</module>
   </modules>
 
   <properties>
