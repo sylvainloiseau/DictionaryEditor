@@ -10,7 +10,7 @@
 package fr.cnrs.lacito.liftgui.ui.controls;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
-import fr.cnrs.lacito.liftapi.model.LiftHeaderRangeElement;
+import fr.cnrs.lacito.liftapi.model.Feature;
 import fr.cnrs.lacito.liftapi.model.LiftReversal;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -30,7 +30,7 @@ import java.util.Collection;
  */
 public final class ReversalEditor extends VBox {
 
-    private final ComboBox<LiftHeaderRangeElement> typeCombo = new ComboBox<>();
+    private final ComboBox<Feature> typeCombo = new ComboBox<>();
     //private final TextField typeField = new TextField();
     private final MultiTextEditor formsEditor;
     private final VBox mainBox = new VBox(6);
@@ -45,7 +45,7 @@ public final class ReversalEditor extends VBox {
 
         typeCombo.setEditable(false);
         typeCombo.setPromptText("type");
-        typeCombo.setItems(FXCollections.observableArrayList(dictionary.getHeader().getEtymologyTypeManager().typesProperty().get()));
+        typeCombo.setItems(FXCollections.observableArrayList(dictionary.getHeader().getEtymologyTypeManager().featuresProperty().get()));
 
         GridPane grid = new GridPane();
         grid.setHgap(8);

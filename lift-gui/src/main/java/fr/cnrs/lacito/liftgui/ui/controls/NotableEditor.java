@@ -59,7 +59,7 @@ public class NotableEditor extends ExtensibleWithFieldEditor {
             Button addNoteBtn = new Button(I18n.get("btn.addNote"));
             addNoteBtn.getStyleClass().add("example-add-button");
             addNoteBtn.setOnAction(e -> {
-                List<String> types = dictionary.getHeader().getNoteTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
+                List<String> types = dictionary.getHeader().getNoteTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
                 ChoiceDialog<String> dlg = new ChoiceDialog<>(types.isEmpty() ? null : types.get(0), types);
                 dlg.setTitle(I18n.get("btn.addNote"));
                 dlg.setHeaderText(I18n.get("col.type"));

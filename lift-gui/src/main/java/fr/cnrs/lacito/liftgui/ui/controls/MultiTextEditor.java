@@ -220,7 +220,7 @@ public final class MultiTextEditor extends VBox {
         }
         if (annotations.isEmpty()) return;
 
-        List<String> knownNames = dictionary.getHeader().getAnnotationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
+        List<String> knownNames = dictionary.getHeader().getAnnotationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
             // .map(LiftAnnotation::getName)
             // .filter(Objects::nonNull)
             // .distinct()

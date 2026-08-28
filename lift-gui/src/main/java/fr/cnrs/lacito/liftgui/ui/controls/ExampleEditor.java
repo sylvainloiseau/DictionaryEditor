@@ -12,7 +12,7 @@ package fr.cnrs.lacito.liftgui.ui.controls;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftExample;
-import fr.cnrs.lacito.liftapi.model.LiftHeaderRangeElement;
+import fr.cnrs.lacito.liftapi.model.Feature;
 import fr.cnrs.lacito.liftapi.model.MultiText;
 import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
@@ -98,7 +98,7 @@ public final class ExampleEditor extends VBox {
     public void setExample(LiftExample ex, BiConsumer<String, MultiText> onAddAnnotation, 
             ExtensibleAddActions addActions) {
         translationsBox.getChildren().clear();
-        List<String> knownAnnotationNames = dictionary.getHeader().getAnnotationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
+        List<String> knownAnnotationNames = dictionary.getHeader().getAnnotationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
 
         if (ex == null) {
             sourceField.setText("");
@@ -121,7 +121,7 @@ public final class ExampleEditor extends VBox {
         }
 
         // Translations: one MultiTextEditor per translation type — meta-languages
-        for (Map.Entry<LiftHeaderRangeElement, MultiText> kv : ex.getTranslations().entrySet()) {
+        for (Map.Entry<Feature, MultiText> kv : ex.getTranslations().entrySet()) {
             String type = kv.getKey().getId();
             MultiText mt = kv.getValue();
 

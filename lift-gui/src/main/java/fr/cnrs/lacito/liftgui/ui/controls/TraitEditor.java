@@ -33,7 +33,7 @@ import javafx.scene.layout.VBox;
  *   <li>{@code datetime} → {@link DatePicker}</li>
  *   <li>{@code integer} → integer-only {@link TextField}</li>
  *   <li>{@code option / option-collection / option-sequence} → tree/list picker
- *       from the resolved {@link LiftHeaderRange}</li>
+ *       from the resolved {@link FeatureSet}</li>
  *   <li>otherwise → editable {@link ComboBox} (default)</li>
  * </ul>
  */
@@ -170,7 +170,7 @@ public final class TraitEditor extends VBox {
                     case DATETIME -> buildDatePicker(t);
                     case INTEGER -> buildIntegerField(t);
                     case OPTION, OPTION_COLLECTION, OPTION_SEQUENCE -> {
-                        Optional<LiftHeaderRange> rangeOpt =
+                        Optional<FeatureSet> rangeOpt =
                             t.getDefinition().getResolvedRange();
                         yield rangeOpt.isPresent()
                             ? buildRangePicker(t, rangeOpt.get(), typeOpt.get())
@@ -213,7 +213,7 @@ public final class TraitEditor extends VBox {
      */
     private Node buildRangePicker(
         LiftTrait t,
-        LiftHeaderRange range,
+        FeatureSet range,
         LiftFieldAndTraitDefinitionDataModel type
     ) {
         boolean multiSelect =
@@ -316,7 +316,7 @@ public final class TraitEditor extends VBox {
      * Returns the selected element's abbreviation, or null if cancelled.
      */
     private String showRangePickerDialog(
-        LiftHeaderRange range,
+        FeatureSet range,
         String currentValue,
         boolean multiSelect
     ) {
@@ -329,19 +329,19 @@ public final class TraitEditor extends VBox {
         dlg.setResizable(true);
         dlg.getDialogPane().setPrefSize(360, 400);
 
-        TreeItem<LiftHeaderRangeElement> root = new TreeItem<>(null);
+        TreeItem<Feature> root = new TreeItem<>(null);
         root.setExpanded(true);
-        Map<String, TreeItem<LiftHeaderRangeElement>> itemMap =
+        Map<String, TreeItem<Feature>> itemMap =
             new LinkedHashMap<>();
 
-        for (LiftHeaderRangeElement re : range.getRangeElements().values()) {
-            TreeItem<LiftHeaderRangeElement> item = new TreeItem<>(re);
+        for (Feature re : range.getFeatures().values()) {
+            TreeItem<Feature> item = new TreeItem<>(re);
             item.setExpanded(true);
             itemMap.put(re.getId(), item);
         }
-        for (LiftHeaderRangeElement re : range.getRangeElements().values()) {
-            TreeItem<LiftHeaderRangeElement> item = itemMap.get(re.getId());
-            LiftHeaderRangeElement pid = re.getParentElement().orElse(null);
+        for (Feature re : range.getFeatures().values()) {
+            TreeItem<Feature> item = itemMap.get(re.getId());
+            Feature pid = re.getSuperOrdinateFeature().orElse(null);
             if (pid != null && itemMap.containsKey(pid.getId())) itemMap
                 .get(pid.getId())
                 .getChildren()
@@ -349,7 +349,7 @@ public final class TraitEditor extends VBox {
             else root.getChildren().add(item);
         }
 
-        TreeView<LiftHeaderRangeElement> tree = new TreeView<>(root);
+        TreeView<Feature> tree = new TreeView<>(root);
         tree.setShowRoot(false);
         tree.getSelectionModel().setSelectionMode(
             multiSelect ? SelectionMode.MULTIPLE : SelectionMode.SINGLE
@@ -358,7 +358,7 @@ public final class TraitEditor extends VBox {
             new TreeCell<>() {
                 @Override
                 protected void updateItem(
-                    LiftHeaderRangeElement item,
+                    Feature item,
                     boolean empty
                 ) {
                     super.updateItem(item, empty);
@@ -389,7 +389,7 @@ public final class TraitEditor extends VBox {
         String[] current =
             currentValue == null ? new String[0] : currentValue.split("\\s+");
         Set<String> currentSet = new HashSet<>(Arrays.asList(current));
-        for (TreeItem<LiftHeaderRangeElement> ti : itemMap.values()) {
+        for (TreeItem<Feature> ti : itemMap.values()) {
             if (ti.getValue() != null) {
                 String abbrev = ti
                     .getValue()

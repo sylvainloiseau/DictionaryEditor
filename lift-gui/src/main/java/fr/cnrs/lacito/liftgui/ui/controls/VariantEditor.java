@@ -207,7 +207,7 @@ public final class VariantEditor extends VBox {
             Button addRelBtn = new Button(I18n.get("btn.addRelation"));
             addRelBtn.getStyleClass().add("example-add-button");
             addRelBtn.setOnAction(e -> {
-                List<String> types = dictionary.getHeader().getRelationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
+                List<String> types = dictionary.getHeader().getRelationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
                 Optional<String> typeOpt;
                 if (types.isEmpty()) {
                     TextInputDialog tid = new TextInputDialog();

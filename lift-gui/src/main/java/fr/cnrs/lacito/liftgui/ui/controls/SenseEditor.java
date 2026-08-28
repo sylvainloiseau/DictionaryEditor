@@ -77,7 +77,7 @@ public final class SenseEditor extends VBox {
                     newVal != null &&
                     !newVal.equals(oldVal)
                 ) {
-                    LiftHeaderRangeElement grammaticalInfoRangeElement = dictionary.getHeader().getGrammaticalInfoManager().getRangeElement(newVal.trim());
+                    Feature grammaticalInfoRangeElement = dictionary.getHeader().getGrammaticalInfoManager().getFeature(newVal.trim());
                     currentSense.setGrammaticalInfo(grammaticalInfoRangeElement);
                     if (onGramInfoChanged != null) onGramInfoChanged.run();
                 }
@@ -264,7 +264,7 @@ public final class SenseEditor extends VBox {
         currentSense = null;
         String gramVal = sense
             .getGrammaticalInfo()
-            .map(GrammaticalInfo::getValue)
+            .map(x -> x.getGramInfoValue().getId())
             .orElse(null);
         // Add current value to combo if not already present (handles values not in header range)
         if (

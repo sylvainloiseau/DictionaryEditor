@@ -11,7 +11,7 @@
 package fr.cnrs.lacito.liftgui.ui.controls;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
-import fr.cnrs.lacito.liftapi.model.LiftHeaderRangeElement;
+import fr.cnrs.lacito.liftapi.model.Feature;
 import fr.cnrs.lacito.liftapi.model.LiftNote;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -33,7 +33,7 @@ import javafx.scene.layout.VBox;
  */
 public final class NoteEditor extends VBox {
 
-    private final ComboBox<LiftHeaderRangeElement> typeCombo = new ComboBox<>();
+    private final ComboBox<Feature> typeCombo = new ComboBox<>();
     private final MultiTextEditor textEditor;
     private final ExtensibleWithFieldEditor extensibleEditor;
     private final LiftDictionary dictionary;
@@ -48,7 +48,7 @@ public final class NoteEditor extends VBox {
 
         typeCombo.setEditable(false);
         typeCombo.setPromptText("type");
-        typeCombo.setItems(FXCollections.observableArrayList(dictionary.getHeader().getNoteTypeManager().typesProperty().get()));
+        typeCombo.setItems(FXCollections.observableArrayList(dictionary.getHeader().getNoteTypeManager().featuresProperty().get()));
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(6);

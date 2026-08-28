@@ -11,7 +11,7 @@ package fr.cnrs.lacito.liftgui.ui.controls;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.AbstractIdentifiable;
-import fr.cnrs.lacito.liftapi.model.LiftHeaderRangeElement;
+import fr.cnrs.lacito.liftapi.model.Feature;
 import fr.cnrs.lacito.liftapi.model.LiftRelation;
 
 import javafx.beans.value.ChangeListener;
@@ -32,7 +32,7 @@ import javafx.scene.layout.VBox;
  */
 public final class RelationEditor extends VBox {
 
-    private final ComboBox<LiftHeaderRangeElement> typeCombo = new ComboBox<>();
+    private final ComboBox<Feature> typeCombo = new ComboBox<>();
     private final TextField refIdField = new TextField();
     private final TextField orderField = new TextField();
     private ChangeListener<String> refIdListener;
@@ -88,7 +88,7 @@ public final class RelationEditor extends VBox {
         getChildren().addAll(grid, usagePane, extPane);
     }
 
-    private ChangeListener<LiftHeaderRangeElement> typeListener;
+    private ChangeListener<Feature> typeListener;
 
     /**
      * @param relationTypes allowed types from header range {@code lexical-relation} (non-editable combo only).
@@ -123,7 +123,7 @@ public final class RelationEditor extends VBox {
         // LiftHeaderRangeElement current = rel.getType();
         // //if (!current.isBlank()) items.add(current);
         // typeCombo.setItems(FXCollections.observableArrayList(items));
-        typeCombo.setItems(FXCollections.observableArrayList(dictionary.getHeader().getNoteTypeManager().typesProperty().get()));
+        typeCombo.setItems(FXCollections.observableArrayList(dictionary.getHeader().getNoteTypeManager().featuresProperty().get()));
         typeCombo.getSelectionModel().select(rel.getType());
         typeListener = (obs, o, n) -> {
             rel.setType(n);

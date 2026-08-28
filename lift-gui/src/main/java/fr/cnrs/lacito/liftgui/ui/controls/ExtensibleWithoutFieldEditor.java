@@ -142,7 +142,7 @@ public class ExtensibleWithoutFieldEditor extends VBox {
         Button addAnnotBtn = new Button(I18n.get("btn.addAnnotation"));
         addAnnotBtn.getStyleClass().add("example-add-button");
         addAnnotBtn.setOnAction(e -> {
-            List<String> names = dictionary.getHeader().getAnnotationTypeManager().getRangeElements().values().stream().map(x -> x.getId()).toList();
+            List<String> names = dictionary.getHeader().getAnnotationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
             Optional<String> nameOpt;
             if (names.isEmpty()) {
                 TextInputDialog tid = new TextInputDialog();

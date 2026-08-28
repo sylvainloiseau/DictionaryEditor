@@ -11,7 +11,7 @@ package fr.cnrs.lacito.liftgui.ui.controls;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftEtymology;
-import fr.cnrs.lacito.liftapi.model.LiftHeaderRangeElement;
+import fr.cnrs.lacito.liftapi.model.Feature;
 
 import java.util.Set;
 
@@ -32,7 +32,7 @@ import javafx.scene.layout.VBox;
  */
 public final class EtymologyEditor extends VBox {
 
-    private final ComboBox<LiftHeaderRangeElement> typeCombo = new ComboBox<>();
+    private final ComboBox<Feature> typeCombo = new ComboBox<>();
     private final TextField sourceField = new TextField();
     private final MultiTextEditor formsEditor;
     private final MultiTextEditor glossesEditor;
@@ -53,7 +53,7 @@ public final class EtymologyEditor extends VBox {
 
         typeCombo.setEditable(false);
         typeCombo.setPromptText("type");
-        typeCombo.setItems(FXCollections.observableArrayList(dictionary.getHeader().getEtymologyTypeManager().typesProperty().get()));
+        typeCombo.setItems(FXCollections.observableArrayList(dictionary.getHeader().getEtymologyTypeManager().featuresProperty().get()));
         sourceField.setEditable(false);
         sourceField.setPromptText("source");
 
