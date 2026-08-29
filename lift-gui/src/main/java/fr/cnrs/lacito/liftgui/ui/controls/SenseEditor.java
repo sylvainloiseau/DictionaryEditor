@@ -77,8 +77,8 @@ public final class SenseEditor extends VBox {
                     newVal != null &&
                     !newVal.equals(oldVal)
                 ) {
-                    Feature grammaticalInfoRangeElement = dictionary.getHeader().getGrammaticalInfoManager().getFeature(newVal.trim());
-                    currentSense.setGrammaticalInfo(grammaticalInfoRangeElement);
+                    Feature grammaticalInfoFeature = dictionary.getHeader().getGrammaticalInfoManager().getFeature(newVal.trim());
+                    currentSense.setGrammaticalInfo(grammaticalInfoFeature);
                     if (onGramInfoChanged != null) onGramInfoChanged.run();
                 }
             });
@@ -316,7 +316,7 @@ public final class SenseEditor extends VBox {
         }
 
         // glossEditor.setAvailableLanguages(metaLangs);
-        glossEditor.setMultiText(sense.getGloss());
+        glossEditor.setMultiText(sense.getGlosses());
         if (onAddAnnotation != null) {
             glossEditor.setOnAddAnnotation(
                 onAddAnnotation,

@@ -105,9 +105,9 @@ public final class FieldEditor extends VBox {
                 fieldTypes
             )
         );
-        nameCombo.setValue(f.getType().getName());
+        nameCombo.setValue(f.getSpecification().getName());
         this.knownFieldTypes = new ArrayList<>(fieldTypes);
-        validateFieldType(f.getType().getName());
+        validateFieldType(f.getSpecification().getName());
         //textEditor.setAvailableLanguages(availableLangs);
         textEditor.setMultiText(f.getText());
         extensibleEditor.setModel(f);

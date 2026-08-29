@@ -10,7 +10,7 @@
 package fr.cnrs.lacito.liftgui.ui;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
-import fr.cnrs.lacito.liftapi.LiftVersion;
+import fr.cnrs.lacito.liftapi.xml.LiftVersion;
 import fr.cnrs.lacito.liftapi.builder.DictionaryComponentBuilderFactory;
 import fr.cnrs.lacito.liftapi.builder.EntryBuilder;
 import fr.cnrs.lacito.liftapi.builder.SenseBuilder;
@@ -1023,7 +1023,7 @@ public final class MainController {
             if (e == null) return;
             e.getTraits()
                 .stream()
-                .filter(t -> Keys.MORPH_TYPE.equals(t.getDefinition().getName()))
+                .filter(t -> Keys.MORPH_TYPE.equals(t.getSpecification().getName()))
                 .findFirst()
                 .ifPresentOrElse(
                     t -> t.setValue(ev.getNewValue()),
@@ -1102,7 +1102,7 @@ public final class MainController {
                 .add(
                     col(l, s ->
                         s
-                            .getGloss()
+                            .getGlosses()
                             .getForm(l)
                             .map(Form::toPlainText)
                             .orElse("")
@@ -1184,7 +1184,7 @@ public final class MainController {
                         //     : findParentSense(ex).orElse(null);
                     if (parent == null) return "";
                     // Gloss = forme principale du sens ; sinon première forme disponible
-                    MultiText gloss = parent.getGloss();
+                    MultiText gloss = parent.getGlosses();
                     return gloss
                         .getForm(lang)
                         .map(Form::toPlainText)
@@ -1894,7 +1894,7 @@ public final class MainController {
     ) {
         String sid = s.getId().orElse("?");
         collectMtRows(rows, "définition", sid, s, s.getDefinition(), langs);
-        collectMtRows(rows, "gloss", sid, s, s.getGloss(), langs);
+        collectMtRows(rows, "gloss", sid, s, s.getGlosses(), langs);
         for (LiftExample ex : s.getExamples()) {
             for (MultiText tr : ex.getTranslations().values())
                 collectMtRows(rows, "traduction", sid, ex, tr, langs);
@@ -1966,12 +1966,12 @@ public final class MainController {
         for (LiftTrait t : currentDictionary
             .getLiftDictionaryRegistry()
             .getTraits()) {
-            String key = t.getDefinition().getName() + "|" + t.getValue();
+            String key = t.getSpecification().getName() + "|" + t.getValue();
             counts.compute(key, (k, row) -> {
                 String parentType = describeParentType(t.getParent());
                 if (row == null) return new TraitRow(
                     parentType,
-                    t.getDefinition().getName(),
+                    t.getSpecification().getName(),
                     t.getValue(),
                     1
                 );
@@ -2051,7 +2051,7 @@ public final class MainController {
                     .stream()
                     .filter(
                         x ->
-                            x.nameProperty().equals(a.nameProperty()) &&
+                            x.typeProperty().equals(a.typeProperty()) &&
                             x.valueProperty().equals(a.valueProperty())
                     )
                     .count();
@@ -2072,7 +2072,7 @@ public final class MainController {
                     describeParent(a.getParent())
                 ),
                 makeCol(I18n.get(Keys.COL_NAME), a ->
-                    new SimpleStringProperty(a.getValue().nameProperty().get().getId())
+                    new SimpleStringProperty(a.getValue().typeProperty().get().getId())
                 ),
                 col(I18n.get(Keys.COL_VALUE), LiftAnnotation::getValue),
                 col(I18n.get(Keys.COL_WHO), LiftAnnotation::getWho),
@@ -2114,7 +2114,7 @@ public final class MainController {
                 col(I18n.get(Keys.COL_PARENT_TYPE), f ->
                     describeParentType(f.getParent())
                 ),
-                col(I18n.get(Keys.COL_TYPE), x -> x.getType().getName()),
+                col(I18n.get(Keys.COL_TYPE), x -> x.getSpecification().getName()),
                 col(I18n.get(Keys.COL_TEXT), f ->
                     f
                         .getText()
@@ -2636,7 +2636,7 @@ public final class MainController {
                         VBox box = new VBox(4);
                         for (LiftSense s : senses) {
                             String label = s
-                                .getGloss()
+                                .getGlosses()
                                 .getForms()
                                 .stream()
                                 .findFirst()
@@ -2980,7 +2980,7 @@ public final class MainController {
     private static String senseDisplayText(LiftSense sense) {
         if (sense == null) return "?";
         String gloss = sense
-            .getGloss()
+            .getGlosses()
             .getForms()
             .stream()
             .map(Form::toPlainText)
@@ -3306,7 +3306,7 @@ public final class MainController {
         if (parentSense != null) {
             final LiftSense finalParent = parentSense;
             String senseGloss = finalParent
-                .getGloss()
+                .getGlosses()
                 .getForms()
                 .stream()
                 .findFirst()
@@ -3631,7 +3631,7 @@ public final class MainController {
                     .stream()
                     .anyMatch(
                         t ->
-                            traitName.equals(t.getDefinition().getName()) &&
+                            traitName.equals(t.getSpecification().getName()) &&
                             traitValue.equals(t.getValue())
                     )
             ) matches.add(e);
@@ -3643,7 +3643,7 @@ public final class MainController {
                     .stream()
                     .anyMatch(
                         t ->
-                            traitName.equals(t.getDefinition().getName()) &&
+                            traitName.equals(t.getSpecification().getName()) &&
                             traitValue.equals(t.getValue())
                     )
             ) matches.add(s.getParentEntry());
@@ -3655,7 +3655,7 @@ public final class MainController {
                     .stream()
                     .anyMatch(
                         t ->
-                            traitName.equals(t.getDefinition().getName()) &&
+                            traitName.equals(t.getSpecification().getName()) &&
                             traitValue.equals(t.getValue())
                     )
             ) // findParentSense(ex)
@@ -3671,7 +3671,7 @@ public final class MainController {
                     .stream()
                     .anyMatch(
                         t ->
-                            traitName.equals(t.getDefinition().getName()) &&
+                            traitName.equals(t.getSpecification().getName()) &&
                             traitValue.equals(t.getValue())
                     )
             ) matches.add(v.getParent()); //Optional.ofNullable(v.getParent()).ifPresent(matches::add);
@@ -3687,7 +3687,7 @@ public final class MainController {
                     .stream()
                     .anyMatch(
                         t ->
-                            traitName.equals(t.getDefinition().getName()) &&
+                            traitName.equals(t.getSpecification().getName()) &&
                             traitValue.equals(t.getValue())
                     )
             ) matches.add(et.getParent()); // Optional.ofNullable(et.getParent()).ifPresent(matches::add);
@@ -3829,7 +3829,7 @@ public final class MainController {
             I18n.get("col.parentType"),
             describeParentType(field.getParent())
         );
-        values.put(I18n.get("col.type"), field.getType().getName());
+        values.put(I18n.get("col.type"), field.getSpecification().getName());
         values.put(
             I18n.get("col.text"),
             field
@@ -3850,7 +3850,7 @@ public final class MainController {
             .getLiftDictionaryRegistry()
             .getFields()
             .stream()
-            .filter(f -> fieldType.equals(f.getType().getName()))
+            .filter(f -> fieldType.equals(f.getSpecification().getName()))
             .map(LiftField::getParent)
             .map(parent -> {
                 if (parent instanceof LiftEntry e) return Optional.of(e);
@@ -5322,7 +5322,7 @@ public final class MainController {
         for (LiftField f : currentDictionary
             .getLiftDictionaryRegistry()
             .getFields()) {
-            counts.merge(f.getType().getName(), 1L, Long::sum);
+            counts.merge(f.getSpecification().getName(), 1L, Long::sum);
         }
         TableView<FieldTypeRow> table = new TableView<>();
         TableColumn<FieldTypeRow, String> typeCol = new TableColumn<>(
@@ -5866,7 +5866,7 @@ public final class MainController {
         Button addBtn = new Button(I18n.get("cfg.addElement"));
         addBtn.setOnAction(e -> {
             String newId = newIdField.getText().trim();
-            if (!newId.isEmpty() && !range.hasRangeElements(newId)) {
+            if (!newId.isEmpty() && !range.hasFeature(newId)) {
                 Feature newElem = range.addFeature(
                     newId
                 );
@@ -6584,12 +6584,12 @@ public final class MainController {
         long fieldCount = comps
             .getFields()
             .stream()
-            .filter(f -> fd.getName().equals(f.getType().getName()))
+            .filter(f -> fd.getName().equals(f.getSpecification().getName()))
             .count();
         long traitCount = comps
             .getTraits()
             .stream()
-            .filter(t -> fd.getName().equals(t.getDefinition().getName()))
+            .filter(t -> fd.getName().equals(t.getSpecification().getName()))
             .count();
         return fieldCount + traitCount;
     }
@@ -6624,7 +6624,7 @@ public final class MainController {
             .stream()
             .filter(
                 t ->
-                    rangeId.equals(t.getDefinition().getName()) &&
+                    rangeId.equals(t.getSpecification().getName()) &&
                     elementId.equals(t.getValue())
             )
             .count();
@@ -6636,7 +6636,7 @@ public final class MainController {
             .getLiftDictionaryRegistry()
             .getFields()
             .stream()
-            .filter(f -> fieldName.equals(f.getType().getName()))
+            .filter(f -> fieldName.equals(f.getSpecification().getName()))
             .count();
     }
 
@@ -7023,7 +7023,7 @@ public final class MainController {
             : e
                   .getTraits()
                   .stream()
-                  .filter(t -> name.equals(t.getDefinition().getName()))
+                  .filter(t -> name.equals(t.getSpecification().getName()))
                   .findFirst()
                   .map(LiftTrait::getValue)
                   .orElse("");
@@ -7035,7 +7035,7 @@ public final class MainController {
             : v
                   .getTraits()
                   .stream()
-                  .filter(t -> name.equals(t.getDefinition().getName()))
+                  .filter(t -> name.equals(t.getSpecification().getName()))
                   .findFirst()
                   .map(LiftTrait::getValue)
                   .orElse("");
@@ -7066,7 +7066,7 @@ public final class MainController {
         for (LiftSense s : entry.getSenses()) {
             for (Form f : s.getDefinition().getForms())
                 appendSep(sb, f.toPlainText());
-            for (Form f : s.getGloss().getForms())
+            for (Form f : s.getGlosses().getForms())
                 appendSep(sb, f.toPlainText());
         }
         return sb.toString();

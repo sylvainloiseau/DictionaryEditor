@@ -115,7 +115,7 @@ public final class EtymologyEditor extends VBox {
         // formsEditor.setAvailableLanguages(objLangs);
         formsEditor.setMultiText(ety.getForms());
         //glossesEditor.setAvailableLanguages(metaLangs);
-        glossesEditor.setMultiText(ety.getGloss());
+        glossesEditor.setMultiText(ety.getGlosses());
         extensibleEditor.setModel(ety);
     }
 }

@@ -155,7 +155,7 @@ public final class VariantEditor extends VBox {
         }
         refIdField.setText(v.getRefId().orElse(""));
         String currentVariantType = v.getTraits().stream()
-            .filter(t -> VARIANT_TYPE_TRAIT.equals(t.getDefinition().getName()))
+            .filter(t -> VARIANT_TYPE_TRAIT.equals(t.getSpecification().getName()))
             .map(LiftTrait::getValue)
             .filter(value -> value != null && !value.isBlank())
             .findFirst()
@@ -247,7 +247,7 @@ public final class VariantEditor extends VBox {
     private void updateVariantType(String newValue) {
         if (currentVariant == null) return;
         LiftTrait existingTrait = currentVariant.getTraits().stream()
-            .filter(t -> VARIANT_TYPE_TRAIT.equals(t.getDefinition().getName()))
+            .filter(t -> VARIANT_TYPE_TRAIT.equals(t.getSpecification().getName()))
             .findFirst()
             .orElse(null);
         if (newValue == null || newValue.isBlank()) {

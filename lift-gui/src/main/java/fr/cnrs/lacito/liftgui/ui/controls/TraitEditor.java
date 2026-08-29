@@ -126,7 +126,7 @@ public final class TraitEditor extends VBox {
         this.trait = t;
         Collection<String> availableLangs = dictionary.getObjectLanguageManager().getLanguages();
         Collection<String> traitNames = dictionary.getHeader().getFieldsAndTraitsDefinitionsFor(target).stream().map(Object::toString).toList();
-        LiftFieldAndTraitDefinition definition = t.getDefinition();
+        LiftFieldAndTraitDefinition definition = t.getSpecification();
 
         if (trait == null) {
             nameCombo.getItems().clear();
@@ -142,9 +142,9 @@ public final class TraitEditor extends VBox {
                     : new ArrayList<>(traitNames)
             )
         );
-        nameCombo.setValue(t.getDefinition().getName());
+        nameCombo.setValue(t.getSpecification().getName());
         this.knownTraitNames = new ArrayList<>(traitNames);
-        validateTraitName(t.getDefinition().getName());
+        validateTraitName(t.getSpecification().getName());
         valueBox
             .getChildren()
             .setAll(buildValueWidget(t));
@@ -164,14 +164,14 @@ public final class TraitEditor extends VBox {
         LiftTrait t
     ) {
             Optional<LiftFieldAndTraitDefinitionDataModel> typeOpt =
-                t.getDefinition().getDataModel();
+                t.getSpecification().getDataModel();
             if (typeOpt.isPresent()) {
                 return switch (typeOpt.get()) {
                     case DATETIME -> buildDatePicker(t);
                     case INTEGER -> buildIntegerField(t);
-                    case OPTION, OPTION_COLLECTION, OPTION_SEQUENCE -> {
+                    case FEATURE, FEATURE_SET, FEATURE_LIST -> {
                         Optional<FeatureSet> rangeOpt =
-                            t.getDefinition().getResolvedRange();
+                            t.getSpecification().getResolvedFeatureSet();
                         yield rangeOpt.isPresent()
                             ? buildRangePicker(t, rangeOpt.get(), typeOpt.get())
                             : buildDefaultCombo(t);
@@ -217,8 +217,8 @@ public final class TraitEditor extends VBox {
         LiftFieldAndTraitDefinitionDataModel type
     ) {
         boolean multiSelect =
-            type == LiftFieldAndTraitDefinitionDataModel.OPTION_COLLECTION ||
-            type == LiftFieldAndTraitDefinitionDataModel.OPTION_SEQUENCE;
+            type == LiftFieldAndTraitDefinitionDataModel.FEATURE_SET ||
+            type == LiftFieldAndTraitDefinitionDataModel.FEATURE_LIST;
 
         Label displayLabel = new Label(t.getValue());
         displayLabel.setMaxWidth(Double.MAX_VALUE);
