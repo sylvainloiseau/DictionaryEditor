@@ -618,7 +618,7 @@ public final class MainController {
             LiftHeader header = currentDictionary
                 .getHeader();
             if (header != null) {
-                for (FeatureSet range : header.getRanges()) {
+                for (FeatureSet range : header.getFeatureSets()) {
                     String key = NAV_CFG_RANGE_PREFIX + range.getId();
                     String label = range
                         .getLabel()
@@ -5822,8 +5822,8 @@ public final class MainController {
         //     return;
         // }
 
-        FeatureSet range = header.hasRanges(rangeId)
-            ? header.getRange(rangeId)
+        FeatureSet range = header.hasFeatureSet(rangeId)
+            ? header.getFeatureSet(rangeId)
             : currentDictionary
                   .getComponentBuilder()
                   .range(rangeId)
@@ -6174,7 +6174,7 @@ public final class MainController {
                         .orElse("")
                 )
             );
-        rangeTable.getItems().addAll(header.getRanges());
+        rangeTable.getItems().addAll(header.getFeatureSets());
 
         rangeTable
             .getSelectionModel()
@@ -6217,8 +6217,8 @@ public final class MainController {
         Button addBtn = new Button(I18n.get("cfg.addElement"));
         addBtn.setOnAction(e -> {
             String id = newRangeField.getText().trim();
-            if (!id.isEmpty() && !header.hasRanges(id)) {
-                FeatureSet newRange = header.createRange(id);
+            if (!id.isEmpty() && !header.hasFeatureSet(id)) {
+                FeatureSet newRange = header.addFeatureSet(id);
                 rangeTable.getItems().add(newRange);
                 newRangeField.clear();
             }
@@ -6533,7 +6533,7 @@ public final class MainController {
 
                 g.add(new Label(I18n.get("cfg.optionRange")), 0, 4);
                 ComboBox<FeatureSet> orCb = new ComboBox<>();
-                orCb.setItems(currentDictionary.getHeader().getRanges());
+                orCb.setItems(currentDictionary.getHeader().getFeatureSets());
                 orCb.getSelectionModel().selectedItemProperty().addListener((obs, o, n) ->
                     fd.setResolvedRange(Optional.of(n))
                 );
@@ -6649,7 +6649,7 @@ public final class MainController {
         var comps = currentDictionary.getLiftDictionaryRegistry();
         LiftHeader header = currentDictionary.getHeader();
         if (header != null) {
-            FeatureSet range = header.getRange(rangeId);
+            FeatureSet range = header.getFeatureSet(rangeId);
             Feature element = range.getFeature(oldId);
             range.changeFeatureId(element, newId);
         }
@@ -7246,7 +7246,7 @@ public final class MainController {
             .getHeader();
         if (h != null) {
             return h
-                .getRanges()
+                .getFeatureSets()
                 .stream()
                 .filter(r -> rangeId.equals(r.getId()))
                 .findFirst()
@@ -7765,11 +7765,11 @@ public final class MainController {
             // Trouve ou crée le range
             final String finalRangeId = rangeId;
             FeatureSet range = header
-                .getRanges()
+                .getFeatureSets()
                 .stream()
                 .filter(r -> finalRangeId.equals(r.getId()))
                 .findFirst()
-                .orElseGet(() -> header.createRange(finalRangeId));
+                .orElseGet(() -> header.addFeatureSet(finalRangeId));
 
             // Ajoute les nouveaux éléments manquants
             Set<String> existing = range

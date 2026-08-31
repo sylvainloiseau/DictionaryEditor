@@ -191,7 +191,7 @@ public final class TraitEditor extends VBox {
             );
         } catch (DateTimeParseException ignored) {}
         dp.valueProperty().addListener((obs, o, n) -> {
-            if (n != null) t.valueProperty().set(n.toString());
+            if (n != null) t.setValue(n.toString());
         });
         return dp;
     }
@@ -200,7 +200,7 @@ public final class TraitEditor extends VBox {
         TextField tf = new TextField(t.getValue());
         tf.setMaxWidth(Double.MAX_VALUE);
         tf.textProperty().addListener((obs, o, n) -> {
-            if (n.matches("-?\\d*")) t.valueProperty().set(n);
+            if (n.matches("-?\\d*")) t.setValue(n);
             else tf.setText(o);
         });
         return tf;
@@ -234,7 +234,7 @@ public final class TraitEditor extends VBox {
                 multiSelect
             );
             if (chosen != null) {
-                t.valueProperty().set(chosen);
+                t.setValue(chosen);
                 displayLabel.setText(chosen);
             }
         });
@@ -262,7 +262,8 @@ public final class TraitEditor extends VBox {
         // }
         
         combo.setValue(t.getValue());
-        combo.getEditor().textProperty().bindBidirectional(t.valueProperty());
+        // TODO duplicate with above ?
+        combo.getEditor().textProperty().setValue(t.getValue());
 
         // ✅ Validation de la valeur saisie
         // combo
