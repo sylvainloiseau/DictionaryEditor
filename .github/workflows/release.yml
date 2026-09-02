@@ -56,7 +56,7 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          mvn -B -ntp clean package -pl dictionary-editor-fx -am -Pdist -DskipTests \
+          mvn -B -ntp clean package -pl lift-gui -am -Pdist -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
             -Djpackage.type=DEB -Djpackage.destSuffix=-deb
 
@@ -64,7 +64,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          mvn -B -ntp clean package -pl dictionary-editor-fx -am -Pdist -DskipTests \
+          mvn -B -ntp clean package -pl lift-gui -am -Pdist -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
             -Djpackage.type=MSI -Djpackage.destSuffix=-msi
 
@@ -72,7 +72,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          mvn -B -ntp -pl dictionary-editor-fx -Pdist jpackage:jpackage -DskipTests \
+          mvn -B -ntp -pl lift-gui -Pdist jpackage:jpackage -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
             -Djpackage.type=EXE -Djpackage.destSuffix=-exe
 
@@ -80,7 +80,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          mvn -B -ntp clean package -pl dictionary-editor-fx -am -Pdist -DskipTests \
+          mvn -B -ntp clean package -pl lift-gui -am -Pdist -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
             -Djpackage.type=DMG
 
@@ -90,4 +90,4 @@ jobs:
           fail_on_unmatched_files: false
           generate_release_notes: true
           files: |
-            dictionary-editor-fx/target/jpackage*/**/*
+            lift-gui/target/jpackage*/**/*

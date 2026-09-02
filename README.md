@@ -4,14 +4,18 @@ Application for editing dictionary compatible with the LIFT data format (This fo
 
 ## Installation
 
+Pick an installer for your plateform from the [github release page](https://github.com/sylvainloiseau/DictionaryEditor/releases).
+
 ## Usage
+
+[](Doc/img/entries)
 
 ## Installation from sources
 
 ```bash
 git clone "https://github.com/sylvainloiseau/DictionaryEditor.git"
 cd DictionaryEditor
-mvn install
+mvn install -DskipTests
 ```
 
 Run :
