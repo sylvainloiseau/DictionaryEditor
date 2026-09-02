@@ -1,5 +1,5 @@
-# Installeurs natifs (jlink + jpackage) sur push de tag sémantique (ex. v1.0.0).
-# Chaque OS construit en parallèle et attache ses binaires à la release GitHub du tag.
+# Create native installers (jlink + jpackage) on push of semantic tags (e.g., v1.0.0).
+# Each OS builds in parallel and attaches its binaries to the GitHub release of the tag.
 
 name: Release
 
@@ -48,11 +48,11 @@ jobs:
           curl -fsSL "https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz" | tar xz -C /tmp
           echo "/tmp/apache-maven-3.9.9/bin" >> "$GITHUB_PATH"
 
-      - name: Install outils de paquetage (Linux)
+      - name: Install packaging tools (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y fakeroot rpm
 
-      - name: Image jlink + installeur DEB (Linux)
+      - name: Image jlink + installer debian (deb) (Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -60,7 +60,7 @@ jobs:
             "-Djavafx.platform=${{ matrix.javafx }}" \
             -Djpackage.type=DEB -Djpackage.destSuffix=-deb
 
-      - name: Image jlink + installeur MSI (Windows)
+      - name: Image jlink + installer MSI (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
@@ -68,7 +68,7 @@ jobs:
             "-Djavafx.platform=${{ matrix.javafx }}" \
             -Djpackage.type=MSI -Djpackage.destSuffix=-msi
 
-      - name: Installeur EXE (Windows)
+      - name: Installer EXE (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
@@ -76,7 +76,7 @@ jobs:
             "-Djavafx.platform=${{ matrix.javafx }}" \
             -Djpackage.type=EXE -Djpackage.destSuffix=-exe
 
-      - name: Image jlink + installeur DMG (macOS)
+      - name: Image jlink + installer DMG (macOS)
         if: runner.os == 'macOS'
         shell: bash
         run: |
@@ -84,7 +84,7 @@ jobs:
             "-Djavafx.platform=${{ matrix.javafx }}" \
             -Djpackage.type=DMG
 
-      - name: Publier les artefacts sur la release GitHub
+      - name: Publish artifacts on the GitHub release
         uses: softprops/action-gh-release@v2
         with:
           fail_on_unmatched_files: false
