@@ -121,7 +121,7 @@ mvn clean package -pl lift-gui -am -Pdist -DskipTests \
 
 On Mac M1, try `-Djavafx.platform=mac` if your JDK/OpenJFX provides it. The `.dmg` is generated under `lift-gui/target/jpackage/`. Open the DMG and drag the application into **Applications**, then run it from the Launchpad or the Applications folder.
 
-### Releases GitHub (binaires précompilés)
+### Releases GitHub
 
 A GitHub workflow (`.github/workflows/release.yml`) automatically builds the installers for **Linux**, **Windows** and **macOS** when a **tag** is pushed, for example :
 
