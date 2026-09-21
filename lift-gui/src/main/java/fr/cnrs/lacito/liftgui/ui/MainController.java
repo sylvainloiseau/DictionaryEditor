@@ -1029,7 +1029,6 @@ public final class MainController {
                     t -> t.setValue(ev.getNewValue()),
                     () -> {
                         currentDictionary.getComponentBuilder().trait(e, Keys.MORPH_TYPE, ev.getNewValue()).build();
-                        //LiftXMLFactory factory = getFactory(currentDictionary);
                         //if (factory != null) factory.createTrait(
                         //    Keys.MORPH_TYPE,
                         //    ev.getNewValue(),
@@ -2576,7 +2575,6 @@ public final class MainController {
                 },
                 true
             );
-            // LiftXMLFactory factory = getFactory(currentDictionary);
             addListSection(
                 editorContainer,
                 I18n.get(Keys.EDITOR_TRAITS),
@@ -3330,7 +3328,6 @@ public final class MainController {
         }
 
         ExampleEditor ee = new ExampleEditor(currentDictionary);
-        // LiftXMLFactory factory = getFactory(currentDictionary);
         BiConsumer<String, MultiText> onAddAnnotation =
             // factory != null ?
                 (name, mt) -> currentDictionary.getComponentBuilder().annotation(mt, name).build();
@@ -4133,7 +4130,6 @@ public final class MainController {
     }
 
     private ExtensibleAddActions createExampleAddActions(LiftExample ex) {
-        // LiftXMLFactory f = getFactory(currentDictionary);
         // if (f == null) return null;
         return new ExtensibleAddActions() {
             @Override
@@ -4558,7 +4554,6 @@ public final class MainController {
             // Colle depuis le presse-papiers comme nouvelle entrée
             String text = Clipboard.getSystemClipboard().getString();
             if (text == null || text.isBlank()) return;
-            // LiftXMLFactory factory = getFactory(currentDictionary);
             // if (factory == null) return;
             // // Crée une entrée avec le texte collé comme forme
             // org.xml.sax.helpers.AttributesImpl attrs =
@@ -4982,8 +4977,6 @@ public final class MainController {
 
     private void showAddEtymologyDialog(
         LiftEntry entry
-        // ,
-        // LiftXMLFactory factory
     ) {
         Dialog<Pair<String, String>> dlg = new Dialog<>();
         dlg.setTitle(I18n.get("btn.addEtymology"));
@@ -5814,7 +5807,6 @@ public final class MainController {
             return;
         }
         LiftHeader header = currentDictionary.getHeader();
-        // LiftXMLFactory factory = getFactory(currentDictionary);
         // if (header == null || factory == null) {
         //     tableContainer
         //         .getChildren()
@@ -6211,7 +6203,6 @@ public final class MainController {
                 }
             });
 
-        // LiftXMLFactory factory = getFactory(currentDictionary);
         TextField newRangeField = new TextField();
         newRangeField.setPromptText(I18n.get("cfg.rangeId"));
         Button addBtn = new Button(I18n.get("cfg.addElement"));
@@ -6246,7 +6237,6 @@ public final class MainController {
         }
         LiftHeader header = currentDictionary
             .getHeader();
-        // LiftXMLFactory factory = getFactory(currentDictionary);
         // if (header == null || factory == null) {
         //     tableContainer
         //         .getChildren()
@@ -7734,7 +7724,6 @@ public final class MainController {
         List<ConfigRow> rows
     ) {
         if (currentDictionary == null) return;
-        // LiftXMLFactory factory = getFactory(currentDictionary);
         // if (factory == null) return;
         LiftHeader header = currentDictionary
             .getHeader();
@@ -7869,12 +7858,6 @@ public final class MainController {
         }
     }
 
-    // private static LiftXMLFactoryNew getFactory(LiftDictionary d) {
-    //     return d != null &&
-    //         d.getLiftDictionaryComponents() instanceof LiftXMLFactoryNew lf
-    //         ? lf
-    //         : null;
-    // }
 
     private static void appendSep(StringBuilder sb, String part) {
         if (part != null && !part.isBlank()) {
