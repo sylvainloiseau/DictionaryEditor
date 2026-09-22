@@ -77,8 +77,13 @@ public final class SenseEditor extends VBox {
                     newVal != null &&
                     !newVal.equals(oldVal)
                 ) {
-                    Feature grammaticalInfoFeature = dictionary.getHeader().getGrammaticalInfoManager().getFeature(newVal.trim());
-                    currentSense.setGrammaticalInfo(grammaticalInfoFeature);
+                    // Through the builder, so the GrammaticalInfo is registered in the
+                    // dictionary. LiftSense.setGrammaticalInfo only wires the two
+                    // components together.
+                    dictionary
+                        .getComponentBuilder()
+                        .grammaticalInfo(currentSense, newVal.trim())
+                        .build();
                     if (onGramInfoChanged != null) onGramInfoChanged.run();
                 }
             });
