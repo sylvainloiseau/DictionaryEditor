@@ -10,7 +10,7 @@
 package fr.cnrs.lacito.liftgui.ui;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
-import fr.cnrs.lacito.liftapi.xml.LiftVersion;
+import fr.cnrs.lacito.liftapi.LiftVersion;
 import fr.cnrs.lacito.liftapi.builder.DictionaryComponentBuilderFactory;
 import fr.cnrs.lacito.liftapi.builder.EntryBuilder;
 import fr.cnrs.lacito.liftapi.builder.SenseBuilder;
