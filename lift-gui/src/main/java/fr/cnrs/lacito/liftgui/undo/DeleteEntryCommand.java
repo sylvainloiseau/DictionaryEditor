@@ -30,7 +30,7 @@ public final class DeleteEntryCommand implements UndoableCommand {
     public void undo() {
         LiftDictionary dictionary = dictionarySupplier.get();
         if (dictionary != null) {
-            dictionary.getLiftDictionaryRegistry().addToDictionaryLowLevel(entry, baseEntriesIndex);
+            dictionary.addEntry(entry, baseEntriesIndex);
         }
         if (onUndoRefresh != null) onUndoRefresh.run();
     }
@@ -39,7 +39,7 @@ public final class DeleteEntryCommand implements UndoableCommand {
     public void redo() {
         LiftDictionary dictionary = dictionarySupplier.get();
         if (dictionary != null) {
-            dictionary.getLiftDictionaryRegistry().removeFromDictionary(entry);
+            dictionary.removeEntry(entry);
         }
         if (onRedoRefresh != null) onRedoRefresh.run();
     }

@@ -3036,7 +3036,6 @@ public final class MainController {
                             sense,
                             ((HasSense) sense.getParent()),
                             sense.getParent().getSenses().indexOf(sense),
-                            () -> currentDictionary,
                             refresh,
                             refresh
                         );
@@ -3284,7 +3283,6 @@ public final class MainController {
                             ex,
                             ex.getParent(),
                             ex.getParent().getExamples().indexOf(ex),
-                            () -> currentDictionary,
                             refresh,
                             refresh
                         );
