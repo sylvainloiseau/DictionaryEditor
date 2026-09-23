@@ -30,19 +30,28 @@ public final class DeleteExampleCommand implements UndoableCommand {
 
     @Override
     public void undo() {
-        LiftDictionary dictionary = dictionarySupplier.get();
-        if (dictionary != null) dictionary.getLiftDictionaryRegistry().addToDictionaryLowLevel(example);
+        // Wire first, then register: the registry refuses a component that is not
+        // attached to its parent, since no traversal could reach it afterwards.
         parent.getExamples().add(Math.min(parentIndex, parent.getExamples().size()), example);
         example.setParent(parent);
+        LiftDictionary dictionary = dictionarySupplier.get();
+        if (dictionary != null) {
+            dictionary.getLiftDictionaryRegistry().addToDictionaryLowLevel(example);
+        }
         if (onUndoRefresh != null) onUndoRefresh.run();
     }
 
     @Override
     public void redo() {
+        // removeFromDictionary() unlinks the example from its sense as well as
+        // unregistering it, and leaving the parent reference set afterwards made the
+        // deleted example still claim to be part of the entry.
         LiftDictionary dictionary = dictionarySupplier.get();
-        if (dictionary != null) dictionary.getLiftDictionaryRegistry().removeFromDictionary(example);
-        parent.getExamples().remove(example);
-        example.setParent((LiftSense)parent);
+        if (dictionary != null) {
+            dictionary.getLiftDictionaryRegistry().removeFromDictionary(example);
+        } else {
+            example.detach();
+        }
         if (onRedoRefresh != null) onRedoRefresh.run();
     }
 }

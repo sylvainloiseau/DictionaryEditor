@@ -3035,7 +3035,6 @@ public final class MainController {
                         DeleteSenseCommand cmd = new DeleteSenseCommand(
                             sense,
                             ((HasSense) sense.getParent()),
-                            sense.getParentEntry(),
                             sense.getParent().getSenses().indexOf(sense),
                             () -> currentDictionary,
                             refresh,
