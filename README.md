@@ -21,7 +21,7 @@ mvn install -DskipTests
 Run :
 
 ```bash
-mvn javafx:run -pl lift-gui
+mvn javafx:run
 ```
 
 Tests :
@@ -44,7 +44,7 @@ The packaged standalone app will include a lighweight java runtime.
 On the repository root:
 
 ```bash
-mvn clean package -pl lift-gui -am -Pdist -DskipTests \
+mvn clean package -Pdist -DskipTests \
   -Djavafx.platform=<plateforme> \
   -Djpackage.type=<type>
 ```
@@ -66,45 +66,45 @@ See the next sections for the values for `jpackage.type`.
 
 **[WiX Toolset](https://wixtoolset.org/)** should be installed and in the `PATH`.
 
-Files are in `lift-gui/target/jpackage/` (or `jpackage-msi` / `jpackage-exe` if you use suffixes as in the CI).
+Files are in `target/jpackage/` (or `jpackage-msi` / `jpackage-exe` if you use suffixes as in the CI).
 
 ```bash
-mvn clean package -pl lift-gui -am -Pdist -DskipTests \
+mvn clean package -Pdist -DskipTests \
   -Djavafx.platform=win \
   -Djpackage.type=MSI
 ```
 
-**2/ Without WiX — app image** : the POM activates Windows options (`--win-menu`) incompatible with `app-image`. After a build that produced the jlink runtime (`lift-gui/target/maven-jlink/default/`), run **jpackage** once manually.
+**2/ Without WiX — app image** : the POM activates Windows options (`--win-menu`) incompatible with `app-image`. After a build that produced the jlink runtime (`target/maven-jlink/default/`), run **jpackage** once manually.
 
 ```bash
 "%JAVA_HOME%\bin\jpackage.exe" ^
   --name DictionaryEditor ^
-  --dest lift-gui\target\jpackage-app ^
+  --dest target\jpackage-app ^
   --type app-image ^
   --app-version 1.0.0 ^
-  --runtime-image lift-gui\target\maven-jlink\default ^
+  --runtime-image target\maven-jlink\default ^
   --vendor "CNRS LACITO" ^
   --module fr.cnrs.lacito.liftgui/fr.cnrs.lacito.liftgui.MainApp
 ```
 
-Then run **`lift-gui\target\jpackage-app\DictionaryEditor\DictionaryEditor.exe`**.
+Then run **`target\jpackage-app\DictionaryEditor\DictionaryEditor.exe`**.
 
-If `mvn package … -Pdist` fails only on **jpackage** (WiX missing) but the **`lift-gui/target/maven-jlink/default`** folder has been created, the `jpackage` command above is sufficient to obtain the portable image. Otherwise, install **WiX** and use `-Djpackage.type=MSI` or `EXE`.
+If `mvn package … -Pdist` fails only on **jpackage** (WiX missing) but the **`target/maven-jlink/default`** folder has been created, the `jpackage` command above is sufficient to obtain the portable image. Otherwise, install **WiX** and use `-Djpackage.type=MSI` or `EXE`.
 
 ### Linux
 
 Create deb package (default `jpackage.type` value)
 
 ```bash
-mvn clean package -pl lift-gui -am -Pdist -DskipTests \
+mvn clean package -Pdist -DskipTests \
   -Djavafx.platform=linux \
   -Djpackage.type=DEB
 ```
 
-On Debian/Ubuntu, `fakeroot` tools may be needed; the CI also installs `rpm` for some steps. The `.deb` is generated under `lift-gui/target/jpackage/`. Installation :
+On Debian/Ubuntu, `fakeroot` tools may be needed; the CI also installs `rpm` for some steps. The `.deb` is generated under `target/jpackage/`. Installation :
 
 ```bash
-sudo dpkg -i lift-gui/target/jpackage/*.deb
+sudo dpkg -i target/jpackage/*.deb
 ```
 
 Then run the application from the applications menu or the command installed by the package.
@@ -114,12 +114,12 @@ Then run the application from the applications menu or the command installed by 
 Create a disk imaege (`.dmg`) (select the correct value for `javafx.platform` : `mac-aarch64` or `mac`, see above) :
 
 ```bash
-mvn clean package -pl lift-gui -am -Pdist -DskipTests \
+mvn clean package -Pdist -DskipTests \
   -Djavafx.platform=mac-aarch64 \
   -Djpackage.type=DMG
 ```
 
-On Mac M1, try `-Djavafx.platform=mac` if your JDK/OpenJFX provides it. The `.dmg` is generated under `lift-gui/target/jpackage/`. Open the DMG and drag the application into **Applications**, then run it from the Launchpad or the Applications folder.
+On Mac M1, try `-Djavafx.platform=mac` if your JDK/OpenJFX provides it. The `.dmg` is generated under `target/jpackage/`. Open the DMG and drag the application into **Applications**, then run it from the Launchpad or the Applications folder.
 
 ### Releases GitHub
 

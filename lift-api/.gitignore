@@ -1,9 +1,0 @@
-target
-.classpath
-.project
-.settings
-.vscode
-.cursorrules
-.DS_Store
-**/.DS_Store
-.gitignore~
