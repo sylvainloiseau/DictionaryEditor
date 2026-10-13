@@ -18,6 +18,10 @@ concurrency:
 jobs:
   package:
     name: ${{ matrix.runner }} (${{ matrix.javafx }})
+    env:
+      # Classic PAT with read:packages: the built-in GITHUB_TOKEN cannot read Maven
+      # packages published from another repository (here, lift-api).
+      PACKAGES_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -41,6 +45,12 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+          # In order to install maven module installed on github:
+          # Writes ~/.m2/settings.xml with credentials for the "github" repository
+          # (GitHub Packages), read from the GITHUB_ACTOR / PACKAGES_TOKEN env vars.
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: PACKAGES_TOKEN
 
       - name: Install Maven 3.9.9
         shell: bash

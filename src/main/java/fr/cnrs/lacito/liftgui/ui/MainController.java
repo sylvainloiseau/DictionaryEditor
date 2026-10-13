@@ -1541,7 +1541,7 @@ public final class MainController {
             editorContainer.getChildren().add(backBtn);
         } else if (parent instanceof LiftSense sense) {
             Button backBtn = new Button(
-                I18n.get("sense.backToSense", senseDisplayText(sense))
+                I18n.get("sense.backToSense", LiftEntryEditor.senseDisplayText(sense))
             );
             backBtn.getStyleClass().addAll("example-add-button", "back-btn");
             backBtn.setOnAction(e -> navigateToSenseFromParent(sense));
@@ -2484,22 +2484,6 @@ public final class MainController {
 
     private void populateEntryEditor(LiftEntry entry) {
         try {
-            Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
-            Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
-
-            // Collect known dropdown values filtered by element type (entry)
-            List<String> traitNames = currentDictionary.getHeader().getTraitsDefinitionsFor(LiftFieldAndTraitDefinitionTarget.ENTRY).stream().map(x -> x.getName()).toList();
-            // getKnownTraitNamesFor(
-                // LiftFieldAndTraitDefinitionTarget.ENTRY
-            // );
-            // Map<String, Set<String>> traitValues = getKnownTraitValues();
-            // TODO use the observable typesProperty instead.
-            List<String> annotationNames = currentDictionary.getHeader().getAnnotationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
-            List<String> fieldTypes = currentDictionary.getHeader().getFieldsDefinitionsFor(LiftFieldAndTraitDefinitionTarget.ENTRY).stream().map(x -> x.getName()).toList();
-            // getKnownFieldTypesFor(
-            //     LiftFieldAndTraitDefinitionTarget.ENTRY
-            // );
-
             Form preferred = entry
                 .getForms()
                 .getForms()
@@ -2562,394 +2546,14 @@ public final class MainController {
             });
             editorContainer.getChildren().add(deleteBtn);
 
-            addSectionTitle(editorContainer, "editor.section.lexicalContent");
-            addSection(
-                editorContainer,
-                I18n.get(Keys.EDITOR_FORMS),
-                () -> {
-                    MultiTextEditor m = new MultiTextEditor(currentDictionary);
-                    // m.setAvailableLanguages(objLangs);
-                    m.setMultiText(entry.getForms());
-                    m.setFixedLanguageRows(true);
-                    return m;
-                },
-                true
-            );
-            addListSection(
-                editorContainer,
-                I18n.get(Keys.EDITOR_TRAITS),
-                safeList(entry.getTraits()),
-                t -> {
-                    TraitEditor te = new TraitEditor(currentDictionary);
-                    te.setTrait(
-                        t,
-                        LiftFieldAndTraitDefinitionTarget.ENTRY
-                        // objLangs,
-                        // traitNames,
-                        // traitValues,
-                        // factory != null
-                        //     ? findFieldDef(t.getName())
-                        //     : Optional.empty()
-                    );
-                    return te;
-                },
-                false,
-                () -> {
-                          List<String> names = currentDictionary.getHeader().getTraitsDefinitionsFor(LiftFieldAndTraitDefinitionTarget.ENTRY).stream().map(x -> x.getName()).toList();
-                        //   getKnownTraitNamesFor(
-                        //       LiftFieldAndTraitDefinitionTarget.ENTRY
-                        //   );
-                          ChoiceDialog<String> dlg = new ChoiceDialog<>(
-                              names.isEmpty() ? null : names.get(0),
-                              names
-                          );
-                          dlg.setTitle(I18n.get("btn.addTrait"));
-                          dlg.setHeaderText(I18n.get("col.name"));
-                          dlg.showAndWait().ifPresent(name -> {
-                              LiftTrait b = currentDictionary.getComponentBuilder().trait(entry, name, "").build();
-                            //   factory.createTrait(name, "", entry);
-                              populateEntryEditor(entry);
-                          });
-                      }
-
-            );
-            addListSection(
-                editorContainer,
-                I18n.get(Keys.EDITOR_PRONUNCIATIONS),
-                safeList(entry.getPronunciations()),
-                p -> {
-                    PronunciationEditor pe = new PronunciationEditor(currentDictionary);
-                    pe.setPronunciation(p);
-                    return pe;
-                },
-                false
-            );
-
-            List<LiftSense> senses = safeList(entry.getSenses());
-            if (!senses.isEmpty()) {
-                addSection(
-                    editorContainer,
-                    I18n.get(Keys.EDITOR_SENSES) + " (" + senses.size() + ")",
-                    () -> {
-                        VBox box = new VBox(4);
-                        for (LiftSense s : senses) {
-                            String label = s
-                                .getGlosses()
-                                .getForms()
-                                .stream()
-                                .findFirst()
-                                .map(Form::toPlainText)
-                                .orElse("");
-                            if (label.isEmpty()) label = "?";
-                            Hyperlink link = new Hyperlink(label);
-                            link.setOnAction(e ->
-                                navigateToSenseKeepingEntriesFocus(s)
-                            );
-                            box.getChildren().add(link);
-                        }
-                        return box;
-                    },
-                    true
-                );
-            }
-            addSectionTitle(
-                editorContainer,
-                "editor.section.variantsRelations"
-            );
-            addListSection(
-                editorContainer,
-                I18n.get(Keys.EDITOR_VARIANTS),
-                safeList(entry.getVariants()),
-                v -> {
-                    VariantEditor ve = new VariantEditor(currentDictionary);
-                    ve.setRelationTypes(currentDictionary.getHeader().getRelationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList());
-                    // ve.setRelationTypes(getKnownRelationTypes());
-                    ve.setVariant(
-                        v,
-                        // objLangs,
-                        // metaLangs,
-                        // factory != null ?
-                        createVariantAddActions(v)
-                        //  : null
-                    );
-                    return ve;
-                },
-                false,
-                // factory != null
-                //     ?
-                    () -> {
-                        currentDictionary.getComponentBuilder().variant(entry).build();
-                        //   factory.createVariant(
-                        //       new org.xml.sax.helpers.AttributesImpl(),
-                        //       entry
-                        //   );
-                          populateEntryEditor(entry);
-                      }
-                    // : null
-            );
-            addListSection(
-                editorContainer,
-                I18n.get(Keys.EDITOR_RELATIONS),
-                safeList(entry.getRelations()),
-                r -> {
-                    RelationEditor re = new RelationEditor(currentDictionary);
-                    re.setRelation(r);
-                    return re;
-                },
-                false
-            );
-            addListSection(
-                editorContainer,
-                I18n.get(Keys.EDITOR_ETYMOLOGIES),
-                safeList(entry.getEtymologies()),
-                et -> {
-                    EtymologyEditor ee = new EtymologyEditor(currentDictionary);
-                    ee.setEtymology(et, objLangs, metaLangs);
-                    return ee;
-                },
-                false
-            );
-            addSectionTitle(
-                editorContainer,
-                "editor.section.annotationsFields"
-            );
-            addListSection(
-                editorContainer,
-                I18n.get(Keys.EDITOR_ANNOTATIONS),
-                safeList(entry.getAnnotations()),
-                a -> {
-                    AnnotationEditor ae = new AnnotationEditor(currentDictionary);
-                    ae.setAnnotation(a, metaLangs, annotationNames);
-                    return ae;
-                },
-                false,
-                () -> {
-                          List<String> names = currentDictionary.getHeader().getAnnotationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
-                          Optional<String> nameOpt;
-                          if (names.isEmpty()) {
-                              TextInputDialog tid = new TextInputDialog();
-                              tid.setTitle(I18n.get("btn.addAnnotation"));
-                              tid.setHeaderText(I18n.get("col.name"));
-                              nameOpt = tid.showAndWait();
-                          } else {
-                              ChoiceDialog<String> dlg = new ChoiceDialog<>(
-                                  names.get(0),
-                                  names
-                              );
-                              dlg.setTitle(I18n.get("btn.addAnnotation"));
-                              dlg.setHeaderText(I18n.get("col.name"));
-                              nameOpt = dlg.showAndWait();
-                          }
-                          nameOpt
-                              .filter(n -> n != null && !n.isBlank())
-                              .ifPresent(name -> {
-                                  currentDictionary.getComponentBuilder().annotation(entry, name.trim());
-                                //   factory.createAnnotation(, entry);
-                                  populateEntryEditor(entry);
-                              });
-                      }
-            );
-            addListSection(
-                editorContainer,
-                I18n.get(Keys.EDITOR_NOTES),
-                new ArrayList<>(safeMapValues(entry.getNotes())),
-                n -> {
-                    NoteEditor ne = new NoteEditor(currentDictionary);
-                    ne.setNote(n);
-                    return ne;
-                },
-                false,
-                // factory != null
-                    // ?
-                    () -> {
-                          List<String> types = currentDictionary.getHeader().getNoteTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
-                          ChoiceDialog<String> dlg = new ChoiceDialog<>(
-                              types.isEmpty() ? null : types.get(0),
-                              types
-                          );
-                          dlg.setTitle(I18n.get("btn.addNote"));
-                          dlg.setHeaderText(I18n.get("col.type"));
-                          dlg.showAndWait().ifPresent(type -> {
-                            currentDictionary.getComponentBuilder().note(entry, type).build();
-                            //   factory.createNote(type, entry);
-                              populateEntryEditor(entry);
-                          });
-                      }
-                    // : null
-            );
-            addListSection(
-                editorContainer,
-                I18n.get(Keys.EDITOR_FIELDS),
-                safeList(entry.getFields().values().stream().toList()),
-                f -> {
-                    FieldEditor fe = new FieldEditor(currentDictionary);
-                    fe.setField(f);
-                    return fe;
-                },
-                false,
-                // factory != null
-                //     ?
-                    () -> {
-                          ChoiceDialog<String> dlg = new ChoiceDialog<>(
-                              fieldTypes.isEmpty() ? null : fieldTypes.get(0),
-                              fieldTypes
-                          );
-                          dlg.setTitle(I18n.get(Keys.BTN_ADD_FIELD));
-                          dlg.setHeaderText(I18n.get(Keys.COL_TYPE));
-                          dlg.showAndWait().ifPresent(type -> {
-                            //   factory.createField(type, entry);
-                              currentDictionary.getComponentBuilder().field(entry, type).build();
-                              populateEntryEditor(entry);
-                          });
-                      }
-                    // : null
-            );
-            addSectionTitle(editorContainer, "editor.section.metadata");
-            addSection(
-                editorContainer,
-                I18n.get("editor.identity"),
-                () -> {
-                    GridPane g = new GridPane();
-                    g.setHgap(8);
-                    g.setVgap(6);
-                    addReadOnlyRow(
-                        g,
-                        0,
-                        I18n.get("field.id"),
-                        entry.getId().orElse("")
-                    );
-
-                    g.add(new Label(I18n.get("field.dateCreated")), 0, 1);
-                    DatePicker dpCreated = buildDatePicker(
-                        entry.getDateCreated().orElse("")
-                    );
-                    styleReadOnlyDatePicker(dpCreated);
-                    GridPane.setHgrow(dpCreated, Priority.ALWAYS);
-                    g.add(dpCreated, 1, 1);
-
-                    g.add(new Label(I18n.get("field.dateModified")), 0, 2);
-                    DatePicker dpModified = buildDatePicker(
-                        entry.getDateModified().orElse("")
-                    );
-                    styleReadOnlyDatePicker(dpModified);
-                    GridPane.setHgrow(dpModified, Priority.ALWAYS);
-                    g.add(dpModified, 1, 2);
-                    return g;
-                },
-                true
-            );
-
-
-            FlowPane addButtons = new FlowPane(8, 6);
-            addButtons.setPadding(new Insets(8, 0, 0, 0));
-
-            Button addSenseBtn = new Button(I18n.get("btn.addSense"));
-            addSenseBtn.setOnAction(e -> {
-                // org.xml.sax.helpers.AttributesImpl senseAttrs =
-                //     new org.xml.sax.helpers.AttributesImpl();
-                // senseAttrs.addAttribute(
-                //     "",
-                //     "id",
-                //     "id",
-                //     "CDATA",
-                //     UUID.randomUUID().toString()
-                // );
-                // LiftSense newSense = factory.createSense(senseAttrs, entry);
-                SenseBuilder sb = currentDictionary.getComponentBuilder().sense(entry);
-                List<String> giValues = getKnownGramInfoValues();
-                if (!giValues.isEmpty()) {
-                    ChoiceDialog<String> dlg = new ChoiceDialog<>(
-                        giValues.get(0),
-                        giValues
-                    );
-                    dlg.setTitle(I18n.get("btn.addSense"));
-                    dlg.setHeaderText(I18n.get("col.gramInfo"));
-                    dlg.showAndWait()
-                        .filter(v -> v != null && !v.isBlank())
-                        .ifPresent(v ->
-                            sb.withPartOfSpeech(v.trim())
-                        );
-                }
-                sb.build();
-                populateEntryEditor(entry);
+            LiftEntryEditor entryEditor = new LiftEntryEditor(currentDictionary);
+            entryEditor.setOnOpenSense(this::navigateToSenseKeepingEntriesFocus);
+            entryEditor.setOnChanged(() -> {
+                entryTable.refresh();
+                senseTable.refresh();
             });
-
-            Button addVariantBtn = new Button(I18n.get("btn.addVariant"));
-            addVariantBtn.setOnAction(e -> {
-                // factory.createVariant(
-                //     new org.xml.sax.helpers.AttributesImpl(),
-                //     entry
-                // );
-                currentDictionary.getComponentBuilder().variant(entry).build();
-                populateEntryEditor(entry);
-            });
-
-            Button addPronBtn = new Button(
-                I18n.get("btn.addPronunciation")
-            );
-            addPronBtn.setOnAction(e -> {
-                // factory.createPronunciation(entry);
-                currentDictionary.getComponentBuilder().pronunciation(entry).build();
-                populateEntryEditor(entry);
-            });
-
-            Button addRelationBtn = new Button(I18n.get("btn.addRelation"));
-            List<String> relationTypes = currentDictionary.getHeader().getRelationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
-            boolean noRelationTypes = relationTypes.isEmpty();
-            addRelationBtn.setDisable(noRelationTypes);
-            addRelationBtn.setOnAction(e -> {
-                List<String> types = relationTypes;
-                if (types.isEmpty()) return;
-                ChoiceDialog<String> dlg = new ChoiceDialog<>(
-                    types.get(0),
-                    types
-                );
-                dlg.setTitle(I18n.get("btn.addRelation"));
-                dlg.setHeaderText(I18n.get("col.type"));
-                Optional<String> typeOpt = dlg.showAndWait();
-                typeOpt
-                    .filter(t -> t != null && !t.isBlank())
-                    .ifPresent(type -> {
-                        // org.xml.sax.helpers.AttributesImpl attrs =
-                        //     new org.xml.sax.helpers.AttributesImpl();
-                        // attrs.addAttribute(
-                        //     "",
-                        //     "type",
-                        //     "type",
-                        //     "CDATA",
-                        //     type.trim()
-                        // );
-                        // factory.createRelation(attrs, entry);
-                        currentDictionary.getComponentBuilder().entry().build();
-                        populateEntryEditor(entry);
-                    });
-            });
-            StackPane addRelationWrapper = new StackPane(addRelationBtn);
-            if (noRelationTypes) {
-                Tooltip.install(
-                    addRelationWrapper,
-                    new Tooltip(I18n.get("tooltip.noRelationTypes"))
-                );
-            }
-
-            Button addEtymologyBtn = new Button(
-                I18n.get("btn.addEtymology")
-            );
-            addEtymologyBtn.setOnAction(e -> {
-                showAddEtymologyDialog(entry);
-            });
-
-            addButtons
-                .getChildren()
-                .addAll(
-                    addSenseBtn,
-                    addVariantBtn,
-                    addPronBtn,
-                    addRelationWrapper,
-                    addEtymologyBtn
-                );
-            editorContainer.getChildren().add(addButtons);
-
+            entryEditor.setEntry(entry);
+            editorContainer.getChildren().add(entryEditor);
         } catch (Exception ex) {
             LinkedHashMap<String, String> values = new LinkedHashMap<>();
             values.put(
@@ -2966,40 +2570,10 @@ public final class MainController {
         }
     }
 
-    private static <T> List<T> safeList(List<T> list) {
-        return list == null ? List.of() : list;
-    }
-
-    private static <K, V> Collection<V> safeMapValues(Map<K, V> map) {
-        return map == null ? List.of() : map.values();
-    }
-
-    /** Texte d'affichage d'un sens : glose(s) séparées par " / ", sinon définition, sinon "?". */
-    private static String senseDisplayText(LiftSense sense) {
-        if (sense == null) return "?";
-        String gloss = sense
-            .getGlosses()
-            .getForms()
-            .stream()
-            .map(Form::toPlainText)
-            .filter(t -> t != null && !t.isBlank())
-            .collect(Collectors.joining(" / "));
-        if (!gloss.isEmpty()) return gloss;
-        String def = sense
-            .getDefinition()
-            .getForms()
-            .stream()
-            .map(Form::toPlainText)
-            .filter(t -> t != null && !t.isBlank())
-            .collect(Collectors.joining(" / "));
-        if (!def.isEmpty()) return def;
-        return "?";
-    }
-
     private void populateSenseEditor(LiftSense sense) {
         Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
         Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
-        editEntryTitle.setText(senseDisplayText(sense));
+        editEntryTitle.setText(LiftEntryEditor.senseDisplayText(sense));
         editEntryCode.setText(
             sense.getGrammaticalInfo().map(x -> x.getGramInfoValue().getId()).orElse("")
         );
@@ -3015,7 +2589,7 @@ public final class MainController {
             confirm.setTitle(I18n.get(Keys.CONFIRM_DELETE_TITLE));
             confirm.setHeaderText(null);
             confirm.setContentText(
-                I18n.get(Keys.CONFIRM_DELETE_SENSE, senseDisplayText(sense))
+                I18n.get(Keys.CONFIRM_DELETE_SENSE, LiftEntryEditor.senseDisplayText(sense))
             );
             confirm
                 .showAndWait()
@@ -4016,7 +3590,7 @@ public final class MainController {
                 editorContainer.getChildren().add(backBtn);
             } else if (parent instanceof LiftSense sense) {
                 Button backBtn = new Button(
-                    I18n.get("sense.backToSense", senseDisplayText(sense))
+                    I18n.get("sense.backToSense", LiftEntryEditor.senseDisplayText(sense))
                 );
                 backBtn
                     .getStyleClass()
@@ -4970,69 +4544,6 @@ public final class MainController {
             }
         }
         return false;
-    }
-
-    private void showAddEtymologyDialog(
-        LiftEntry entry
-    ) {
-        Dialog<Pair<String, String>> dlg = new Dialog<>();
-        dlg.setTitle(I18n.get("btn.addEtymology"));
-        dlg.getDialogPane()
-            .getButtonTypes()
-            .addAll(ButtonType.OK, ButtonType.CANCEL);
-        TextField sourceField = new TextField();
-        sourceField.setPromptText(I18n.get("col.source"));
-        List<String> knownTypes = currentDictionary.getHeader().getEtymologyTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
-            // currentDictionary == null
-            //     ? List.of()
-            //     : currentDictionary
-            //           .getLiftDictionaryRegistry()
-            //           .getEntries()
-            //           .stream()
-            //           .flatMap(e -> e.getEtymologies().stream())
-            //           .map(LiftEtymology::getType)
-            //           // TODO null or empty policy
-            //           .filter(x -> x != null && !x.getId().isEmpty())
-            //           .map(LiftHeaderRangeElement::getId)
-            //           .distinct()
-            //           .sorted()
-            //           .toList();
-        ComboBox<String> typeCombo = new ComboBox<>(
-            FXCollections.observableArrayList(knownTypes)
-        );
-        typeCombo.setEditable(true);
-        typeCombo.setPromptText(I18n.get("col.type"));
-        GridPane grid = new GridPane();
-        grid.setHgap(8);
-        grid.setVgap(8);
-        grid.add(new Label(I18n.get("col.type")), 0, 0);
-        grid.add(typeCombo, 1, 0);
-        grid.add(new Label(I18n.get("col.source")), 0, 1);
-        grid.add(sourceField, 1, 1);
-        dlg.getDialogPane().setContent(grid);
-        dlg.setResultConverter(btn ->
-            btn == ButtonType.OK
-                ? new Pair<>(
-                      typeCombo.getValue() != null
-                          ? typeCombo.getValue()
-                          : typeCombo.getEditor().getText(),
-                      sourceField.getText()
-                  )
-                : null
-        );
-        dlg.showAndWait().ifPresent(pair -> {
-            String type = pair.getKey() != null ? pair.getKey().trim() : "";
-            String source =
-                pair.getValue() != null ? pair.getValue().trim() : "";
-            if (type.isEmpty()) type = "unknown";
-            // org.xml.sax.helpers.AttributesImpl attrs =
-            //     new org.xml.sax.helpers.AttributesImpl();
-            // attrs.addAttribute("", "type", "type", "CDATA", type);
-            // attrs.addAttribute("", "source", "source", "CDATA", source);
-            // factory.createEtymology(attrs, entry);
-            currentDictionary.getComponentBuilder().etymology(entry, type, source);
-            populateEntryEditor(entry);
-        });
     }
 
     /* ─── Outil menu ─── */
@@ -6974,13 +6485,6 @@ public final class MainController {
         tf.getStyleClass().add("read-only-meta-field");
     }
 
-    private static void styleReadOnlyDatePicker(DatePicker dp) {
-        dp.setEditable(false);
-        dp.setDisable(true);
-        dp.setFocusTraversable(false);
-        dp.getStyleClass().add("read-only-meta-picker");
-    }
-
     private void updateCountLabel(int shown, int total) {
         if (tableCountLabel == null) return;
         if (shown == total) {
@@ -6988,20 +6492,6 @@ public final class MainController {
             return;
         }
         tableCountLabel.setText(I18n.get("table.count.filtered", shown, total));
-    }
-
-    private static DatePicker buildDatePicker(String isoDate) {
-        DatePicker dp = new DatePicker();
-        dp.setEditable(true);
-        dp.setPromptText("yyyy-MM-dd");
-        if (isoDate != null && !isoDate.isBlank()) {
-            try {
-                String datePart =
-                    isoDate.length() > 10 ? isoDate.substring(0, 10) : isoDate;
-                dp.setValue(LocalDate.parse(datePart));
-            } catch (DateTimeParseException ignored) {}
-        }
-        return dp;
     }
 
     private static String getTraitValue(LiftEntry e, String name) {
