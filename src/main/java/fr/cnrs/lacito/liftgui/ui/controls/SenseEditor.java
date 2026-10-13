@@ -12,6 +12,7 @@ package fr.cnrs.lacito.liftgui.ui.controls;
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.*;
 import fr.cnrs.lacito.liftgui.ui.I18n;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -28,14 +29,16 @@ import javafx.scene.layout.VBox;
 /**
  * Editor for a single {@link LiftSense}.
  *
- * Displays: id, grammaticalInfo (ComboBox, non-editable), definition MultiText, gloss MultiText,
- * examples (ExampleEditor each), relations (RelationEditor each),
- * sub-senses (recursive SenseEditor each),
+ * Displays: grammatical info (ComboBox, values from the header; the empty choice removes it),
+ * definition MultiText, gloss MultiText, examples (ExampleEditor each), relations (RelationEditor each),
+ * reversals, sub-senses (recursive SenseEditor each),
  * + NotableEditor for inherited properties (notes, fields, traits, annotations, dates).
+ * When the sense has add actions, its examples, relations, reversals and sub-senses can be deleted.
  */
 public final class SenseEditor extends VBox {
 
-    private final TextField idField = new TextField();
+    private static final String NO_GRAM_INFO = "";
+
     /** Non-editable ComboBox for grammatical info — values come from header range grammatical-info */
     private final ComboBox<String> grammaticalInfoCombo = new ComboBox<>();
     private final GridPane identityBlock = new GridPane();
@@ -47,12 +50,10 @@ public final class SenseEditor extends VBox {
     private final VBox subSensesBox = new VBox(6);
     private final TitledPane subSensesPane;
     private final NotableEditor notableEditor;
-    /** Types from header range {@code lexical-relation} for {@link RelationEditor}. */
-    private List<String> relationTypes = List.of();
     /** Currently displayed sense — used by the save listener. */
     private LiftSense currentSense = null;
     private Runnable onGramInfoChanged = null;
-    private LiftDictionary dictionary;
+    private final LiftDictionary dictionary;
 
     public SenseEditor(LiftDictionary dictionary) {
         super(6);
@@ -66,17 +67,15 @@ public final class SenseEditor extends VBox {
         );
 
         grammaticalInfoCombo.setEditable(false);
-        grammaticalInfoCombo.setPromptText("info grammaticale");
+        grammaticalInfoCombo.setPromptText(I18n.get("col.gramInfo"));
         grammaticalInfoCombo.setMaxWidth(Double.MAX_VALUE);
-
         grammaticalInfoCombo
             .valueProperty()
             .addListener((obs, oldVal, newVal) -> {
-                if (
-                    currentSense != null &&
-                    newVal != null &&
-                    !newVal.equals(oldVal)
-                ) {
+                if (currentSense == null || newVal == null || newVal.equals(oldVal)) return;
+                if (newVal.isBlank()) {
+                    currentSense.deleteGrammaticalInfo();
+                } else {
                     // Through the builder, so the GrammaticalInfo is registered in the
                     // dictionary. LiftSense.setGrammaticalInfo only wires the two
                     // components together.
@@ -84,102 +83,50 @@ public final class SenseEditor extends VBox {
                         .getComponentBuilder()
                         .grammaticalInfo(currentSense, newVal.trim())
                         .build();
-                    if (onGramInfoChanged != null) onGramInfoChanged.run();
                 }
+                if (onGramInfoChanged != null) onGramInfoChanged.run();
             });
-
-        Label gramTitle = new Label(I18n.get("editor.section.gramInfo"));
-        gramTitle.getStyleClass().add("editor-section-title");
 
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(6);
-        grid.add(new Label("Gram. Info"), 0, 0);
+        grid.add(new Label(I18n.get("col.gramInfo")), 0, 0);
         grid.add(grammaticalInfoCombo, 1, 0);
         GridPane.setHgrow(grammaticalInfoCombo, Priority.ALWAYS);
-
-        Label semanticTitle = new Label(
-            I18n.get("editor.section.semanticContent")
-        );
-        semanticTitle.getStyleClass().add("editor-section-title");
 
         definitionEditor.setFixedLanguageRows(true);
         glossEditor.setFixedLanguageRows(true);
 
-        TitledPane defPane = new TitledPane(
-            "Définition (MultiText)",
-            definitionEditor
-        );
-        defPane.setExpanded(true);
-        defPane.setAnimated(false);
-
-        TitledPane glossPane = new TitledPane("Gloss (MultiText)", glossEditor);
-        glossPane.setExpanded(true);
-        glossPane.setAnimated(false);
-
-        Label examplesTitle = new Label(
-            I18n.get("editor.section.examplesRelations")
-        );
-        examplesTitle.getStyleClass().add("editor-section-title");
-
-        TitledPane exPane = new TitledPane("Exemples", examplesBox);
-        exPane.setExpanded(true);
-        exPane.setAnimated(false);
-
-        TitledPane relPane = new TitledPane("Relations", relationsBox);
-        relPane.setExpanded(false);
-        relPane.setAnimated(false);
-
-        TitledPane revPane = new TitledPane("Reversals", reversalsBox);
-        revPane.setExpanded(false);
-        revPane.setAnimated(false);
-
-        subSensesPane = new TitledPane("Sous-sens", subSensesBox);
-        subSensesPane.setExpanded(false);
-        subSensesPane.setAnimated(false);
-
-        Label metadataTitle = new Label(I18n.get("editor.section.metadata"));
-        metadataTitle.getStyleClass().add("editor-section-title");
-
-        TitledPane extPane = new TitledPane(
-            "Propriétés héritées (notes, champs, traits, annotations, dates)",
-            notableEditor
-        );
-        extPane.setExpanded(false);
-        extPane.setAnimated(false);
+        TitledPane defPane = titledPane(I18n.get("col.definition"), definitionEditor, true);
+        TitledPane glossPane = titledPane(I18n.get("col.gloss"), glossEditor, true);
+        TitledPane exPane = titledPane(I18n.get("editor.examples"), examplesBox, true);
+        TitledPane relPane = titledPane(I18n.get("editor.relations"), relationsBox, false);
+        TitledPane revPane = titledPane(I18n.get("editor.reversals"), reversalsBox, false);
+        subSensesPane = titledPane(I18n.get("editor.subSenses"), subSensesBox, false);
+        TitledPane extPane = titledPane(I18n.get("editor.properties.inherited"), notableEditor, false);
 
         identityBlock.setHgap(8);
         identityBlock.setVgap(6);
         identityBlock.setStyle(
             "-fx-background-color: #e8e8e8; -fx-padding: 8; -fx-background-radius: 4;"
         );
-        TitledPane identityPane = new TitledPane(
-            I18n.get("editor.identity"),
-            identityBlock
-        );
-        identityPane.setExpanded(true);
-        identityPane.setAnimated(false);
+        TitledPane identityPane = titledPane(I18n.get("editor.identity"), identityBlock, true);
 
         getChildren().addAll(
-            gramTitle,
+            sectionTitle("editor.section.gramInfo"),
             grid,
-            semanticTitle,
+            sectionTitle("editor.section.semanticContent"),
             defPane,
             glossPane,
-            examplesTitle,
+            sectionTitle("editor.section.examplesRelations"),
             exPane,
             relPane,
             revPane,
             subSensesPane,
-            metadataTitle,
+            sectionTitle("editor.section.metadata"),
             extPane,
             identityPane
         );
-    }
-
-    public void setRelationTypes(List<String> relationTypes) {
-        this.relationTypes =
-            relationTypes == null ? List.of() : List.copyOf(relationTypes);
     }
 
     public void setOnGramInfoChanged(Runnable callback) {
@@ -188,23 +135,17 @@ public final class SenseEditor extends VBox {
 
     /**
      * Set the allowed grammatical info values from the header range "grammatical-info".
-     * Call this before setSense() so the ComboBox is populated.
+     * Call this before setSense() so the ComboBox is populated. An empty choice is added to
+     * remove the grammatical info.
      */
     public void setGrammaticalInfoValues(List<String> values) {
-        grammaticalInfoCombo
-            .getItems()
-            .setAll(values == null ? List.of() : values);
+        List<String> items = new ArrayList<>();
+        items.add(NO_GRAM_INFO);
+        if (values != null) items.addAll(values);
+        grammaticalInfoCombo.getItems().setAll(items);
     }
 
-    /**
-     * Populate with proper separation of meta-languages vs object-languages.
-     * @param sense       the sense to display
-     * @param metaLangs   meta-languages for definition, gloss, relations, notes, annotations, reversal
-     * @param objLangs    object-languages for examples
-     */
-    public void setSense(
-        LiftSense sense
-    ) {
+    public void setSense(LiftSense sense) {
         setSense(sense, null, List.of());
     }
 
@@ -213,39 +154,24 @@ public final class SenseEditor extends VBox {
      */
     public void setSense(
         LiftSense sense,
-        BiConsumer<
-            String,
-            fr.cnrs.lacito.liftapi.model.MultiText
-        > onAddAnnotation,
+        BiConsumer<String, MultiText> onAddAnnotation,
         Collection<String> knownAnnotationNames
     ) {
-        setSense(
-            sense,
-            onAddAnnotation,
-            knownAnnotationNames,
-            s -> null,
-            ex -> null
-        );
+        setSense(sense, onAddAnnotation, knownAnnotationNames, s -> null, ex -> null);
     }
 
     /**
      * Same with optional add actions for trait/annotation/field/note in NotableEditor.
+     * When the factory gives add actions for this sense, its examples, relations, reversals
+     * and sub-senses can be deleted.
      */
     public void setSense(
         LiftSense sense,
-        BiConsumer<
-            String,
-            fr.cnrs.lacito.liftapi.model.MultiText
-        > onAddAnnotation,
+        BiConsumer<String, MultiText> onAddAnnotation,
         Collection<String> knownAnnotationNames,
         Function<LiftSense, ExtensibleAddActions> addActionsFactory,
-        java.util.function.Function<
-            fr.cnrs.lacito.liftapi.model.LiftExample,
-            ExtensibleAddActions
-        > exampleAddActionsFactory
+        Function<LiftExample, ExtensibleAddActions> exampleAddActionsFactory
     ) {
-        Collection<String> metaLangs = dictionary.getMetaLanguageManager().getLanguages();
-        Collection<String> objLangs = dictionary.getObjectLanguageManager().getLanguages();
         ExtensibleAddActions addActions =
             addActionsFactory != null ? addActionsFactory.apply(sense) : null;
         examplesBox.getChildren().clear();
@@ -265,116 +191,103 @@ public final class SenseEditor extends VBox {
             return;
         }
 
-        // Set currentSense BEFORE setting combo value to avoid spurious save on load
+        // Clear currentSense BEFORE setting combo value to avoid spurious save on load
         currentSense = null;
         String gramVal = sense
             .getGrammaticalInfo()
             .map(x -> x.getGramInfoValue().getId())
-            .orElse(null);
+            .orElse(NO_GRAM_INFO);
         // Add current value to combo if not already present (handles values not in header range)
-        if (
-            gramVal != null &&
-            !gramVal.isBlank() &&
-            !grammaticalInfoCombo.getItems().contains(gramVal)
-        ) {
-            grammaticalInfoCombo.getItems().add(0, gramVal);
+        if (!grammaticalInfoCombo.getItems().contains(gramVal)) {
+            grammaticalInfoCombo.getItems().add(gramVal);
         }
         grammaticalInfoCombo.setValue(gramVal);
         currentSense = sense; // re-enable listener after loading
 
         // Identity block: ID, dates (read-only, grey)
         identityBlock.getChildren().clear();
-        idField.setText(sense.getId().orElse(""));
-        idField.setEditable(false);
-        idField.setStyle("-fx-text-fill: #666; -fx-background-color: #f0f0f0;");
-        identityBlock.add(new Label(I18n.get("field.id")), 0, 0);
-        identityBlock.add(idField, 1, 0);
-        identityBlock.add(new Label(I18n.get("field.dateCreated")), 0, 1);
-        TextField dateCreatedField = new TextField(
-            sense.getDateCreated().orElse("")
-        );
-        dateCreatedField.setEditable(false);
-        dateCreatedField.setStyle(
-            "-fx-text-fill: #666; -fx-background-color: #f0f0f0;"
-        );
-        identityBlock.add(dateCreatedField, 1, 1);
-        identityBlock.add(new Label(I18n.get("field.dateModified")), 0, 2);
-        TextField dateModifiedField = new TextField(
-            sense.getDateModified().orElse("")
-        );
-        dateModifiedField.setEditable(false);
-        dateModifiedField.setStyle(
-            "-fx-text-fill: #666; -fx-background-color: #f0f0f0;"
-        );
-        identityBlock.add(dateModifiedField, 1, 2);
-        GridPane.setHgrow(idField, Priority.ALWAYS);
-        GridPane.setHgrow(dateCreatedField, Priority.ALWAYS);
-        GridPane.setHgrow(dateModifiedField, Priority.ALWAYS);
+        addIdentityRow(0, I18n.get("field.id"), sense.getId().orElse(""));
+        addIdentityRow(1, I18n.get("field.dateCreated"), sense.getDateCreated().orElse(""));
+        addIdentityRow(2, I18n.get("field.dateModified"), sense.getDateModified().orElse(""));
 
-        // definitionEditor.setAvailableLanguages(metaLangs);
         definitionEditor.setMultiText(sense.getDefinition());
-        if (onAddAnnotation != null) {
-            definitionEditor.setOnAddAnnotation(
-                onAddAnnotation,
-                knownAnnotationNames
-            );
-        }
-
-        // glossEditor.setAvailableLanguages(metaLangs);
         glossEditor.setMultiText(sense.getGlosses());
         if (onAddAnnotation != null) {
-            glossEditor.setOnAddAnnotation(
-                onAddAnnotation,
-                knownAnnotationNames
-            );
+            definitionEditor.setOnAddAnnotation(onAddAnnotation, knownAnnotationNames);
+            glossEditor.setOnAddAnnotation(onAddAnnotation, knownAnnotationNames);
         }
 
-        // Examples — object-languages for example text, meta-languages for translations
-        for (LiftExample ex : sense.getExamples()) {
+        Runnable refresh = addActions == null ? null : addActions::refresh;
+
+        List<LiftExample> examples = sense.getExamples();
+        for (int i = 0; i < examples.size(); i++) {
+            LiftExample ex = examples.get(i);
+            int index = i;
             ExampleEditor ee = new ExampleEditor(dictionary);
             ExtensibleAddActions exAddActions =
-                exampleAddActionsFactory != null
-                    ? exampleAddActionsFactory.apply(ex)
-                    : null;
-            ee.setExample(
-                ex,
-                onAddAnnotation,
-                exAddActions
-            );
-            examplesBox.getChildren().add(ee);
+                exampleAddActionsFactory != null ? exampleAddActionsFactory.apply(ex) : null;
+            ee.setExample(ex, onAddAnnotation, exAddActions);
+            Runnable onDelete = refresh == null ? null : () -> ComponentDeletion.delete(
+                () -> sense.deleteExample(ex),
+                () -> sense.addExample(Math.min(index, sense.getExamples().size()), ex),
+                refresh);
+            examplesBox.getChildren().add(EditorSupport.withDeleteButton(ee, onDelete));
         }
 
-        // Relations — meta-languages for usage
         for (LiftRelation rel : sense.getRelations()) {
             RelationEditor re = new RelationEditor(dictionary);
             re.setRelation(rel);
-            relationsBox.getChildren().add(re);
+            Runnable onDelete = refresh == null ? null : () -> ComponentDeletion.delete(
+                () -> sense.deleteRelation(rel), () -> sense.addRelation(rel), refresh);
+            relationsBox.getChildren().add(EditorSupport.withDeleteButton(re, onDelete));
         }
 
-        // Reversals — meta-languages
         for (LiftReversal rev : sense.getReversals()) {
             ReversalEditor rve = new ReversalEditor(dictionary);
-            rve.setReversal(rev, metaLangs);
-            reversalsBox.getChildren().add(rve);
+            rve.setReversal(rev);
+            Runnable onDelete = refresh == null ? null : () -> ComponentDeletion.delete(
+                () -> sense.deleteReversal(rev), () -> sense.addReversal(rev), refresh);
+            reversalsBox.getChildren().add(EditorSupport.withDeleteButton(rve, onDelete));
         }
 
-        // Sub-senses (recursive)
-        for (LiftSense sub : sense.getSenses()) {
+        List<LiftSense> subSenses = sense.getSenses();
+        for (int i = 0; i < subSenses.size(); i++) {
+            LiftSense sub = subSenses.get(i);
+            int index = i;
             SenseEditor se = new SenseEditor(dictionary);
             se.setGrammaticalInfoValues(
-                new java.util.ArrayList<>(grammaticalInfoCombo.getItems())
+                grammaticalInfoCombo.getItems().stream().filter(v -> !v.isBlank()).toList()
             );
-            se.setSense(
-                sub,
-                onAddAnnotation,
-                knownAnnotationNames,
-                addActionsFactory,
-                exampleAddActionsFactory
-            );
-            subSensesBox.getChildren().add(se);
+            se.setOnGramInfoChanged(onGramInfoChanged);
+            se.setSense(sub, onAddAnnotation, knownAnnotationNames, addActionsFactory, exampleAddActionsFactory);
+            Runnable onDelete = refresh == null ? null : () -> ComponentDeletion.delete(
+                () -> sense.deleteSense(sub),
+                () -> sense.addSense(Math.min(index, sense.getSenses().size()), sub),
+                refresh);
+            subSensesBox.getChildren().add(EditorSupport.withDeleteButton(se, onDelete));
         }
-        subSensesPane.setExpanded(!sense.getSenses().isEmpty());
+        subSensesPane.setExpanded(!subSenses.isEmpty());
 
         notableEditor.setModel(sense, addActions);
+    }
+
+    private void addIdentityRow(int row, String label, String value) {
+        TextField tf = EditorSupport.readOnlyField(value);
+        GridPane.setHgrow(tf, Priority.ALWAYS);
+        identityBlock.add(new Label(label), 0, row);
+        identityBlock.add(tf, 1, row);
+    }
+
+    private static Label sectionTitle(String i18nKey) {
+        Label lbl = new Label(I18n.get(i18nKey));
+        lbl.getStyleClass().add("editor-section-title");
+        return lbl;
+    }
+
+    private static TitledPane titledPane(String title, javafx.scene.Node content, boolean expanded) {
+        TitledPane tp = new TitledPane(title, content);
+        tp.setExpanded(expanded);
+        tp.setAnimated(false);
+        return tp;
     }
 }

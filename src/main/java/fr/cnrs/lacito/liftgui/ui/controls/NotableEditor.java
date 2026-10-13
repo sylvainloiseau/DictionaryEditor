@@ -1,6 +1,5 @@
-
 /**
- 
+
 * @author Inès GBADAMASSI
 * @author Maryse GOEH-AKUE
 * @author Ermeline BRESSON
@@ -37,7 +36,7 @@ public class NotableEditor extends ExtensibleWithFieldEditor {
         super(dictionary);
         this.dictionary = dictionary;
 
-        TitledPane notesPane = new TitledPane("Notes", notesBox);
+        TitledPane notesPane = new TitledPane(I18n.get("editor.notes"), notesBox);
         notesPane.setExpanded(false);
         notesPane.setAnimated(false);
 
@@ -55,11 +54,10 @@ public class NotableEditor extends ExtensibleWithFieldEditor {
         if (model == null) return;
 
         if (addActions != null) {
-            FlowPane noteAddRow = new FlowPane(6, 4);
             Button addNoteBtn = new Button(I18n.get("btn.addNote"));
             addNoteBtn.getStyleClass().add("example-add-button");
             addNoteBtn.setOnAction(e -> {
-                List<String> types = dictionary.getHeader().getNoteTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
+                List<String> types = EditorSupport.sortedFeatureIds(dictionary.getHeader().getNoteTypeManager());
                 ChoiceDialog<String> dlg = new ChoiceDialog<>(types.isEmpty() ? null : types.get(0), types);
                 dlg.setTitle(I18n.get("btn.addNote"));
                 dlg.setHeaderText(I18n.get("col.type"));
@@ -68,14 +66,15 @@ public class NotableEditor extends ExtensibleWithFieldEditor {
                     addActions.refresh();
                 });
             });
-            noteAddRow.getChildren().add(addNoteBtn);
-            notesBox.getChildren().add(noteAddRow);
+            notesBox.getChildren().add(new FlowPane(6, 4, addNoteBtn));
         }
 
         for (LiftNote note : model.getNotes().values()) {
             NoteEditor ne = new NoteEditor(dictionary);
             ne.setNote(note);
-            notesBox.getChildren().add(ne);
+            Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.deleteChecked(
+                () -> model.deleteNote(note), () -> model.addNote(note), addActions::refresh);
+            notesBox.getChildren().add(EditorSupport.withDeleteButton(ne, onDelete));
         }
     }
 }

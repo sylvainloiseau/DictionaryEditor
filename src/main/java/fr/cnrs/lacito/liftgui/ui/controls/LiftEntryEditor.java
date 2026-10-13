@@ -6,10 +6,8 @@ import fr.cnrs.lacito.liftapi.model.*;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
 import java.util.List;
-import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
@@ -73,6 +71,7 @@ public final class LiftEntryEditor extends VBox {
 
         Label lexicalTitle = sectionTitle("editor.section.lexicalContent");
 
+        formsEditor.useObjectLanguages();
         formsEditor.setFixedLanguageRows(true);
         TitledPane formsPane = titledPane(I18n.get(Keys.EDITOR_FORMS), formsEditor, true);
         pronunciationsPane = titledPane(I18n.get(Keys.EDITOR_PRONUNCIATIONS), pronunciationsBox, false);
@@ -85,7 +84,7 @@ public final class LiftEntryEditor extends VBox {
 
         Label metadataTitle = sectionTitle("editor.section.metadata");
         TitledPane extPane = titledPane(
-            "Propriétés héritées (notes, champs, traits, annotations, dates)",
+            I18n.get("editor.properties.inherited"),
             notableEditor,
             false
         );
@@ -145,8 +144,6 @@ public final class LiftEntryEditor extends VBox {
             return;
         }
 
-        Set<String> objLangs = dictionary.getObjectLanguageManager().getLanguages();
-        Set<String> metaLangs = dictionary.getMetaLanguageManager().getLanguages();
         List<String> relationTypes = relationTypes();
 
         formsEditor.setMultiText(entry.getForms());
@@ -154,31 +151,34 @@ public final class LiftEntryEditor extends VBox {
         for (LiftPronunciation p : entry.getPronunciations()) {
             PronunciationEditor pe = new PronunciationEditor(dictionary);
             pe.setPronunciation(p);
-            pronunciationsBox.getChildren().add(pe);
+            pronunciationsBox.getChildren().add(EditorSupport.withDeleteButton(pe, () -> ComponentDeletion.delete(
+                () -> entry.deletePronunciation(p), () -> entry.addPronunciation(p), this::refresh)));
         }
 
         List<LiftSense> senses = entry.getSenses();
         for (int i = 0; i < senses.size(); i++) {
-            sensesBox.getChildren().add(buildSensePane(senses.get(i), i + 1, relationTypes));
+            sensesBox.getChildren().add(buildSensePane(entry, senses.get(i), i));
         }
 
         for (LiftVariant v : entry.getVariants()) {
             VariantEditor ve = new VariantEditor(dictionary);
-            ve.setRelationTypes(relationTypes);
             ve.setVariant(v, variantAddActions(v));
-            variantsBox.getChildren().add(ve);
+            variantsBox.getChildren().add(EditorSupport.withDeleteButton(ve, () -> ComponentDeletion.delete(
+                () -> entry.deleteVariant(v), () -> entry.addVariant(v), this::refresh)));
         }
 
         for (LiftRelation r : entry.getRelations()) {
             RelationEditor re = new RelationEditor(dictionary);
             re.setRelation(r);
-            relationsBox.getChildren().add(re);
+            relationsBox.getChildren().add(EditorSupport.withDeleteButton(re, () -> ComponentDeletion.delete(
+                () -> entry.deleteRelation(r), () -> entry.addRelation(r), this::refresh)));
         }
 
         for (LiftEtymology et : entry.getEtymologies()) {
             EtymologyEditor ee = new EtymologyEditor(dictionary);
-            ee.setEtymology(et, objLangs, metaLangs);
-            etymologiesBox.getChildren().add(ee);
+            ee.setEtymology(et);
+            etymologiesBox.getChildren().add(EditorSupport.withDeleteButton(ee, () -> ComponentDeletion.delete(
+                () -> entry.deleteEtymology(et), () -> entry.addEtymology(et), this::refresh)));
         }
 
         updateCounts(
@@ -201,7 +201,7 @@ public final class LiftEntryEditor extends VBox {
 
     /* ─── Senses ─── */
 
-    private TitledPane buildSensePane(LiftSense sense, int index, List<String> relationTypes) {
+    private TitledPane buildSensePane(LiftEntry entry, LiftSense sense, int index) {
         VBox box = new VBox(4);
         if (onOpenSense != null) {
             Hyperlink link = new Hyperlink(I18n.get("sense.openInSensesView"));
@@ -209,8 +209,7 @@ public final class LiftEntryEditor extends VBox {
             box.getChildren().add(link);
         }
         SenseEditor se = new SenseEditor(dictionary);
-        se.setRelationTypes(relationTypes);
-        se.setGrammaticalInfoValues(headerRangeValues("grammatical-info"));
+        se.setGrammaticalInfoValues(gramInfoValues());
         se.setOnGramInfoChanged(this::fireChanged);
         BiConsumer<String, MultiText> onAddAnnotation =
             (name, mt) -> dictionary.getComponentBuilder().annotation(mt, name).build();
@@ -221,27 +220,21 @@ public final class LiftEntryEditor extends VBox {
             this::extensibleAddActions,
             this::extensibleAddActions
         );
-        box.getChildren().add(se);
-        return titledPane("#" + index + "  " + senseDisplayText(sense), box, index == 1);
+        box.getChildren().add(EditorSupport.withDeleteButton(se, () -> ComponentDeletion.delete(
+            () -> entry.deleteSense(sense),
+            () -> entry.addSense(Math.min(index, entry.getSenses().size()), sense),
+            this::refresh)));
+        return titledPane("#" + (index + 1) + "  " + senseDisplayText(sense), box, index == 0);
     }
 
     /** Display text of a sense: gloss(es) joined by " / ", else definition, else "?". */
     public static String senseDisplayText(LiftSense sense) {
         if (sense == null) return "?";
-        String gloss = plainText(sense.getGlosses());
+        String gloss = EditorSupport.plainText(sense.getGlosses());
         if (!gloss.isEmpty()) return gloss;
-        String def = plainText(sense.getDefinition());
+        String def = EditorSupport.plainText(sense.getDefinition());
         if (!def.isEmpty()) return def;
         return "?";
-    }
-
-    private static String plainText(MultiText mt) {
-        return mt
-            .getForms()
-            .stream()
-            .map(Form::toPlainText)
-            .filter(t -> t != null && !t.isBlank())
-            .collect(Collectors.joining(" / "));
     }
 
     /* ─── Add buttons ─── */
@@ -250,7 +243,7 @@ public final class LiftEntryEditor extends VBox {
         Button addSenseBtn = new Button(I18n.get("btn.addSense"));
         addSenseBtn.setOnAction(e -> {
             SenseBuilder sb = dictionary.getComponentBuilder().sense(entry);
-            List<String> giValues = headerRangeValues("grammatical-info");
+            List<String> giValues = gramInfoValues();
             if (!giValues.isEmpty()) {
                 ChoiceDialog<String> dlg = new ChoiceDialog<>(giValues.get(0), giValues);
                 dlg.setTitle(I18n.get("btn.addSense"));
@@ -313,7 +306,7 @@ public final class LiftEntryEditor extends VBox {
         dlg.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         TextField sourceField = new TextField();
         sourceField.setPromptText(I18n.get("col.source"));
-        List<String> knownTypes = dictionary.getHeader().getEtymologyTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
+        List<String> knownTypes = EditorSupport.sortedFeatureIds(dictionary.getHeader().getEtymologyTypeManager());
         ComboBox<String> typeCombo = new ComboBox<>(FXCollections.observableArrayList(knownTypes));
         typeCombo.setEditable(true);
         typeCombo.setPromptText(I18n.get("col.type"));
@@ -421,23 +414,15 @@ public final class LiftEntryEditor extends VBox {
     /* ─── Header values ─── */
 
     private List<String> relationTypes() {
-        return dictionary.getHeader().getRelationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
+        return EditorSupport.sortedFeatureIds(dictionary.getHeader().getRelationTypeManager());
     }
 
     private List<String> annotationNames() {
-        return dictionary.getHeader().getAnnotationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
+        return EditorSupport.sortedFeatureIds(dictionary.getHeader().getAnnotationTypeManager());
     }
 
-    private List<String> headerRangeValues(String rangeId) {
-        LiftHeader h = dictionary.getHeader();
-        if (h == null) return List.of();
-        return h
-            .getFeatureSets()
-            .stream()
-            .filter(r -> rangeId.equals(r.getId()))
-            .findFirst()
-            .map(r -> r.getFeatures().values().stream().map(Feature::getId).sorted().toList())
-            .orElse(List.of());
+    private List<String> gramInfoValues() {
+        return EditorSupport.sortedFeatureIds(dictionary.getHeader().getGrammaticalInfoManager());
     }
 
     /* ─── Layout helpers ─── */
@@ -451,9 +436,7 @@ public final class LiftEntryEditor extends VBox {
     }
 
     private void addReadOnlyRow(int row, String label, String value) {
-        TextField tf = new TextField(value);
-        tf.setEditable(false);
-        tf.setStyle("-fx-text-fill: #666; -fx-background-color: #f0f0f0;");
+        TextField tf = EditorSupport.readOnlyField(value);
         GridPane.setHgrow(tf, Priority.ALWAYS);
         identityBlock.add(new Label(label), 0, row);
         identityBlock.add(tf, 1, row);

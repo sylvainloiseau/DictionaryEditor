@@ -10,8 +10,8 @@
 package fr.cnrs.lacito.liftgui.ui;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
+import fr.cnrs.lacito.liftapi.LiftDictionaryLanguagesManager;
 import fr.cnrs.lacito.liftapi.LiftVersion;
-import fr.cnrs.lacito.liftapi.builder.DictionaryComponentBuilderFactory;
 import fr.cnrs.lacito.liftapi.builder.EntryBuilder;
 import fr.cnrs.lacito.liftapi.builder.SenseBuilder;
 import fr.cnrs.lacito.liftapi.model.*;
@@ -20,8 +20,6 @@ import fr.cnrs.lacito.liftgui.ui.controls.*;
 import fr.cnrs.lacito.liftgui.undo.*;
 import java.io.*;
 import java.nio.file.Files;
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -33,7 +31,6 @@ import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.beans.property.SimpleStringProperty;
-import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -49,8 +46,6 @@ import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
-import javafx.util.Callback;
-import javafx.util.Pair;
 
 /**
  * Main controller.
@@ -116,20 +111,7 @@ public final class MainController {
                 f.getName() + "  (" + f.getParent() + ")"
             );
             item.setOnAction(e -> {
-                try {
-                    setDictionary(dictionaryService.loadFromFile(f));
-                    switchView(NAV_ENTRIES);
-                } catch (Exception ex) {
-                    LOGGER.log(
-                        Level.SEVERE,
-                        "Ouverture du fichier LIFT (fichier récent)",
-                        ex
-                    );
-                    showError(
-                        I18n.get(Keys.ERROR_OPEN),
-                        I18n.formatErrorMessage("error.open.detail", ex)
-                    );
-                }
+                if (confirmDiscardChanges()) openDictionaryFile(f);
             });
             item.setDisable(!f.exists());
             recentMenu.getItems().add(item);
@@ -216,12 +198,6 @@ public final class MainController {
 
     @FXML
     private Button addButton;
-
-    @FXML
-    private HBox modifyButtonRow;
-
-    @FXML
-    private Button modifyButton;
 
     @FXML
     private Button undoButton;
@@ -389,43 +365,216 @@ public final class MainController {
         searchField
             .textProperty()
             .addListener((obs, o, n) -> applyCurrentFilter());
-        //  setDictionary(loadDemoDictionary());
-        // Recharge le dernier fichier ouvert, sinon charge le démo
-        List<String> recents = loadRecentFiles();
-        if (!recents.isEmpty()) {
-            File lastFile = new File(recents.get(0));
-            if (lastFile.exists()) {
-                try {
-                    setDictionary(
-                        LiftDictionary.loadDictionaryFromFile(lastFile)
-                    );
-                } catch (Exception e) {
-                    setDictionary(loadDemoDictionary());
-                }
-            } else {
-                setDictionary(loadDemoDictionary());
-            }
-        } else {
-            setDictionary(loadDemoDictionary());
-        }
+        ComponentDeletion.setUndoSink(cmd -> {
+            undoManager.execute(cmd);
+            markDirty();
+        });
+        installDirtyTracking();
+        loadInitialDictionary();
         ensureRightPanelVisible();
         setupMenuHover();
         switchView(NAV_ENTRIES);
         refreshRecentMenu();
         setupUndoRedo();
+        setupWindow();
+    }
+
+    /**
+     * Picks the dictionary to show at startup: the one handed over by a scene reload
+     * (language change), else the last file opened, else — only if no file was ever
+     * opened — the demo dictionary.
+     */
+    private void loadInitialDictionary() {
+        if (handoff != null) {
+            Handoff h = handoff;
+            handoff = null;
+            setDictionary(h.dictionary());
+            currentFile = h.file();
+            demo = h.demo();
+            dirty = h.dirty();
+            return;
+        }
+        List<String> recents = loadRecentFiles();
+        if (recents.isEmpty()) {
+            setDictionary(loadDemoDictionary());
+            demo = currentDictionary != null;
+            return;
+        }
+        File lastFile = new File(recents.get(0));
+        try {
+            setDictionary(dictionaryService.loadFromFile(lastFile));
+            currentFile = lastFile;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Ouverture du dernier fichier LIFT", e);
+            setDictionary(null);
+            Platform.runLater(() -> showError(
+                I18n.get(Keys.ERROR_OPEN),
+                I18n.formatErrorMessage("error.open.detail", e)
+            ));
+        }
+    }
+
+    /* ─── Current file, unsaved changes, window title ─── */
+
+    /** State handed over to the controller of a reloaded scene (language change). */
+    private record Handoff(LiftDictionary dictionary, File file, boolean demo, boolean dirty) {}
+
+    private static Handoff handoff;
+
+    /** The file the dictionary was loaded from or last saved to; null for a new or demo dictionary. */
+    private File currentFile;
+    /** True while the bundled demo dictionary is shown. */
+    private boolean demo;
+    /** True when the dictionary has changes that are not saved. */
+    private boolean dirty;
+    /** The entry owning the object shown in the editor panel; its modification date is updated on edit. */
+    private LiftEntry editedEntry;
+
+    private void markDirty() {
+        if (currentDictionary == null) return;
+        if (!dirty) {
+            dirty = true;
+            updateWindowTitle();
+        }
+    }
+
+    /** The entry an object belongs to (itself for an entry), or null (e.g. header objects). */
+    private static LiftEntry owningEntry(Object o) {
+        Object n = o;
+        while (n instanceof AbstractLiftRoot r) {
+            if (r instanceof LiftEntry e) return e;
+            n = r.getParentNode();
+        }
+        return null;
+    }
+
+    private void updateWindowTitle() {
+        if (menuBar == null || menuBar.getScene() == null) return;
+        if (!(menuBar.getScene().getWindow() instanceof javafx.stage.Stage stage)) return;
+        String name;
+        if (currentDictionary == null) name = null;
+        else if (demo) name = I18n.get("title.demo");
+        else if (currentFile == null) name = I18n.get("title.untitled");
+        else name = currentFile.getName();
+        stage.setTitle(
+            I18n.get("app.title") +
+            (name == null ? "" : " — " + name) +
+            (dirty ? " *" : "")
+        );
+    }
+
+    /**
+     * Marks the dictionary as modified when the user types or acts in the editor panel or
+     * in a table view. Navigation controls (hyperlinks, nodes with the {@code no-dirty} style
+     * class, such as filters and "back" buttons) are ignored. The modification date of the
+     * entry being edited is updated at the same time.
+     */
+    private void installDirtyTracking() {
+        javafx.event.EventHandler<javafx.event.Event> onEdit = e -> {
+            if (!isEditEvent(e)) return;
+            markDirty();
+            if (editedEntry != null) {
+                editedEntry.setDateModified(
+                    java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS).toString()
+                );
+            }
+        };
+        for (javafx.scene.layout.Pane container : List.<javafx.scene.layout.Pane>of(editorContainer, tableContainer)) {
+            container.addEventFilter(javafx.scene.input.KeyEvent.KEY_TYPED, onEdit::handle);
+            container.addEventFilter(javafx.event.ActionEvent.ACTION, onEdit::handle);
+        }
+    }
+
+    private static boolean isEditEvent(javafx.event.Event e) {
+        if (!(e.getTarget() instanceof javafx.scene.Node node)) return false;
+        if (e instanceof javafx.scene.input.KeyEvent ke) {
+            if (!(node instanceof javafx.scene.control.TextInputControl tic) || !tic.isEditable()) return false;
+            String c = ke.getCharacter();
+            // Tab, Enter and Escape move around; they do not change the text.
+            if (c.isEmpty() || ke.isShortcutDown() || "\t\r\n\u001b".contains(c)) return false;
+        } else if (!(node instanceof ButtonBase) && !node.isFocused()) {
+            // Combo boxes and date pickers also fire actions when their value is set by code
+            // (e.g. while an editor is filled); only the control the user operates has the focus.
+            return false;
+        }
+        if (node instanceof Hyperlink) return false;
+        for (javafx.scene.Node n = node; n != null; n = n.getParent()) {
+            if (n.getStyleClass().contains("no-dirty")) return false;
+        }
+        return true;
+    }
+
+    /** Asks what to do with unsaved changes. Returns true when the caller may go on. */
+    private boolean confirmDiscardChanges() {
+        if (!dirty) return true;
+        ButtonType save = new ButtonType(I18n.get("btn.save"), ButtonBar.ButtonData.YES);
+        ButtonType discard = new ButtonType(I18n.get("btn.discard"), ButtonBar.ButtonData.NO);
+        Alert a = new Alert(Alert.AlertType.CONFIRMATION, I18n.get("confirm.unsavedChanges"), save, discard, ButtonType.CANCEL);
+        a.setTitle(I18n.get("confirm.unsavedChangesTitle"));
+        a.setHeaderText(null);
+        Optional<ButtonType> r = a.showAndWait();
+        if (r.isEmpty() || r.get() == ButtonType.CANCEL) return false;
+        if (r.get() == save) {
+            onSave();
+            return !dirty;
+        }
+        return true;
+    }
+
+    private void setupWindow() {
+        if (menuBar == null) return;
+        menuBar.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene == null) return;
+            applyFontSize(Integer.parseInt(PREFS.get("ui.fontSize", "13")));
+            applyTheme(PREFS.get("ui.theme", "light"));
+            newScene.windowProperty().addListener((o2, oldW, newW) -> {
+                if (newW == null) return;
+                newW.setOnCloseRequest(ev -> {
+                    if (!confirmDiscardChanges()) ev.consume();
+                });
+                updateWindowTitle();
+            });
+            if (newScene.getWindow() != null) {
+                newScene.getWindow().setOnCloseRequest(ev -> {
+                    if (!confirmDiscardChanges()) ev.consume();
+                });
+                updateWindowTitle();
+            }
+        });
+    }
+
+    /** Opens a LIFT file. The caller has already asked what to do with unsaved changes. */
+    private void openDictionaryFile(File f) {
+        try {
+            setDictionary(dictionaryService.loadFromFile(f));
+            currentFile = f;
+            demo = false;
+            dirty = false;
+            updateWindowTitle();
+            switchView(NAV_ENTRIES);
+            saveRecentFile(f);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Ouverture du fichier LIFT", e);
+            showError(
+                I18n.get(Keys.ERROR_OPEN),
+                I18n.formatErrorMessage("error.open.detail", e)
+            );
+        }
     }
 
     private void setupUndoRedo() {
         if (undoButton != null) {
             undoButton.setGraphic(Icons.undoIcon());
             undoButton.setTooltip(
-                new Tooltip(I18n.get(Keys.MENU_EDIT_UNDO) + " (Ctrl+Z)")
+                new Tooltip(I18n.get(Keys.MENU_EDIT_UNDO) + " (" +
+                    new KeyCodeCombination(KeyCode.Z, KeyCombination.SHORTCUT_DOWN).getDisplayText() + ")")
             );
         }
         if (redoButton != null) {
             redoButton.setGraphic(Icons.redoIcon());
             redoButton.setTooltip(
-                new Tooltip(I18n.get(Keys.MENU_EDIT_REDO) + " (Ctrl+Y)")
+                new Tooltip(I18n.get(Keys.MENU_EDIT_REDO) + " (" +
+                    new KeyCodeCombination(KeyCode.Y, KeyCombination.SHORTCUT_DOWN).getDisplayText() + ")")
             );
         }
         if (undoButton != null) undoButton
@@ -454,13 +603,13 @@ public final class MainController {
         scene
             .getAccelerators()
             .put(
-                new KeyCodeCombination(KeyCode.Z, KeyCombination.CONTROL_DOWN),
+                new KeyCodeCombination(KeyCode.Z, KeyCombination.SHORTCUT_DOWN),
                 this::onUndo
             );
         scene
             .getAccelerators()
             .put(
-                new KeyCodeCombination(KeyCode.Y, KeyCombination.CONTROL_DOWN),
+                new KeyCodeCombination(KeyCode.Y, KeyCombination.SHORTCUT_DOWN),
                 this::onRedo
             );
     }
@@ -657,6 +806,8 @@ public final class MainController {
             keepSenseSubsetOnNextSenseView = false;
         }
         currentView = viewName;
+        editedEntry = null;
+        detachSearchListener();
         ensureRightPanelVisible();
         String title = viewName.startsWith(NAV_CFG_RANGE_PREFIX)
             ? viewName.substring(NAV_CFG_RANGE_PREFIX.length())
@@ -743,14 +894,40 @@ public final class MainController {
         selectNavItem(viewName);
     }
 
+    /**
+     * Runs a deletion and records it for undo. lift-api refuses to delete an object that
+     * other objects refer to: the user is told, and nothing is recorded.
+     */
+    private void executeDeletion(fr.cnrs.lacito.liftgui.undo.UndoableCommand cmd) {
+        try {
+            cmd.redo();
+        } catch (IllegalStateException e) {
+            showError(I18n.get("btn.delete"), I18n.get("error.deleteReferenced", e.getMessage()));
+            return;
+        }
+        undoManager.execute(cmd);
+        markDirty();
+    }
+
+    /** Rebuilds the current view in place (e.g. after an undo), keeping its subset of objects. */
+    private void refreshCurrentView() {
+        keepEntrySubsetOnNextEntryView = true;
+        keepSenseSubsetOnNextSenseView = true;
+        switchView(currentView);
+    }
+
     @FXML
     private void onUndo() {
+        if (!undoManager.canUndo()) return;
         undoManager.undo();
+        markDirty();
     }
 
     @FXML
     private void onRedo() {
+        if (!undoManager.canRedo()) return;
         undoManager.redo();
+        markDirty();
     }
 
     private boolean splitConstraintInstalled = false;
@@ -833,6 +1010,7 @@ public final class MainController {
             entryTable.getSelectionModel().clearSelection();
         });
         HBox header = new HBox();
+        header.getStyleClass().add("no-dirty");
         header.setPadding(new Insets(0, 6, 4, 6));
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -866,6 +1044,7 @@ public final class MainController {
     private GridPane buildEntryFilterRow() {
         entryColumnFilters.clear();
         GridPane row = new GridPane();
+        row.getStyleClass().add("no-dirty");
         row.setHgap(0);
         row.setPadding(new Insets(2, 0, 2, 0));
         row.setStyle("-fx-background-color: #eef2f3;");
@@ -963,11 +1142,14 @@ public final class MainController {
         if (currentDictionary == null) return;
 
         // ── Colonnes Formes par langue ──
-        var formLangs = currentDictionary
-            .getLiftDictionaryRegistry()
-            .getEntries()
-            .stream()
-            .flatMap(e -> e.getForms().getLangs().stream())
+        var formLangs = java.util.stream.Stream.concat(
+                currentDictionary.getObjectLanguageManager().getLanguages().stream(),
+                currentDictionary
+                    .getLiftDictionaryRegistry()
+                    .getEntries()
+                    .stream()
+                    .flatMap(e -> e.getForms().getLangs().stream())
+            )
             .filter(s -> s != null && !s.isBlank())
             .distinct()
             .sorted()
@@ -989,15 +1171,8 @@ public final class MainController {
             c.setOnEditCommit(ev -> {
                 LiftEntry e = ev.getRowValue();
                 if (e == null) return;
-                e.getForms()
-                    .getForms()
-                    .stream()
-                    .filter(f -> lang.equals(f.getLang()))
-                    .findFirst()
-                    .ifPresentOrElse(
-                        f -> f.changeText(ev.getNewValue()), // ← changeText au lieu de setText
-                        () -> e.getForms().add(new Form(lang, ev.getNewValue()))
-                    );
+                // An empty text removes the form, as in the editors.
+                e.getForms().formTextProperty(lang).set(ev.getNewValue() == null ? "" : ev.getNewValue());
             });
             formGroup.getColumns().add(c);
         }
@@ -1021,21 +1196,18 @@ public final class MainController {
         morphCol.setOnEditCommit(ev -> {
             LiftEntry e = ev.getRowValue();
             if (e == null) return;
-            e.getTraits()
+            String value = ev.getNewValue() == null ? "" : ev.getNewValue().trim();
+            Optional<LiftTrait> existing = e.getTraits()
                 .stream()
                 .filter(t -> Keys.MORPH_TYPE.equals(t.getSpecification().getName()))
-                .findFirst()
-                .ifPresentOrElse(
-                    t -> t.setValue(ev.getNewValue()),
-                    () -> {
-                        currentDictionary.getComponentBuilder().trait(e, Keys.MORPH_TYPE, ev.getNewValue()).build();
-                        //if (factory != null) factory.createTrait(
-                        //    Keys.MORPH_TYPE,
-                        //    ev.getNewValue(),
-                        //    e
-                        //);
-                    }
-                );
+                .findFirst();
+            if (value.isEmpty()) {
+                existing.ifPresent(e::deleteTrait);
+            } else if (existing.isPresent()) {
+                existing.get().setValue(value);
+            } else {
+                currentDictionary.getComponentBuilder().trait(e, Keys.MORPH_TYPE, value).build();
+            }
         });
 
         // ── Colonne Date (lecture seule) ──
@@ -1134,12 +1306,6 @@ public final class MainController {
                       .getLiftDictionaryRegistry()
                       .getSenses();
         senseTable.getItems().addAll(sensesToShow);
-        senseTable
-            .getSelectionModel()
-            .selectedItemProperty()
-            .addListener((obs, o, n) -> {
-                if (n != null) populateSenseEditor(n);
-            });
         tableContainer
             .getChildren()
             .setAll(
@@ -1178,9 +1344,6 @@ public final class MainController {
             parentSenseGroup.getColumns().add(
                 col(l, ex -> {
                     LiftSense parent = ex.getParent();
-                        // ex.getParent() != null
-                        //     ? ex.getParent()
-                        //     : findParentSense(ex).orElse(null);
                     if (parent == null) return "";
                     // Gloss = forme principale du sens ; sinon première forme disponible
                     MultiText gloss = parent.getGlosses();
@@ -1236,7 +1399,7 @@ public final class MainController {
                 final String type = transType;
                 transGroup.getColumns().add(
                     col(l, ex -> {
-                        MultiText mt = ex.getTranslations().get(type);
+                        MultiText mt = translationOfType(ex, type);
                         return mt != null
                             ? mt.getForm(lang).map(Form::toPlainText).orElse("")
                             : "";
@@ -1251,12 +1414,6 @@ public final class MainController {
             .addAll(
                 currentDictionary.getLiftDictionaryRegistry().getExamples()
             );
-        exampleTable
-            .getSelectionModel()
-            .selectedItemProperty()
-            .addListener((obs, o, n) -> {
-                if (n != null) populateExampleEditor(n);
-            });
         tableContainer
             .getChildren()
             .setAll(
@@ -1395,12 +1552,6 @@ public final class MainController {
             .addAll(
                 currentDictionary.getLiftDictionaryRegistry().getVariants()
             );
-        variantTable
-            .getSelectionModel()
-            .selectedItemProperty()
-            .addListener((obs, o, n) -> {
-                if (n != null) populateVariantEditor(n);
-            });
         tableContainer
             .getChildren()
             .setAll(
@@ -1448,7 +1599,7 @@ public final class MainController {
             (LiftRelation r) -> r.getType().getId()
         );
         TableColumn<LiftRelation, String> refFormGroup = new TableColumn<>(
-            I18n.get("col.ref") + " (form)"
+            I18n.get("col.refForm")
         );
         for (String l : objLangs) {
             refFormGroup.getColumns().add(
@@ -1493,12 +1644,6 @@ public final class MainController {
                     .getLiftDictionaryRegistry()
                     .getRelations()
             );
-        relationTable
-            .getSelectionModel()
-            .selectedItemProperty()
-            .addListener((obs, o, n) -> {
-                if (n != null) populateRelationEditor(n);
-            });
         tableContainer
             .getChildren()
             .setAll(
@@ -1515,58 +1660,19 @@ public final class MainController {
     }
 
     private void populateRelationEditor(LiftRelation relation) {
-        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
+        editedEntry = owningEntry(relation);
         editEntryTitle.setText(
             I18n.get("nav.relations") +
                 " : " +
-                (relation.getType() != null ? relation.getType() : "?")
+                (relation.getType() != null ? relation.getType().getId() : "?")
         );
         editEntryCode.setText(relation.getRefID().orElse(""));
         editorContainer.getChildren().clear();
         HasRelations parent = relation.getParent();
-        if (parent instanceof LiftEntry entry) {
-            String entryForm = entry
-                .getForms()
-                .getForms()
-                .stream()
-                .findFirst()
-                .map(Form::toPlainText)
-                .orElse("");
-            if (entryForm.isEmpty()) entryForm = "?";
-            Button backBtn = new Button(
-                I18n.get("sense.backToEntry", entryForm)
-            );
-            backBtn.getStyleClass().addAll("example-add-button", "back-btn");
-            backBtn.setOnAction(e -> navigateToEntryFromSense(entry));
-            editorContainer.getChildren().add(backBtn);
-        } else if (parent instanceof LiftSense sense) {
-            Button backBtn = new Button(
-                I18n.get("sense.backToSense", LiftEntryEditor.senseDisplayText(sense))
-            );
-            backBtn.getStyleClass().addAll("example-add-button", "back-btn");
-            backBtn.setOnAction(e -> navigateToSenseFromParent(sense));
-            editorContainer.getChildren().add(backBtn);
-        } else if (parent instanceof LiftVariant variant) {
-            LiftEntry entry = variant.getParent();
-            if (entry != null) {
-                String entryForm = entry
-                    .getForms()
-                    .getForms()
-                    .stream()
-                    .findFirst()
-                    .map(Form::toPlainText)
-                    .orElse("");
-                if (entryForm.isEmpty()) entryForm = "?";
-                Button backBtn = new Button(
-                    I18n.get("sense.backToEntry", entryForm)
-                );
-                backBtn
-                    .getStyleClass()
-                    .addAll("example-add-button", "back-btn");
-                backBtn.setOnAction(e -> navigateToEntryFromSense(entry));
-                editorContainer.getChildren().add(backBtn);
-            }
+        if (parent != null) {
+            addComponentDeleteButton(() -> parent.deleteRelation(relation), () -> parent.addRelation(relation));
         }
+        addBackToParentButton(parent);
         RelationEditor re = new RelationEditor(currentDictionary);
         re.setRelation(relation);
         editorContainer.getChildren().add(re);
@@ -1617,11 +1723,8 @@ public final class MainController {
             .addListener((obs, o, n) -> {
                 if (n != null) {
                     EtymologyEditor ee = new EtymologyEditor(currentDictionary);
-                    ee.setEtymology(
-                        n,
-                        currentDictionary.getObjectLanguageManager().getLanguages(),
-                        currentDictionary.getMetaLanguageManager().getLanguages()
-                    );
+                    ee.setEtymology(n);
+                    editedEntry = owningEntry(n);
                     editEntryTitle.setText(
                         // TODO null for type?
                         n.getType() == null ? I18n.get("nav.etymologies") : n.getType().getId()
@@ -1629,15 +1732,18 @@ public final class MainController {
                     editEntryCode.setText(
                         n.getSource() != null ? n.getSource() : ""
                     );
-                    editorContainer.getChildren().setAll(ee);
+                    editorContainer.getChildren().clear();
+                    LiftEntry etyParent = n.getParent();
+                    if (etyParent != null) {
+                        addComponentDeleteButton(() -> etyParent.deleteEtymology(n), () -> etyParent.addEtymology(n));
+                    }
+                    editorContainer.getChildren().add(ee);
                 }
             });
         tableContainer
             .getChildren()
             .setAll(
-                wrapTableWithFilters(etyTable, (f, t2) ->
-                    updateCountLabel(f, t2)
-                )
+                wrapTableWithFilters(etyTable, this::updateCountLabel, searchField.textProperty())
             );
         updateCountLabel(
             etyTable.getItems().size(),
@@ -1662,31 +1768,7 @@ public final class MainController {
         // Collect all multitext entries with parent info
         List<MultiTextField> rows = new ArrayList<>();
 
-        // if (objectLangs) {
-        //     currentDictionary
-        //     .getLiftDictionaryRegistry()
-        //     .getObjectTextReadOnly()
-        //     .stream()
-        //     .map( x -> x.getForms()
-        //                 .stream()
-        //                 .map(f ->  new MultiTextField(
-        //                         "texte-objet",
-        //                         ((x.getParent() instanceof AbstractIdentifiable) ? ((AbstractIdentifiable) x.getParent()).getId() : "?"),
-        //                         f.getLang(),
-        //                         f.toPlainText(),
-        //                         x.getParent(),
-        //                         x
-        //                     )
-        //                 )
-        //     );
-        // }
 
-                        // parentType,
-                        // parentId,
-                        // f.getLang(),
-                        // f.toPlainText(),
-                        // parentObject,
-                        // mt
         for (LiftEntry entry : currentDictionary
             .getLiftDictionaryRegistry()
             .getEntries()) {
@@ -1703,7 +1785,7 @@ public final class MainController {
                 for (LiftVariant v : entry.getVariants()) {
                     collectMtRows(
                         rows,
-                        "variante",
+                        I18n.get("mtkind.variant"),
                         v.getRefId().orElse("?"),
                         v,
                         v.getForms(),
@@ -1712,7 +1794,7 @@ public final class MainController {
                     for (LiftPronunciation vp : v.getPronunciations())
                         collectMtRows(
                             rows,
-                            "pron",
+                            I18n.get("mtkind.pronunciation"),
                             v.getRefId().orElse("?"),
                             vp,
                             vp.getPronunciation(),
@@ -1722,7 +1804,7 @@ public final class MainController {
                 for (LiftPronunciation p : entry.getPronunciations())
                     collectMtRows(
                         rows,
-                        "pron",
+                        I18n.get("mtkind.pronunciation"),
                         eid,
                         p,
                         p.getPronunciation(),
@@ -1733,7 +1815,7 @@ public final class MainController {
                 for (LiftEtymology et : entry.getEtymologies())
                     collectMtRows(
                         rows,
-                        "étymologie",
+                        I18n.get("mtkind.etymology"),
                         eid,
                         et,
                         et.getForms(),
@@ -1743,29 +1825,29 @@ public final class MainController {
                 String eid = entry.getId().orElse("?");
                 collectMtRows(
                     rows,
-                    "citation",
+                    I18n.get("mtkind.citation"),
                     eid,
                     entry,
                     entry.getCitations(),
                     langs
                 );
                 for (LiftNote n : entry.getNotes().values())
-                    collectMtRows(rows, "note", eid, n, n.getText(), langs);
+                    collectMtRows(rows, I18n.get("mtkind.note"), eid, n, n.getText(), langs);
                 for (LiftRelation r : entry.getRelations())
                     collectMtRows(
                         rows,
-                        "relation (usage)",
+                        I18n.get("mtkind.relationUsage"),
                         eid,
                         r,
                         r.getUsage(),
                         langs
                     );
                 for (LiftField f : entry.getFields().values())
-                    collectMtRows(rows, "champ", eid, f, f.getText(), langs);
+                    collectMtRows(rows, I18n.get("mtkind.field"), eid, f, f.getText(), langs);
                 for (LiftAnnotation a : entry.getAnnotations())
                     collectMtRows(
                         rows,
-                        "annotation",
+                        I18n.get("mtkind.annotation"),
                         eid,
                         a,
                         a.getText(),
@@ -1778,7 +1860,7 @@ public final class MainController {
                     for (LiftRelation r : v.getRelations())
                         collectMtRows(
                             rows,
-                            "relation (usage)",
+                            I18n.get("mtkind.relationUsage"),
                             vid,
                             r,
                             r.getUsage(),
@@ -1787,7 +1869,7 @@ public final class MainController {
                     for (LiftField f : v.getFields().values())
                         collectMtRows(
                             rows,
-                            "champ",
+                            I18n.get("mtkind.field"),
                             vid,
                             f,
                             f.getText(),
@@ -1796,7 +1878,7 @@ public final class MainController {
                     for (LiftAnnotation a : v.getAnnotations())
                         collectMtRows(
                             rows,
-                            "annotation",
+                            I18n.get("mtkind.annotation"),
                             vid,
                             a,
                             a.getText(),
@@ -1831,12 +1913,6 @@ public final class MainController {
 
         langFieldTable.getColumns().addAll(parentTypeCol, langGroup);
         langFieldTable.getItems().addAll(rows);
-        langFieldTable
-            .getSelectionModel()
-            .selectedItemProperty()
-            .addListener((obs, o, n) -> {
-                if (n != null) populateLangFieldEditor(n);
-            });
         tableContainer
             .getChildren()
             .setAll(
@@ -1881,7 +1957,7 @@ public final class MainController {
     ) {
         String sid = s.getId().orElse("?");
         for (LiftExample ex : s.getExamples())
-            collectMtRows(rows, "exemple", sid, ex, ex.getExample(), langs);
+            collectMtRows(rows, I18n.get("mtkind.example"), sid, ex, ex.getExample(), langs);
         for (LiftSense sub : s.getSenses())
             collectObjLangRowsForSense(rows, sub, langs);
     }
@@ -1892,23 +1968,23 @@ public final class MainController {
         Set<String> langs
     ) {
         String sid = s.getId().orElse("?");
-        collectMtRows(rows, "définition", sid, s, s.getDefinition(), langs);
-        collectMtRows(rows, "gloss", sid, s, s.getGlosses(), langs);
+        collectMtRows(rows, I18n.get("mtkind.definition"), sid, s, s.getDefinition(), langs);
+        collectMtRows(rows, I18n.get("mtkind.gloss"), sid, s, s.getGlosses(), langs);
         for (LiftExample ex : s.getExamples()) {
             for (MultiText tr : ex.getTranslations().values())
-                collectMtRows(rows, "traduction", sid, ex, tr, langs);
+                collectMtRows(rows, I18n.get("mtkind.translation"), sid, ex, tr, langs);
             for (LiftNote n : ex.getNotes().values())
-                collectMtRows(rows, "note", sid, n, n.getText(), langs);
+                collectMtRows(rows, I18n.get("mtkind.note"), sid, n, n.getText(), langs);
             for (LiftField f : ex.getFields().values())
-                collectMtRows(rows, "champ", sid, f, f.getText(), langs);
+                collectMtRows(rows, I18n.get("mtkind.field"), sid, f, f.getText(), langs);
             for (LiftAnnotation a : ex.getAnnotations())
-                collectMtRows(rows, "annotation", sid, a, a.getText(), langs);
+                collectMtRows(rows, I18n.get("mtkind.annotation"), sid, a, a.getText(), langs);
         }
         for (LiftReversal rev : s.getReversals()) {
-            collectMtRows(rows, "reversal", sid, rev, rev.getForms(), langs);
+            collectMtRows(rows, I18n.get("mtkind.reversal"), sid, rev, rev.getForms(), langs);
             if (rev.getMain() != null) collectMtRows(
                 rows,
-                "reversal (main)",
+                I18n.get("mtkind.reversalMain"),
                 sid,
                 rev.getMain(),
                 rev.getMain().getForms(),
@@ -1918,22 +1994,22 @@ public final class MainController {
         for (LiftRelation r : s.getRelations())
             collectMtRows(
                 rows,
-                "relation (usage)",
+                I18n.get("mtkind.relationUsage"),
                 sid,
                 r,
                 r.getUsage(),
                 langs
             );
         for (LiftNote n : s.getNotes().values())
-            collectMtRows(rows, "note", sid, n, n.getText(), langs);
+            collectMtRows(rows, I18n.get("mtkind.note"), sid, n, n.getText(), langs);
         for (LiftField f : s.getFields().values())
-            collectMtRows(rows, "champ", sid, f, f.getText(), langs);
+            collectMtRows(rows, I18n.get("mtkind.field"), sid, f, f.getText(), langs);
         for (LiftAnnotation a : s.getAnnotations())
-            collectMtRows(rows, "annotation", sid, a, a.getText(), langs);
+            collectMtRows(rows, I18n.get("mtkind.annotation"), sid, a, a.getText(), langs);
         for (LiftIllustration ill : s.getIllustrations())
             collectMtRows(
                 rows,
-                "illustration",
+                I18n.get("mtkind.illustration"),
                 sid,
                 ill,
                 ill.getLabel(),
@@ -2009,12 +2085,6 @@ public final class MainController {
                     )
                     .toList()
             );
-        traitTable
-            .getSelectionModel()
-            .selectedItemProperty()
-            .addListener((obs, o, n) -> {
-                if (n != null) populateTraitSummaryEditor(n);
-            });
 
         tableContainer
             .getChildren()
@@ -2048,11 +2118,7 @@ public final class MainController {
             a -> {
                 long c = all
                     .stream()
-                    .filter(
-                        x ->
-                            x.typeProperty().equals(a.typeProperty()) &&
-                            x.valueProperty().equals(a.valueProperty())
-                    )
+                    .filter(x -> x.getType() == a.getType() && Objects.equals(x.getValue(), a.getValue()))
                     .count();
                 return String.valueOf(c);
             }
@@ -2064,27 +2130,16 @@ public final class MainController {
                 col(I18n.get(Keys.COL_PARENT_TYPE), (LiftAnnotation a) ->
                     describeParentType(a.getParent())
                 ),
-                col(I18n.get(Keys.COL_PARENT_TYPE), (LiftAnnotation a) ->
-                    describeParentType(a.getParent())
-                ),
                 col(I18n.get(Keys.COL_PARENT), (LiftAnnotation a) ->
                     describeParent(a.getParent())
                 ),
-                makeCol(I18n.get(Keys.COL_NAME), a ->
-                    new SimpleStringProperty(a.getValue().typeProperty().get().getId())
-                ),
+                col(I18n.get(Keys.COL_NAME), (LiftAnnotation a) -> EditorSupport.featureId(a.getType())),
                 col(I18n.get(Keys.COL_VALUE), LiftAnnotation::getValue),
                 col(I18n.get(Keys.COL_WHO), LiftAnnotation::getWho),
                 col(I18n.get(Keys.COL_WHEN), LiftAnnotation::getWhen),
                 annotFreqCol
             );
         annotationTable.getItems().addAll(all);
-        annotationTable
-            .getSelectionModel()
-            .selectedItemProperty()
-            .addListener((obs, o, n) -> {
-                if (n != null) populateAnnotationSummaryEditor(n);
-            });
 
         tableContainer
             .getChildren()
@@ -2129,12 +2184,6 @@ public final class MainController {
             .addAll(
                 currentDictionary.getLiftDictionaryRegistry().getFields()
             );
-        fieldTable
-            .getSelectionModel()
-            .selectedItemProperty()
-            .addListener((obs, o, n) -> {
-                if (n != null) populateFieldSummaryEditor(n);
-            });
         tableContainer
             .getChildren()
             .setAll(
@@ -2165,7 +2214,7 @@ public final class MainController {
 
         for (String l : objLangs) {
             TableColumn<QuickEntryRow, String> c = new TableColumn<>(
-                "form [" + l + "]"
+                I18n.get("quick.formColumn", l)
             );
             c.setCellValueFactory(cd -> cd.getValue().formProperty(l));
             c.setCellFactory(tc ->
@@ -2177,7 +2226,7 @@ public final class MainController {
         }
         for (String l : metaLangs) {
             TableColumn<QuickEntryRow, String> c = new TableColumn<>(
-                "sens [" + l + "]"
+                I18n.get("quick.senseColumn", l)
             );
             c.setCellValueFactory(cd -> cd.getValue().glossProperty(l));
             c.setCellFactory(tc ->
@@ -2187,20 +2236,7 @@ public final class MainController {
             c.setEditable(true);
             quickEntryTable.getColumns().add(c);
         }
-        List<String> knownGramCodes = currentDictionary
-            .getLiftDictionaryRegistry()
-            .getSenses()
-            .stream()
-            .map(s ->
-                s
-                    .getGrammaticalInfo()
-                    .map(x -> x.getGramInfoValue().getId())
-                    .orElse(null)
-            )
-            .filter(Objects::nonNull)
-            .distinct()
-            .sorted()
-            .toList();
+        List<String> knownGramCodes = getKnownGramInfoValues();
         ObservableList<String> gramItems = FXCollections.observableArrayList(
             knownGramCodes
         );
@@ -2262,36 +2298,7 @@ public final class MainController {
                 LiftEntry e = createEntriesFromQuickTableRow(row);
                 if (e == null) return;
 
-                // org.xml.sax.helpers.AttributesImpl attrs =
-                //     new org.xml.sax.helpers.AttributesImpl();
-                // attrs.addAttribute(
-                //     "",
-                //     "id",
-                //     "id",
-                //     "CDATA",
-                //     UUID.randomUUID().toString()
-                // );
-                // LiftEntry entry = currentDictionary.getComponentBuilder().entry(attrs);
-                // for (String l : objLangs) {
-                //     String v = row.formProperty(l).get();
-                //     if (!v.isBlank()) entry.getForms().add(new Form(l, v));
-                // }
-                // org.xml.sax.helpers.AttributesImpl senseAttrs =
-                //     new org.xml.sax.helpers.AttributesImpl();
-                // senseAttrs.addAttribute(
-                //     "",
-                //     "id",
-                //     "id",
-                //     "CDATA",
-                //     UUID.randomUUID().toString()
-                // );
-                // LiftSense sense = factory.createSense(senseAttrs, entry);
-                // for (String l : metaLangs) {
-                //     String v = row.glossProperty(l).get();
-                //     if (!v.isBlank()) sense.addGloss(new Form(l, v));
-                // }
                 // + add grammatical info if present
-                baseEntries.add(e);
                 updateCountLabel(baseEntries.size(), baseEntries.size());
 
                 // Ensure there's always an empty row at the end
@@ -2365,20 +2372,12 @@ public final class MainController {
 
     private void createNewEntry() {
         LiftEntry entry = currentDictionary.getComponentBuilder().entry().build();
-        // org.xml.sax.helpers.AttributesImpl attrs =
-        //     new org.xml.sax.helpers.AttributesImpl();
-        // attrs.addAttribute(
-        //     "",
-        //     "id",
-        //     "id",
-        //     "CDATA",
-        //     UUID.randomUUID().toString()
-        // );
-        // LiftEntry entry = factory.createEntry(attrs);
-        baseEntries.add(entry);
+        // The builder registers the entry in the dictionary, and baseEntries follows the
+        // dictionary's entry list.
+        markDirty();
+        applyCurrentFilter();
         entryTable.getSelectionModel().select(entry);
         entryTable.scrollTo(entry);
-        applyCurrentFilter();
     }
 
     private LiftEntry createEntriesFromQuickTableRow(QuickEntryRow row) {
@@ -2407,68 +2406,28 @@ public final class MainController {
         }
         LiftEntry e = eb.build();
 
-        for (String filedMetaLang : filedMetaLangs) {
-            String v = row.glossProperty(filedMetaLang).get();
-            if (!v.isBlank()) {
-                SenseBuilder sb = currentDictionary.getComponentBuilder().sense(e);
-                sb.withGloss(filedMetaLang, v);
-                String gi = row.gramInfoProperty().get();
-                if (!gi.isBlank()) sb.withPartOfSpeech(gi);
-                sb.build();
+        // One sense carrying the glosses of every meta-language filled in the row.
+        String gi = row.gramInfoProperty().get();
+        if (!filedMetaLangs.isEmpty() || !gi.isBlank()) {
+            SenseBuilder sb = currentDictionary.getComponentBuilder().sense(e);
+            for (String filedMetaLang : filedMetaLangs) {
+                sb.withGloss(filedMetaLang, row.glossProperty(filedMetaLang).get());
             }
+            if (!gi.isBlank()) sb.withPartOfSpeech(gi);
+            sb.build();
         }
         return e;
     }
 
     private void createEntriesFromQuickTable() {
-        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
-        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
         int created = 0;
         for (QuickEntryRow row : quickEntryTable.getItems()) {
             LiftEntry e = createEntriesFromQuickTableRow(row);
             if (e == null) continue;
-            // boolean hasContent =
-            //     objLangs
-            //         .stream()
-            //         .anyMatch(l -> !row.formProperty(l).get().isBlank()) ||
-            //     metaLangs
-            //         .stream()
-            //         .anyMatch(l -> !row.glossProperty(l).get().isBlank());
-            // if (!hasContent) continue;
-            // org.xml.sax.helpers.AttributesImpl attrs =
-            //     new org.xml.sax.helpers.AttributesImpl();
-            // attrs.addAttribute(
-            //     "",
-            //     "id",
-            //     "id",
-            //     "CDATA",
-            //     UUID.randomUUID().toString()
-            // );
-            // LiftEntry entry = factory.createEntry(attrs);
-            // for (String l : objLangs) {
-            //     String v = row.formProperty(l).get();
-            //     if (!v.isBlank()) entry.getForms().add(new Form(l, v));
-            // }
-            // org.xml.sax.helpers.AttributesImpl senseAttrs =
-            //     new org.xml.sax.helpers.AttributesImpl();
-            // senseAttrs.addAttribute(
-            //     "",
-            //     "id",
-            //     "id",
-            //     "CDATA",
-            //     UUID.randomUUID().toString()
-            // );
-            // LiftSense sense = factory.createSense(senseAttrs, entry);
-            // for (String l : metaLangs) {
-            //     String v = row.glossProperty(l).get();
-            //     if (!v.isBlank()) sense.addGloss(new Form(l, v));
-            // }
-            // String gi = row.gramInfoProperty().get();
-            // if (!gi.isBlank()) sense.setGrammaticalInfo(gi);
-            baseEntries.add(e);
             created++;
         }
         if (created > 0) {
+            markDirty();
             showInfo(
                 I18n.get(Keys.NAV_QUICK_ENTRY),
                 I18n.get(Keys.INFO_QUICK_ENTRY_CREATED, created)
@@ -2483,6 +2442,7 @@ public final class MainController {
     /* ─── Editor population helpers ─── */
 
     private void populateEntryEditor(LiftEntry entry) {
+        editedEntry = entry;
         try {
             Form preferred = entry
                 .getForms()
@@ -2492,17 +2452,13 @@ public final class MainController {
                 .orElse(Form.EMPTY_FORM);
             editEntryTitle.setText(
                 preferred == Form.EMPTY_FORM
-                    ? "(sans forme)"
+                    ? I18n.get("editor.noForm")
                     : preferred.toPlainText()
             );
             editEntryCode.setText(getTraitValue(entry, "code"));
             editorContainer.getChildren().clear();
 
-            Button deleteBtn = new Button(I18n.get(Keys.BTN_DELETE));
-            deleteBtn.getStyleClass().add("delete-btn");
-            deleteBtn.setStyle(
-                "-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 7 12 7 12;"
-            );
+            Button deleteBtn = newDeleteButton();
             deleteBtn.setOnAction(e -> {
                 Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
                 confirm.setTitle(I18n.get(Keys.CONFIRM_DELETE_TITLE));
@@ -2517,14 +2473,14 @@ public final class MainController {
                             .findFirst()
                             .map(Form::toPlainText)
                             .filter(t -> t != null && !t.isBlank())
-                            .orElse("(sans forme)")
+                            .orElse(I18n.get("editor.noForm"))
                     )
                 );
                 confirm
                     .showAndWait()
                     .filter(r -> r == ButtonType.OK)
                     .ifPresent(r -> {
-                        int idx = baseEntries.indexOf(entry);
+                        int idx = currentDictionary.getLiftDictionaryRegistry().getEntries().indexOf(entry);
                         Runnable refresh = () -> {
                             editorContainer.getChildren().clear();
                             editEntryTitle.setText(
@@ -2540,8 +2496,7 @@ public final class MainController {
                             refresh,
                             refresh
                         );
-                        cmd.redo();
-                        undoManager.execute(cmd);
+                        executeDeletion(cmd);
                     });
             });
             editorContainer.getChildren().add(deleteBtn);
@@ -2561,29 +2516,24 @@ public final class MainController {
                 entry == null ? "" : entry.getId().orElse("")
             );
             values.put(
-                "Erreur",
+                I18n.get("editor.error"),
                 Optional.ofNullable(ex.getMessage()).orElse(
                     ex.getClass().getSimpleName()
                 )
             );
-            populateSummaryEditor("Entrée (erreur d'affichage)", "", values);
+            populateSummaryEditor(I18n.get("editor.entryDisplayError"), "", values);
         }
     }
 
     private void populateSenseEditor(LiftSense sense) {
-        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
-        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
+        editedEntry = owningEntry(sense);
         editEntryTitle.setText(LiftEntryEditor.senseDisplayText(sense));
         editEntryCode.setText(
             sense.getGrammaticalInfo().map(x -> x.getGramInfoValue().getId()).orElse("")
         );
         editorContainer.getChildren().clear();
 
-        Button deleteBtn = new Button(I18n.get(Keys.BTN_DELETE));
-        deleteBtn.getStyleClass().add("delete-btn");
-        deleteBtn.setStyle(
-            "-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 7 12 7 12;"
-        );
+        Button deleteBtn = newDeleteButton();
         deleteBtn.setOnAction(e -> {
             Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
             confirm.setTitle(I18n.get(Keys.CONFIRM_DELETE_TITLE));
@@ -2595,16 +2545,13 @@ public final class MainController {
                 .showAndWait()
                 .filter(r -> r == ButtonType.OK)
                 .ifPresent(r -> {
-                    // findParentSenseListAndIndex(sense).ifPresent(pair -> {
-                    //     java.util.List<LiftSense> parentList = pair.getKey();
-                    //     int idx = pair.getValue();
                         Runnable refresh = () -> {
                             editorContainer.getChildren().clear();
                             editEntryTitle.setText(
                                 I18n.get("panel.selectElement")
                             );
                             editEntryCode.setText("");
-                            showSenseView();
+                            refreshCurrentView();
                         };
                         DeleteSenseCommand cmd = new DeleteSenseCommand(
                             sense,
@@ -2613,30 +2560,11 @@ public final class MainController {
                             refresh,
                             refresh
                         );
-                        cmd.redo();
-                        undoManager.execute(cmd);
-                    // });
+                        executeDeletion(cmd);
                 });
         });
         editorContainer.getChildren().add(deleteBtn);
-        // Parent button: navigate back to entry view filtered to this sense's parent
-        // findParentEntry(sense).ifPresent(parentEntry -> {
-        LiftEntry parentEntry = sense.getParentEntry();
-            String entryForm = parentEntry
-                .getForms()
-                .getForms()
-                .stream()
-                .findFirst()
-                .map(Form::toPlainText)
-                .orElse("");
-            if (entryForm.isEmpty()) entryForm = "?";
-            Button backBtn = new Button(
-                I18n.get("sense.backToEntry", entryForm)
-            );
-            backBtn.getStyleClass().addAll("example-add-button", "back-btn");
-            backBtn.setOnAction(e -> navigateToEntryFromSense(parentEntry));
-            editorContainer.getChildren().add(backBtn);
-        // });
+        addBackToParentButton(sense.getParentEntry());
 
         // Links to examples (one per example, showing example number)
         List<LiftExample> examples = sense.getExamples();
@@ -2649,41 +2577,30 @@ public final class MainController {
         }
 
         SenseEditor se = new SenseEditor(currentDictionary);
-        se.setRelationTypes(currentDictionary.getHeader().getRelationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList());
-        // se.setRelationTypes(getKnownRelationTypes());
-        se.setGrammaticalInfoValues(getHeaderRangeValues("grammatical-info"));
+        se.setGrammaticalInfoValues(getKnownGramInfoValues());
         se.setOnGramInfoChanged(() -> senseTable.refresh());
         BiConsumer<String, MultiText> onAddAnnotation =
-            // factory != null
-            //     ?
-                (name, mt) -> currentDictionary.getComponentBuilder().annotation(mt, name).build();
-                // : null;
+            (name, mt) -> currentDictionary.getComponentBuilder().annotation(mt, name).build();
         se.setSense(
             sense,
             onAddAnnotation,
-            currentDictionary.getHeader().getAnnotationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList(),
+            EditorSupport.sortedFeatureIds(currentDictionary.getHeader().getAnnotationTypeManager()),
             this::createSenseAddActions,
             this::createExampleAddActions
         );
         editorContainer.getChildren().add(se);
-        // if (factory != null) {
             FlowPane addButtons = new FlowPane(8, 6);
             addButtons.setPadding(new Insets(8, 0, 0, 0));
 
             Button addExBtn = new Button(I18n.get("btn.addExample"));
             addExBtn.setOnAction(e -> {
-                currentDictionary.getComponentBuilder().example(sense);
-                // factory.createExample(
-                //     new org.xml.sax.helpers.AttributesImpl(),
-                //     sense
-                // );
+                currentDictionary.getComponentBuilder().example(sense).build();
                 populateSenseEditor(sense);
             });
 
             Button addNoteBtn = new Button(I18n.get("btn.addNote"));
             addNoteBtn.setOnAction(e -> {
                 List<String> types = currentDictionary.getHeader().getNoteTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
-                // List<String> types = getKnownNoteTypes();
                 ChoiceDialog<String> dlg = new ChoiceDialog<>(
                     types.isEmpty() ? null : types.get(0),
                     types
@@ -2691,7 +2608,6 @@ public final class MainController {
                 dlg.setTitle(I18n.get("btn.addNote"));
                 dlg.setHeaderText(I18n.get("col.type"));
                 dlg.showAndWait().ifPresent(type -> {
-                    // factory.createNote(type, sense);
                     currentDictionary.getComponentBuilder().note(sense, type).build();
                     populateSenseEditor(sense);
                 });
@@ -2718,16 +2634,6 @@ public final class MainController {
                 typeOpt
                     .filter(t -> t != null && !t.isBlank())
                     .ifPresent(type -> {
-                        // org.xml.sax.helpers.AttributesImpl attrs =
-                        //     new org.xml.sax.helpers.AttributesImpl();
-                        // attrs.addAttribute(
-                        //     "",
-                        //     "type",
-                        //     "type",
-                        //     "CDATA",
-                        //     type.trim()
-                        // );
-                        // factory.createRelation(attrs, sense);
                         currentDictionary.getComponentBuilder().relation(type.trim(), sense).build();
                         populateSenseEditor(sense);
                     });
@@ -2735,26 +2641,13 @@ public final class MainController {
 
             Button addReversalBtn = new Button(I18n.get("btn.addReversal"));
             addReversalBtn.setOnAction(e -> {
-                // org.xml.sax.helpers.AttributesImpl attrs =
-                //     new org.xml.sax.helpers.AttributesImpl();
-                // factory.createReversal(attrs, sense);
                 currentDictionary.getComponentBuilder().reversal(sense).build();
                 populateSenseEditor(sense);
             });
 
             Button addSubSenseBtn = new Button(I18n.get("btn.addSubSense"));
             addSubSenseBtn.setOnAction(e -> {
-                // org.xml.sax.helpers.AttributesImpl senseAttrs =
-                //     new org.xml.sax.helpers.AttributesImpl();
-                // senseAttrs.addAttribute(
-                //     "",
-                //     "id",
-                //     "id",
-                //     "CDATA",
-                //     UUID.randomUUID().toString()
-                // );
-                // factory.createSense(senseAttrs, sense);
-                currentDictionary.getComponentBuilder().sense(sense);
+                currentDictionary.getComponentBuilder().sense(sense).build();
                 populateSenseEditor(sense);
                 refreshSenseTableAndFilters();
             });
@@ -2769,7 +2662,6 @@ public final class MainController {
                     addSubSenseBtn
                 );
             editorContainer.getChildren().add(addButtons);
-        // }
     }
 
     /** Rebuilds the sense table and filter dropdowns (e.g. after adding a sub-sense). */
@@ -2779,59 +2671,15 @@ public final class MainController {
         }
     }
 
-    // private Optional<LiftEntry> findParentEntry(LiftSense sense) {
-    //     if (currentDictionary == null) return Optional.empty();
-    //     return currentDictionary
-    //         .getLiftDictionaryRegistry()
-    //         .getEntries()
-    //         .stream()
-    //         .filter(e -> containsSense(e.getSenses(), sense))
-    //         .findFirst();
-    // }
 
-    private boolean containsSense(List<LiftSense> list, LiftSense target) {
-        if (list.contains(target)) return true;
-        for (LiftSense s : list) {
-            if (containsSense(s.getSenses(), target)) return true;
-        }
-        return false;
-    }
 
-    // private Optional<
-    //     Pair<List<LiftSense>, Integer>
-    // > findParentSenseListAndIndex(LiftSense sense) {
-    //     if (currentDictionary == null) return Optional.empty();
-    //     for (LiftEntry e : currentDictionary
-    //         .getLiftDictionaryRegistry()
-    //         .getEntries()) {
-    //         var found = findInList(e.getSenses(), sense);
-    //         if (found != null) return Optional.of(found);
-    //     }
-    //     return Optional.empty();
-    // }
-
-    // private Pair<List<LiftSense>, Integer> findInList(
-    //     List<LiftSense> list,
-    //     LiftSense target
-    // ) {
-    //     int idx = list.indexOf(target);
-    //     if (idx >= 0) return new Pair<>(list, idx);
-    //     for (LiftSense s : list) {
-    //         var sub = findInList(s.getSenses(), target);
-    //         if (sub != null) return sub;
-    //     }
-    //     return null;
-    // }
 
     private void populateExampleEditor(LiftSense parentSense, LiftExample ex) {
+        editedEntry = owningEntry(ex);
         editEntryTitle.setText(I18n.get("nav.examples"));
         editEntryCode.setText(ex.getSource().orElse(""));
         editorContainer.getChildren().clear();
-        Button deleteBtn = new Button(I18n.get(Keys.BTN_DELETE));
-        deleteBtn.getStyleClass().add("delete-btn");
-        deleteBtn.setStyle(
-            "-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 7 12 7 12;"
-        );
+        Button deleteBtn = newDeleteButton();
         deleteBtn.setOnAction(e -> {
             Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
             confirm.setTitle(I18n.get(Keys.CONFIRM_DELETE_TITLE));
@@ -2841,17 +2689,13 @@ public final class MainController {
                 .showAndWait()
                 .filter(r -> r == ButtonType.OK)
                 .ifPresent(r -> {
-                    // findParentSense(ex).ifPresent(parent -> {
-                    //     java.util.List<LiftExample> parentList =
-                    //         parent.getExamples();
-                    //     int idx = parentList.indexOf(ex);
                         Runnable refresh = () -> {
                             editorContainer.getChildren().clear();
                             editEntryTitle.setText(
                                 I18n.get("panel.selectElement")
                             );
                             editEntryCode.setText("");
-                            showExampleView();
+                            refreshCurrentView();
                         };
                         DeleteExampleCommand cmd = new DeleteExampleCommand(
                             ex,
@@ -2860,90 +2704,29 @@ public final class MainController {
                             refresh,
                             refresh
                         );
-                        cmd.redo();
-                        undoManager.execute(cmd);
-                    // });
+                        executeDeletion(cmd);
                 });
         });
         editorContainer.getChildren().add(deleteBtn);
 
-        //LiftSense resolvedParent = ex.getParent();
-            // parentSense != null
-            //     ? parentSense
-            //     : findParentSense(ex).orElse(null);
-
-        if (parentSense != null) {
-            final LiftSense finalParent = parentSense;
-            String senseGloss = finalParent
-                .getGlosses()
-                .getForms()
-                .stream()
-                .findFirst()
-                .map(Form::toPlainText)
-                .orElse("");
-            if (senseGloss.isEmpty()) senseGloss = "?";
-            Button backBtn = new Button(
-                I18n.get("sense.backToSense", senseGloss)
-            );
-            backBtn.getStyleClass().addAll("example-add-button", "back-btn");
-            backBtn.setOnAction(e -> {
-                switchView(NAV_SENSES);
-                if (senseTable.getItems().contains(finalParent)) {
-                    senseTable.getSelectionModel().select(finalParent);
-                    senseTable.scrollTo(finalParent);
-                }
-                selectNavItem(NAV_SENSES);
-                populateSenseEditor(finalParent);
-            });
-            editorContainer.getChildren().add(backBtn);
-        }
+        addBackToParentButton(parentSense);
 
         ExampleEditor ee = new ExampleEditor(currentDictionary);
         BiConsumer<String, MultiText> onAddAnnotation =
-            // factory != null ?
-                (name, mt) -> currentDictionary.getComponentBuilder().annotation(mt, name).build();
-                // : null;
-        ee.setExample(
-            ex,
-            onAddAnnotation,
-            // factory != null ?
-            createExampleAddActions(ex)
-            //  : null
-        );
+            (name, mt) -> currentDictionary.getComponentBuilder().annotation(mt, name).build();
+        ee.setExample(ex, onAddAnnotation, createExampleAddActions(ex));
         editorContainer.getChildren().add(ee);
     }
 
     private void populateExampleEditor(LiftExample ex) {
-        // Optional<LiftSense> parent = findParentSense(ex);
-        //populateExampleEditor(parent.orElse(null), ex);
         populateExampleEditor(ex.getParent(), ex);
     }
 
-    // private Optional<LiftSense> findParentSense(LiftExample ex) {
-    //     if (currentDictionary == null) return Optional.empty();
-    //     return currentDictionary
-    //         .getLiftDictionaryRegistry()
-    //         .getSenses()
-    //         .stream()
-    //         .filter(s -> containsExample(s, ex))
-    //         .findFirst();
-    // }
-
-    private boolean containsExample(LiftSense sense, LiftExample ex) {
-        if (sense.getExamples().contains(ex)) return true;
-        for (LiftSense sub : sense.getSenses())
-            if (containsExample(sub, ex)) return true;
-        return false;
-    }
 
     private void navigateToSenseKeepingEntriesFocus(LiftSense sense) {
         if (sense == null) return;
         switchView(NAV_SENSES);
         applySenseTableFilterByEntry(sense.getParentEntry());
-        // findParentEntry(sense).ifPresentOrElse(
-        //     this::applySenseTableFilterByEntry,
-        //     this::clearSearchAndVisibleColumnFilters
-        // );
         if (senseTable.getItems().contains(sense)) {
             senseTable.getSelectionModel().select(sense);
             senseTable.scrollTo(sense);
@@ -3089,19 +2872,6 @@ public final class MainController {
         }
     }
 
-    private void pinLeftNavigationOnEntries() {
-        if (navTree == null || navTree.getSelectionModel() == null) return;
-        TreeItem<String> entriesItem = findNavItemByKey(NAV_ENTRIES);
-        if (entriesItem == null) return;
-
-        ignoreNavSelectionEvents = true;
-        try {
-            navTree.getSelectionModel().select(entriesItem);
-        } finally {
-            ignoreNavSelectionEvents = false;
-        }
-    }
-
     private TreeItem<String> findNavItemByKey(String navKey) {
         for (Map.Entry<TreeItem<String>, String> entry : navKeyMap.entrySet()) {
             if (Objects.equals(entry.getValue(), navKey)) return entry.getKey();
@@ -3110,6 +2880,7 @@ public final class MainController {
     }
 
     private void populateLangFieldEditor(MultiTextField row) {
+        editedEntry = owningEntry(row.parentObject());
         editEntryTitle.setText(I18n.get(currentView));
         editEntryCode.setText("");
         editorContainer.getChildren().clear();
@@ -3138,12 +2909,7 @@ public final class MainController {
         if (row.multiText() != null) {
             editorContainer.getChildren().add(g);
             MultiTextEditor mte = new MultiTextEditor(currentDictionary);
-            Set<String> availLangs = NAV_OBJ_LANGS.equals(currentView)
-                ? currentDictionary.getObjectLanguageManager().getLanguages()
-                : currentDictionary.getMetaLanguageManager().getLanguages();
-            // mte.setAvailableLanguages(
-            //     availLangs.isEmpty() ? List.of(row.lang()) : availLangs
-            // );
+            if (NAV_OBJ_LANGS.equals(currentView)) mte.useObjectLanguages();
             mte.setMultiText(row.multiText());
             VBox textSection = new VBox(6);
             textSection.getChildren().add(new Label(I18n.get("col.text")));
@@ -3163,7 +2929,7 @@ public final class MainController {
         values.put(I18n.get("col.frequency"), String.valueOf(row.frequency()));
         populateSummaryEditor(I18n.get("nav.traits"), "", values);
         Button accessBtn = new Button(I18n.get("btn.accessObjects"));
-        accessBtn.getStyleClass().add("example-add-button");
+        accessBtn.getStyleClass().addAll("example-add-button", "no-dirty");
         accessBtn.setMaxWidth(Double.MAX_VALUE);
         accessBtn.setOnAction(e ->
             showObjectsWithTrait(row.name(), row.value())
@@ -3178,14 +2944,10 @@ public final class MainController {
         values.put(I18n.get("col.frequency"), String.valueOf(row.frequency()));
         populateSummaryEditor(I18n.get("nav.noteTypes"), "", values);
         Button accessBtn = new Button(I18n.get("btn.accessObjects"));
-        accessBtn.getStyleClass().add("example-add-button");
+        accessBtn.getStyleClass().addAll("example-add-button", "no-dirty");
         accessBtn.setMaxWidth(Double.MAX_VALUE);
         accessBtn.setOnAction(e -> showObjectsWithNoteType(row.type()));
         editorContainer.getChildren().add(accessBtn);
-    }
-
-    private void setModifyButtonVisible(boolean visible) {
-        if (modifyButtonRow != null) modifyButtonRow.setVisible(visible);
     }
 
     private void showObjectsWithTrait(String traitName, String traitValue) {
@@ -3227,8 +2989,6 @@ public final class MainController {
                             traitValue.equals(t.getValue())
                     )
             ) // findParentSense(ex)
-            //     .flatMap(this::findParentEntry)
-            //     .ifPresent(matches::add);
             matches.add(ex.getParent().getParentEntry());
         }
         for (LiftVariant v : comps.getVariants()) {
@@ -3277,9 +3037,6 @@ public final class MainController {
             if (parent instanceof LiftEntry e) matches.add(e);
             else if (parent instanceof LiftSense s)
                 matches.add(s.getParentEntry());
-            //     findParentEntry(
-            //     s
-            // ).ifPresent(matches::add);
         }
         showMatchingEntries(
             matches,
@@ -3301,20 +3058,14 @@ public final class MainController {
             populateEntryEditor(e);
         } else if (obj instanceof LiftSense s) {
             LiftEntry entry = s.getParentEntry();
-            // findParentEntry(s).ifPresent(entry -> {
                 switchView(NAV_ENTRIES);
                 selectEntryInTable(entry);
                 populateEntryEditor(entry);
-            // });
         } else if (obj instanceof LiftExample ex) {
             LiftEntry entry = ex.getParent().getParentEntry();
-            // findParentSense(ex).ifPresent(sense -> {
-            //     findParentEntry(sense).ifPresent(entry -> {
                     switchView(NAV_ENTRIES);
                     selectEntryInTable(entry);
                     populateEntryEditor(entry);
-            //     });
-            // });
         } else if (obj instanceof LiftNote n) {
             AbstractNotable p = n.getParent();
             if (p instanceof LiftEntry e) {
@@ -3323,11 +3074,9 @@ public final class MainController {
                 populateEntryEditor(e);
             } else if (p instanceof LiftSense s) {
                 LiftEntry entry = s.getParentEntry();
-                // findParentEntry(s).ifPresent(entry -> {
                     switchView(NAV_ENTRIES);
                     selectEntryInTable(entry);
                     populateEntryEditor(entry);
-                // });
             }
         } else if (obj instanceof LiftVariant v) {
             if (v.getParent() != null) {
@@ -3350,11 +3099,9 @@ public final class MainController {
                 populateEntryEditor(e);
             } else if (p instanceof LiftSense s) {
                 LiftEntry entry = s.getParentEntry();
-                // findParentEntry(s).ifPresent(entry -> {
                     switchView(NAV_ENTRIES);
                     selectEntryInTable(entry);
                     populateEntryEditor(entry);
-                // });
             } else if (p instanceof LiftVariant v) {
                 if (v.getParent() != null) {
                     switchView(NAV_ENTRIES);
@@ -3376,7 +3123,6 @@ public final class MainController {
     }
 
     private void populateAnnotationSummaryEditor(LiftAnnotation annotation) {
-        setModifyButtonVisible(false);
         LinkedHashMap<String, String> values = new LinkedHashMap<>();
         values.put(
             I18n.get("col.parentType"),
@@ -3391,7 +3137,6 @@ public final class MainController {
     }
 
     private void populateFieldSummaryEditor(LiftField field) {
-        setModifyButtonVisible(false);
         LinkedHashMap<String, String> values = new LinkedHashMap<>();
         values.put(
             I18n.get("col.parentType"),
@@ -3433,7 +3178,7 @@ public final class MainController {
     private void addGoToParentButton(Object parent) {
         if (parent == null) return;
         Button goBtn = new Button(I18n.get("btn.goToParent"));
-        goBtn.getStyleClass().add("example-add-button");
+        goBtn.getStyleClass().addAll("example-add-button", "no-dirty");
         goBtn.setMaxWidth(Double.MAX_VALUE);
         goBtn.setOnAction(e -> navigateToObject(parent));
         editorContainer.getChildren().add(goBtn);
@@ -3448,14 +3193,13 @@ public final class MainController {
         CategoryRow row,
         String categoryKind
     ) {
-        setModifyButtonVisible(false);
         LinkedHashMap<String, String> values = new LinkedHashMap<>();
         values.put(I18n.get("col.value"), row.value());
         values.put(I18n.get("col.frequency"), String.valueOf(row.frequency()));
         populateSummaryEditor(title, "", values);
         if (categoryKind != null) {
             Button accessBtn = new Button(I18n.get("btn.accessObjects"));
-            accessBtn.getStyleClass().add("example-add-button");
+            accessBtn.getStyleClass().addAll("example-add-button", "no-dirty");
             accessBtn.setMaxWidth(Double.MAX_VALUE);
             final String val = row.value();
             accessBtn.setOnAction(e -> {
@@ -3502,12 +3246,8 @@ public final class MainController {
             .getLiftDictionaryRegistry()
             .getExamples()
             .stream()
-            .filter(ex -> ex.getTranslations().containsKey(transType))
+            .filter(ex -> translationOfType(ex, transType) != null)
             .map(x -> x.getParent().getParentEntry())
-            // .map(this::findParentSense)
-            // .flatMap(Optional::stream)
-            // .map(this::findParentEntry)
-            // .flatMap(Optional::stream)
             .collect(Collectors.toList());
         showMatchingEntries(
             matches,
@@ -3544,6 +3284,7 @@ public final class MainController {
         String code,
         LinkedHashMap<String, String> values
     ) {
+        editedEntry = null;
         editEntryTitle.setText(title);
         editEntryCode.setText(code == null ? "" : code);
         editorContainer.getChildren().clear();
@@ -3563,48 +3304,90 @@ public final class MainController {
         editorContainer.getChildren().add(g);
     }
 
+    /**
+     * Adds a "Back to …" button leading to the parent of the object shown: the entry (or the
+     * entry of a variant), or the sense. Does nothing for other parents.
+     */
+    private void addBackToParentButton(Object parent) {
+        String label;
+        Runnable action;
+        if (parent instanceof LiftVariant v) parent = v.getParent();
+        if (parent instanceof LiftEntry entry) {
+            label = I18n.get("sense.backToEntry", entryLabel(entry));
+            action = () -> navigateToEntryFromSense(entry);
+        } else if (parent instanceof LiftSense sense) {
+            label = I18n.get("sense.backToSense", LiftEntryEditor.senseDisplayText(sense));
+            action = () -> navigateToSenseFromParent(sense);
+        } else {
+            return;
+        }
+        Button backBtn = new Button(label);
+        backBtn.getStyleClass().addAll("example-add-button", "back-btn", "no-dirty");
+        backBtn.setOnAction(e -> action.run());
+        editorContainer.getChildren().add(backBtn);
+    }
+
+    /** First non-empty form of an entry, or "?". */
+    private static String entryLabel(LiftEntry entry) {
+        return entry.getForms().getForms().stream()
+            .map(Form::toPlainText)
+            .filter(t -> t != null && !t.isBlank())
+            .findFirst()
+            .orElse("?");
+    }
+
+    /** The red "Delete" button shown at the top of an object's editor. */
+    private static Button newDeleteButton() {
+        Button deleteBtn = new Button(I18n.get(Keys.BTN_DELETE));
+        deleteBtn.getStyleClass().add("delete-btn");
+        deleteBtn.setStyle(
+            "-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 7 12 7 12;"
+        );
+        return deleteBtn;
+    }
+
+    /**
+     * Adds a "Delete" button to the editor panel for a component shown in its own view
+     * (note, variant, relation, etymology). The deletion asks for confirmation and can be undone.
+     */
+    private void addComponentDeleteButton(Runnable remove, ComponentDeletion.CheckedRunnable restore) {
+        Button deleteBtn = newDeleteButton();
+        deleteBtn.setOnAction(e -> {
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle(I18n.get(Keys.CONFIRM_DELETE_TITLE));
+            confirm.setHeaderText(null);
+            confirm.setContentText(I18n.get("confirm.delete.component"));
+            confirm.showAndWait().filter(r -> r == ButtonType.OK).ifPresent(r ->
+                ComponentDeletion.deleteChecked(remove, restore, () -> {
+                    editorContainer.getChildren().clear();
+                    editEntryTitle.setText(I18n.get("panel.selectElement"));
+                    editEntryCode.setText("");
+                    refreshCurrentView();
+                })
+            );
+        });
+        editorContainer.getChildren().add(deleteBtn);
+    }
+
     private void populateNoteEditor(LiftNote note) {
+        editedEntry = owningEntry(note);
         editEntryTitle.setText(
-            I18n.get("nav.notes") + " : " + note.getType()
+            I18n.get("nav.notes") + " : " + EditorSupport.featureId(note.getType())
         );
         editEntryCode.setText("");
         editorContainer.getChildren().clear();
         AbstractNotable parent = note.getParent();
         if (parent != null) {
-            if (parent instanceof LiftEntry entry) {
-                String entryForm = entry
-                    .getForms()
-                    .getForms()
-                    .stream()
-                    .findFirst()
-                    .map(Form::toPlainText)
-                    .orElse("");
-                if (entryForm.isEmpty()) entryForm = "?";
-                Button backBtn = new Button(
-                    I18n.get("sense.backToEntry", entryForm)
-                );
-                backBtn
-                    .getStyleClass()
-                    .addAll("example-add-button", "back-btn");
-                backBtn.setOnAction(e -> navigateToEntryFromSense(entry));
-                editorContainer.getChildren().add(backBtn);
-            } else if (parent instanceof LiftSense sense) {
-                Button backBtn = new Button(
-                    I18n.get("sense.backToSense", LiftEntryEditor.senseDisplayText(sense))
-                );
-                backBtn
-                    .getStyleClass()
-                    .addAll("example-add-button", "back-btn");
-                backBtn.setOnAction(e -> navigateToSenseFromParent(sense));
-                editorContainer.getChildren().add(backBtn);
-            }
+            addComponentDeleteButton(() -> parent.deleteNote(note), () -> parent.addNote(note));
         }
+        addBackToParentButton(parent);
         NoteEditor ne = new NoteEditor(currentDictionary);
         ne.setNote(note);
         editorContainer.getChildren().add(ne);
     }
 
     private void populateVariantEditor(LiftVariant v) {
+        editedEntry = owningEntry(v);
         editEntryTitle.setText(
             I18n.get("nav.variants") + " : " + v.getRefId().orElse("?")
         );
@@ -3612,30 +3395,10 @@ public final class MainController {
         editorContainer.getChildren().clear();
         LiftEntry parentEntry = v.getParent();
         if (parentEntry != null) {
-            String entryForm = parentEntry
-                .getForms()
-                .getForms()
-                .stream()
-                .findFirst()
-                .map(Form::toPlainText)
-                .orElse("");
-            if (entryForm.isEmpty()) entryForm = "?";
-            Button backBtn = new Button(
-                I18n.get("sense.backToEntry", entryForm)
-            );
-            backBtn.getStyleClass().addAll("example-add-button", "back-btn");
-            backBtn.setOnAction(e -> navigateToEntryFromSense(parentEntry));
-            editorContainer.getChildren().add(backBtn);
+            addComponentDeleteButton(() -> parentEntry.deleteVariant(v), () -> parentEntry.addVariant(v));
         }
+        addBackToParentButton(parentEntry);
         VariantEditor ve = new VariantEditor(currentDictionary);
-        ve.setRelationTypes(currentDictionary.getHeader().getRelationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList());
-        // ve.setRelationTypes(getKnownRelationTypes());
-        ve.setVariantTypes(
-            currentDictionary.getHeader().getVariantTypeManager().getFeatures().values().stream().map(x->x.getId()).toList()
-            // new ArrayList<>(
-            //     getKnownTraitValues().getOrDefault("variant-type", Set.of())
-            // )
-        );
         ve.setVariant(
             v,
             createVariantAddActions(v)
@@ -3647,114 +3410,65 @@ public final class MainController {
         return new ExtensibleAddActions() {
             @Override
             public void addTrait(String name, String value) {
-                currentDictionary.getComponentBuilder().trait(s, name, value);
-                // f.createTrait(name, value, s);
+                currentDictionary.getComponentBuilder().trait(s, name, value).build();
             }
 
             @Override
             public void addAnnotation(String name) {
-                // f.createAnnotation(name, s);
                 currentDictionary.getComponentBuilder().annotation(s, name).build();
             }
 
             @Override
             public void addField(String type) {
-                // f.createField(type, s);
                 currentDictionary.getComponentBuilder().field(s, type).build();
             }
 
             @Override
             public void addNote(String type) {
-                // f.createNote(type, s);
                 currentDictionary.getComponentBuilder().note(s, type).build();
             }
 
             @Override
             public void refresh() {
-                populateSenseEditor(s);
+                if (NAV_SENSES.equals(currentView)) populateSenseEditor(s);
             }
 
-            // @Override
-            // public List<String> getKnownTraitNames() {
-            //     return getKnownTraitNamesFor(
-            //         LiftFieldAndTraitDefinitionTarget.SENSE
-            //     );
-            // }
 
-            // @Override
-            // public List<String> getKnownAnnotationNames() {
-            //     return getKnownAnnotationNames();
-            // }
 
-            // @Override
-            // public List<String> getKnownFieldTypes() {
-            //     return getKnownFieldTypesFor(
-            //         LiftFieldAndTraitDefinitionTarget.SENSE
-            //     );
-            // }
 
-            // @Override
-            // public List<String> getKnownNoteTypes() {
-            //     return getKnownNoteTypes();
-            // }
         };
     }
 
     private ExtensibleAddActions createExampleAddActions(LiftExample ex) {
-        // if (f == null) return null;
         return new ExtensibleAddActions() {
             @Override
             public void addTrait(String name, String value) {
-                // f.createTrait(name, value, ex);
-                currentDictionary.getComponentBuilder().trait(ex, name, value);
+                currentDictionary.getComponentBuilder().trait(ex, name, value).build();
             }
 
             @Override
             public void addAnnotation(String name) {
-                // f.createAnnotation(name, ex);
                 currentDictionary.getComponentBuilder().annotation(ex, name).build();
             }
 
             @Override
             public void addField(String type) {
-                // f.createField(type, ex);
                 currentDictionary.getComponentBuilder().field(ex, type).build();
             }
 
             @Override
             public void addNote(String type) {
                 currentDictionary.getComponentBuilder().note(ex, type).build();
-                // f.createNote(type, ex);
             }
 
             @Override
             public void refresh() {
-                populateExampleEditor(ex);
+                if (NAV_EXAMPLES.equals(currentView)) populateExampleEditor(ex);
             }
 
-            // @Override
-            // public List<String> getKnownTraitNames() {
-            //     return getKnownTraitNamesFor(
-            //         LiftFieldAndTraitDefinitionTarget.EXAMPLE
-            //     );
-            // }
 
-            // @Override
-            // public List<String> getKnownAnnotationNames() {
-            //     return getKnownAnnotationNames();
-            // }
 
-            // @Override
-            // public List<String> getKnownFieldTypes() {
-            //     return getKnownFieldTypesFor(
-            //         LiftFieldAndTraitDefinitionTarget.EXAMPLE
-            //     );
-            // }
 
-            // @Override
-            // public List<String> getKnownNoteTypes() {
-            //     return getKnownNoteTypes();
-            // }
         };
     }
 
@@ -3787,32 +3501,12 @@ public final class MainController {
 
             @Override
             public void refresh() {
-                populateVariantEditor(v);
+                if (NAV_VARIANTS.equals(currentView)) populateVariantEditor(v);
             }
 
-            // @Override
-            // public List<String> getKnownTraitNames() {
-            //     return getKnownTraitNamesFor(
-            //         LiftFieldAndTraitDefinitionTarget.VARIANT
-            //     );
-            // }
 
-            // @Override
-            // public List<String> getKnownAnnotationNames() {
-            //     return getKnownAnnotationNames();
-            // }
 
-            // @Override
-            // public List<String> getKnownFieldTypes() {
-            //     return getKnownFieldTypesFor(
-            //         LiftFieldAndTraitDefinitionTarget.VARIANT
-            //     );
-            // }
 
-            // @Override
-            // public List<String> getKnownRelationTypes() {
-            //     return getKnownRelationTypes();
-            // }
         };
     }
 
@@ -3841,6 +3535,32 @@ public final class MainController {
         quickEntryTable.setPlaceholder(
             new Label(I18n.get("placeholder.quickEntryHint"))
         );
+        // Selection listeners are installed once: the tables are reused by every visit of their view.
+        senseTable.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> {
+            if (n != null) populateSenseEditor(n);
+        });
+        exampleTable.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> {
+            if (n != null) populateExampleEditor(n);
+        });
+        variantTable.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> {
+            if (n != null) populateVariantEditor(n);
+        });
+        relationTable.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> {
+            if (n != null) populateRelationEditor(n);
+        });
+        traitTable.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> {
+            if (n != null) populateTraitSummaryEditor(n);
+        });
+        annotationTable.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> {
+            if (n != null) populateAnnotationSummaryEditor(n);
+        });
+        fieldTable.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> {
+            if (n != null) populateFieldSummaryEditor(n);
+        });
+        langFieldTable.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> {
+            if (n != null) populateLangFieldEditor(n);
+        });
+
     }
 
     /* ────────────────── FILTER / SEARCH ────────────────── */
@@ -3853,17 +3573,19 @@ public final class MainController {
         if (currentView.equals(NAV_ENTRIES)) {
             List<LiftEntry> entrySource =
                 entrySubsetOverride != null ? entrySubsetOverride : baseEntries;
+            Set<LiftEntry> sourceSet = Collections.newSetFromMap(new IdentityHashMap<>());
+            sourceSet.addAll(entrySource);
+            // Search text computed once per entry for this filtering pass.
+            Map<LiftEntry, String> searchText = new IdentityHashMap<>();
+            java.util.function.Function<LiftEntry, String> searchTextOf = e ->
+                searchText.computeIfAbsent(e, x -> buildSearchText(x).toLowerCase(Locale.ROOT));
             List<TableColumn<LiftEntry, ?>> leaves = collectLeafColumns(
                 entryTable
             );
             String clearOption = I18n.get("filter.clear");
             filteredEntries.setPredicate(entry -> {
-                if (!entrySource.contains(entry)) return false;
-                if (entry == null) return false;
-                if (
-                    !q.isEmpty() &&
-                    !buildSearchText(entry).toLowerCase(Locale.ROOT).contains(q)
-                ) return false;
+                if (entry == null || !sourceSet.contains(entry)) return false;
+                if (!q.isEmpty() && !searchTextOf.apply(entry).contains(q)) return false;
                 for (
                     int i = 0;
                     i < entryColumnFilters.size() && i < leaves.size();
@@ -3883,7 +3605,7 @@ public final class MainController {
                 }
                 return true;
             });
-            refreshEntryFacetChoices(q, leaves, clearOption, entrySource);
+            refreshEntryFacetChoices(q, leaves, clearOption, entrySource, searchTextOf);
             updateCountLabel(filteredEntries.size(), entrySource.size());
         }
     }
@@ -3892,7 +3614,8 @@ public final class MainController {
         String q,
         List<TableColumn<LiftEntry, ?>> leaves,
         String clearOption,
-        List<LiftEntry> entrySource
+        List<LiftEntry> entrySource,
+        java.util.function.Function<LiftEntry, String> searchTextOf
     ) {
         if (entryColumnFilters.isEmpty()) return;
         entryFilterInternalUpdate = true;
@@ -3911,10 +3634,7 @@ public final class MainController {
                     .filter(
                         e ->
                             e != null &&
-                            (q.isEmpty() ||
-                                buildSearchText(e)
-                                    .toLowerCase(Locale.ROOT)
-                                    .contains(q))
+                            (q.isEmpty() || searchTextOf.apply(e).contains(q))
                     )
                     .filter(e ->
                         rowMatchesEntryFiltersExcluding(
@@ -3983,6 +3703,9 @@ public final class MainController {
     /* ────────────────── DICTIONARY MANAGEMENT ────────────────── */
 
     private void setDictionary(LiftDictionary dictionary) {
+        if (currentDictionary != null) {
+            Bindings.unbindContent(baseEntries, currentDictionary.getLiftDictionaryRegistry().getEntries());
+        }
         this.currentDictionary = dictionary;
         undoManager.clear();
         baseEntries.clear();
@@ -3990,11 +3713,10 @@ public final class MainController {
             updateCountLabel(0, 0);
             return;
         }
-        ensureHeaderComplete();
         rebuildHeaderCfgChildren();
-        baseEntries.addAll(
-            dictionary.getLiftDictionaryRegistry().getEntries()
-        );
+        // baseEntries mirrors the dictionary's entry list, so entries created, deleted or
+        // restored (undo) anywhere show up in the entry table.
+        Bindings.bindContent(baseEntries, dictionary.getLiftDictionaryRegistry().getEntries());
         configureEntryTableColumns();
         if (currentView.equals(NAV_ENTRIES)) {
             applyCurrentFilter();
@@ -4008,46 +3730,37 @@ public final class MainController {
 
     @FXML
     private void onImportLift() {
+        if (!confirmDiscardChanges()) return;
         FileChooser ch = new FileChooser();
         ch.setTitle(I18n.get("dialog.openLift"));
-        // ← Utilise le chemin par défaut sauvegardé
-        String defaultPath = PREFS.get(
-            "ui.defaultPath",
-            System.getProperty("user.home")
-        );
-        File defaultDir = new File(defaultPath);
+        File defaultDir = new File(PREFS.get("ui.defaultPath", System.getProperty("user.home")));
         if (defaultDir.exists()) ch.setInitialDirectory(defaultDir);
         ch.getExtensionFilters().addAll(
-            new FileChooser.ExtensionFilter(
-                I18n.get("dialog.liftFilter"),
-                "*.lift"
-            ),
+            new FileChooser.ExtensionFilter(I18n.get("dialog.liftFilter"), "*.lift"),
             new FileChooser.ExtensionFilter(I18n.get("dialog.allFilter"), "*.*")
         );
         File f = ch.showOpenDialog(navTree.getScene().getWindow());
         if (f == null) return;
-        try {
-            setDictionary(dictionaryService.loadFromFile(f));
-            switchView(NAV_ENTRIES);
-            saveRecentFile(f);
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Ouverture du fichier LIFT", e);
-            showError(
-                I18n.get("error.open"),
-                I18n.formatErrorMessage("error.open.detail", e)
-            );
-        }
+        openDictionaryFile(f);
     }
 
+    /** Saves to the current file; a new or demo dictionary goes through "Save as". */
     @FXML
     private void onSave() {
         if (currentDictionary == null) {
             showError(I18n.get("error.save"), I18n.get("error.noDictionary"));
             return;
         }
+        if (currentFile == null || demo) {
+            onSaveAs();
+            return;
+        }
         try {
-            currentDictionary.save();
+            currentDictionary.save(currentFile);
+            dirty = false;
+            updateWindowTitle();
         } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Sauvegarde du dictionnaire", e);
             showError(
                 I18n.get("error.save"),
                 I18n.formatErrorMessage("error.save.detail", e)
@@ -4055,10 +3768,57 @@ public final class MainController {
         }
     }
 
+    /** Creates an empty dictionary, asking for its object and meta languages. */
     @FXML
     private void onNewDictionary() {
-        setDictionary(null);
-        switchView(NAV_ENTRIES);
+        if (!confirmDiscardChanges()) return;
+        Dialog<String[]> dlg = new Dialog<>();
+        dlg.setTitle(I18n.get("dialog.newDictionary"));
+        dlg.setHeaderText(I18n.get("dialog.newDictionaryHeader"));
+        dlg.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        TextField objField = new TextField();
+        objField.setPromptText("xyz");
+        TextField metaField = new TextField();
+        metaField.setPromptText("en, fr");
+        GridPane grid = new GridPane();
+        grid.setHgap(8);
+        grid.setVgap(8);
+        grid.add(new Label(I18n.get("nav.objectLangs")), 0, 0);
+        grid.add(objField, 1, 0);
+        grid.add(new Label(I18n.get("nav.metaLangs")), 0, 1);
+        grid.add(metaField, 1, 1);
+        dlg.getDialogPane().setContent(grid);
+        dlg.setResultConverter(bt -> bt == ButtonType.OK
+            ? new String[] { objField.getText(), metaField.getText() }
+            : null);
+        dlg.showAndWait().ifPresent(langs -> {
+            String[] obj = splitLanguageCodes(langs[0]);
+            String[] meta = splitLanguageCodes(langs[1]);
+            if (obj.length == 0 || meta.length == 0) {
+                showError(I18n.get("dialog.newDictionary"), I18n.get("error.newDictionaryLanguages"));
+                return;
+            }
+            setDictionary(
+                LiftDictionary.makeBuilder()
+                    .withObjectLanguages(obj)
+                    .withMetaLanguages(meta)
+                    .build()
+            );
+            currentFile = null;
+            demo = false;
+            dirty = false;
+            updateWindowTitle();
+            switchView(NAV_ENTRIES);
+        });
+    }
+
+    private static String[] splitLanguageCodes(String text) {
+        if (text == null) return new String[0];
+        return java.util.Arrays.stream(text.split("[,\\s]+"))
+            .map(String::trim)
+            .filter(t -> !t.isEmpty())
+            .distinct()
+            .toArray(String[]::new);
     }
 
     @FXML
@@ -4073,26 +3833,34 @@ public final class MainController {
         FileChooser ch = new FileChooser();
         ch.setTitle(I18n.get("dialog.saveLift"));
         ch.getExtensionFilters().add(
-            new FileChooser.ExtensionFilter(
-                I18n.get("dialog.liftFilter"),
-                "*.lift"
-            )
+            new FileChooser.ExtensionFilter(I18n.get("dialog.liftFilter"), "*.lift")
         );
+        if (currentFile != null && !demo) {
+            ch.setInitialDirectory(currentFile.getParentFile());
+            ch.setInitialFileName(currentFile.getName());
+        }
         File f = ch.showSaveDialog(navTree.getScene().getWindow());
-        if (f != null) {
-            try {
-                currentDictionary.save(f);
-            } catch (Exception e) {
-                LOGGER.log(
-                    Level.SEVERE,
-                    "Sauvegarde du dictionnaire sous un autre fichier",
-                    e
-                );
-                showError(
-                    I18n.get("error.saveAs"),
-                    I18n.formatErrorMessage("error.saveAs.detail", e)
-                );
-            }
+        if (f == null) return;
+        if (!f.getName().toLowerCase(Locale.ROOT).endsWith(".lift")) {
+            f = new File(f.getParentFile(), f.getName() + ".lift");
+        }
+        try {
+            currentDictionary.save(f);
+            currentFile = f;
+            demo = false;
+            dirty = false;
+            updateWindowTitle();
+            saveRecentFile(f);
+        } catch (Exception e) {
+            LOGGER.log(
+                Level.SEVERE,
+                "Sauvegarde du dictionnaire sous un autre fichier",
+                e
+            );
+            showError(
+                I18n.get("error.saveAs"),
+                I18n.formatErrorMessage("error.saveAs.detail", e)
+            );
         }
     }
 
@@ -4103,60 +3871,48 @@ public final class MainController {
 
     @FXML
     private void onQuit() {
-        Platform.exit();
+        if (confirmDiscardChanges()) Platform.exit();
     }
 
+    /** Copies the selected text, or in the Entries view the selected entry (id and forms). */
     @FXML
     private void onCopy() {
         javafx.scene.Node focused = menuBar.getScene().getFocusOwner();
-        if (focused instanceof TextField tf) {
-            tf.copy();
-        } else {
+        if (focused instanceof TextInputControl tic) {
+            tic.copy();
+        } else if (NAV_ENTRIES.equals(currentView)) {
             copySelectedToClipboard();
         }
     }
 
+    /**
+     * Pastes into the focused text field; in the Entries view, outside a text field, creates a
+     * new entry whose form (first object language) is the clipboard text.
+     */
     @FXML
     private void onPaste() {
         javafx.scene.Node focused = menuBar.getScene().getFocusOwner();
-        if (focused instanceof TextField tf) {
-            tf.paste();
-        } else {
-            // Colle depuis le presse-papiers comme nouvelle entrée
-            String text = Clipboard.getSystemClipboard().getString();
-            if (text == null || text.isBlank()) return;
-            // if (factory == null) return;
-            // // Crée une entrée avec le texte collé comme forme
-            // org.xml.sax.helpers.AttributesImpl attrs =
-            //     new org.xml.sax.helpers.AttributesImpl();
-            // attrs.addAttribute(
-            //     "",
-            //     "id",
-            //     "id",
-            //     "CDATA",
-            //     UUID.randomUUID().toString()
-            // );
-            // LiftEntry entry = factory.createEntry(attrs);
-            LiftEntry entry = currentDictionary.getComponentBuilder().entry().build();
-            Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
-            if (!objLangs.isEmpty()) entry
-                .getForms()
-                .add(new Form(objLangs.stream().findFirst().get(), text.trim()));
-            baseEntries.add(entry);
-            switchView(NAV_ENTRIES);
-            entryTable.getSelectionModel().select(entry);
-            entryTable.scrollTo(entry);
+        if (focused instanceof TextInputControl tic) {
+            tic.paste();
+            return;
         }
+        if (!NAV_ENTRIES.equals(currentView) || currentDictionary == null) return;
+        String text = Clipboard.getSystemClipboard().getString();
+        if (text == null || text.isBlank()) return;
+        Optional<String> lang = currentDictionary.getObjectLanguageManager().getLanguages().stream().sorted().findFirst();
+        if (lang.isEmpty()) return;
+        LiftEntry entry = currentDictionary.getComponentBuilder().entry().withForm(lang.get(), text.trim()).build();
+        markDirty();
+        applyCurrentFilter();
+        entryTable.getSelectionModel().select(entry);
+        entryTable.scrollTo(entry);
     }
 
+    /** Cuts the selected text of the focused text field. */
     @FXML
     private void onCut() {
         javafx.scene.Node focused = menuBar.getScene().getFocusOwner();
-        if (focused instanceof TextField tf) {
-            tf.cut();
-        } else {
-            copySelectedToClipboard();
-        }
+        if (focused instanceof TextInputControl tic) tic.cut();
     }
 
     private void copySelectedToClipboard() {
@@ -4247,144 +4003,26 @@ public final class MainController {
         switchView(NAV_RELATION_TYPES);
     }
 
-    /* ─── Configuration menu ─── */
-    @FXML
-    private void onConfigNoteTypes() {
-        switchView(NAV_CFG_MANAGE_NOTE_TYPES);
-    }
+    /* ─── Header type views (note, translation, annotation, relation types) ─── */
 
     private void showConfigNoteTypesView() {
-        showConfigInlineView(
-            I18n.get("menu.config.noteTypes"),
-            () ->
-                currentDictionary == null
-                    ? List.of()
-                    : currentDictionary
-                          .getLiftDictionaryRegistry()
-                          .getNotes()
-                          .stream()
-                          .map(x -> x.getType().getId())
-                          .distinct()
-                          .sorted()
-                          .toList(),
-            val ->
-                currentDictionary == null
-                    ? 0L
-                    : currentDictionary
-                          .getLiftDictionaryRegistry()
-                          .getNotes()
-                          .stream()
-                          .filter(n -> val.equals(n.getType().getId()))
-                          .count()
-        );
-    }
-
-    @FXML
-    private void onConfigTranslationTypes() {
-        switchView(NAV_CFG_MANAGE_TRANS_TYPES);
+        showFeatureSetView(I18n.get("nav.cfgManageNoteTypes"), headerOrNull(LiftHeader::getNoteTypeManager));
     }
 
     private void showConfigTranslationTypesView() {
-        showConfigInlineView(
-            I18n.get("menu.config.translationTypes"),
-            () ->
-                currentDictionary == null
-                    ? List.of()
-                    : currentDictionary
-                          .getLiftDictionaryRegistry()
-                          .getExamples()
-                          .stream()
-                          .flatMap(ex -> ex.getTranslations().keySet().stream())
-                          .map(x -> x.getId())
-                          .distinct()
-                          .sorted()
-                          .toList(),
-            val ->
-                currentDictionary == null
-                    ? 0L
-                    : currentDictionary
-                          .getLiftDictionaryRegistry()
-                          .getExamples()
-                          .stream()
-                          .filter(ex -> ex.getTranslations().containsKey(val))
-                          .count()
-        );
-    }
-
-    @FXML
-    private void onConfigLanguages() {
-        switchView(NAV_CFG_MANAGE_LANGS);
-    }
-
-    @FXML
-    private void onConfigTraitTypes() {
-        switchView(NAV_TRAITS);
-    }
-
-    @FXML
-    private void onConfigAnnotationTypes() {
-        switchView(NAV_CFG_MANAGE_ANNOTATION_TYPES);
+        showFeatureSetView(I18n.get("nav.cfgManageTransTypes"), headerOrNull(LiftHeader::getTranslationTypeManager));
     }
 
     private void showConfigAnnotationTypesView() {
-        showConfigInlineView(
-            I18n.get("menu.config.annotationTypes"),
-            () ->
-                currentDictionary == null
-                    ? List.of()
-                    : currentDictionary
-                          .getLiftDictionaryRegistry()
-                          .getAnnotations()
-                          .stream()
-                          .map(x -> x.getType().getId())
-                          .distinct()
-                          .sorted()
-                          .toList(),
-            val ->
-                currentDictionary == null
-                    ? 0L
-                    : currentDictionary
-                          .getLiftDictionaryRegistry()
-                          .getAnnotations()
-                          .stream()
-                          .filter(a -> val.equals(a.getType().getId()))
-                          .count()
-        );
-    }
-
-    @FXML
-    private void onConfigFieldTypes() {
-        switchView(NAV_FIELD_TYPES);
-    }
-
-    private void onConfigRelationTypes() {
-        switchView(NAV_CFG_MANAGE_RELATION_TYPES);
+        showFeatureSetView(I18n.get("nav.cfgManageAnnotationTypes"), headerOrNull(LiftHeader::getAnnotationTypeManager));
     }
 
     private void showConfigRelationTypesView() {
-        showConfigInlineView(
-            I18n.get("nav.cfgManageRelationTypes"),
-            () ->
-                currentDictionary == null
-                    ? List.of()
-                    : currentDictionary
-                          .getLiftDictionaryRegistry()
-                          .getRelations()
-                          .stream()
-                          .map(r -> r.getType().getId())
-                          .distinct()
-                          .sorted()
-                          .toList(),
-            val ->
-                currentDictionary == null
-                    ? 0L
-                    : currentDictionary
-                          .getLiftDictionaryRegistry()
-                          .getRelations()
-                          .stream()
-                          .filter(r -> val.equals(r.getType().getId()))
-                          .count()
-        );
+        showFeatureSetView(I18n.get("nav.cfgManageRelationTypes"), headerOrNull(LiftHeader::getRelationTypeManager));
+    }
+
+    private FeatureSet headerOrNull(java.util.function.Function<LiftHeader, FeatureSet> manager) {
+        return currentDictionary == null ? null : manager.apply(currentDictionary.getHeader());
     }
 
     private void showManageLanguagesView() {
@@ -4394,10 +4032,6 @@ public final class MainController {
                 .setAll(new Label(I18n.get("cfg.noHeader")));
             return;
         }
-        var ldc = currentDictionary.getLiftDictionaryRegistry();
-        Set<String> objLangs = currentDictionary.getObjectLanguageManager().getLanguages();
-        Set<String> metaLangs = currentDictionary.getMetaLanguageManager().getLanguages();
-
         VBox box = new VBox(10);
         box.setPadding(new Insets(12));
         Label title = new Label(I18n.get("nav.cfgManageLangs"));
@@ -4408,8 +4042,7 @@ public final class MainController {
         TitledPane objPane = new TitledPane(
             I18n.get("nav.objectLangs"),
             buildEditableLanguagePanel(
-                objLangs,
-                true,
+                currentDictionary.getObjectLanguageManager(),
                 currentDictionary.getLiftDictionaryRegistry().getObjectText()
             )
         );
@@ -4418,8 +4051,7 @@ public final class MainController {
         TitledPane metaPane = new TitledPane(
             I18n.get("nav.metaLangs"),
             buildEditableLanguagePanel(
-                metaLangs,
-                false,
+                currentDictionary.getMetaLanguageManager(),
                 currentDictionary.getLiftDictionaryRegistry().getMetaText()
             )
         );
@@ -4435,44 +4067,35 @@ public final class MainController {
 
     /** Builds an editable panel for a language list (object or meta) with add/delete. */
     private VBox buildEditableLanguagePanel(
-        Set<String> langs,
-        boolean isObject,
+        LiftDictionaryLanguagesManager manager,
         ObservableList<MultiText> multiTexts
     ) {
-        TableView<String> table = new TableView<>(
-            FXCollections.observableArrayList(langs)
+        TableView<String> table = new TableView<>();
+        Runnable reload = () -> table.setItems(
+            FXCollections.observableArrayList(manager.getLanguages().stream().sorted().toList())
         );
+        reload.run();
         table.setPrefHeight(140);
-        TableColumn<String, String> langCol = new TableColumn<>(
-            I18n.get("col.code")
-        );
-        langCol.setCellValueFactory(cd ->
-            new ReadOnlyStringWrapper(cd.getValue())
-        );
+        TableColumn<String, String> langCol = new TableColumn<>(I18n.get("col.code"));
+        langCol.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue()));
         langCol.setPrefWidth(120);
-        TableColumn<String, String> usageCol = new TableColumn<>(
-            I18n.get("cfg.usageCount")
+        TableColumn<String, String> usageCol = new TableColumn<>(I18n.get("cfg.usageCount"));
+        usageCol.setCellValueFactory(cd ->
+            new ReadOnlyStringWrapper(String.valueOf(countLanguageUsage(cd.getValue(), multiTexts)))
         );
-        usageCol.setCellValueFactory(cd -> {
-            long n = countLanguageUsage(cd.getValue(), multiTexts);
-            return new ReadOnlyStringWrapper(String.valueOf(n));
-        });
         usageCol.setPrefWidth(80);
-        table.getColumns().addAll(langCol, usageCol);
+        table.getColumns().addAll(List.of(langCol, usageCol));
 
         TextField addField = new TextField();
         addField.setPromptText(I18n.get("config.addAbbr"));
         Button addBtn = new Button(I18n.get("btn.add"));
         addBtn.setOnAction(e -> {
             String code = addField.getText().trim();
-            if (code.isEmpty()) return;
-            if (langs.contains(code)) return;
-            if (addLanguageToDictionary(code, isObject)) {
-                langs.add(code);
-                new ArrayList<String>(langs).sort(Comparator.naturalOrder());
-                table.setItems(FXCollections.observableArrayList(langs));
-                addField.clear();
-            }
+            if (code.isEmpty() || manager.hasLanguage(code)) return;
+            manager.addLanguage(code);
+            markDirty();
+            addField.clear();
+            reload.run();
         });
         Button removeBtn = new Button(I18n.get("btn.delete"));
         removeBtn.setOnAction(e -> {
@@ -4482,20 +4105,22 @@ public final class MainController {
             if (usage > 0) {
                 Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
                 confirm.setTitle(I18n.get("btn.delete"));
-                confirm.setHeaderText(
-                    I18n.get("config.deleteWarning", sel, usage)
-                );
+                confirm.setHeaderText(I18n.get("config.deleteWarning", sel, usage));
                 confirm.setContentText(I18n.get("config.deleteConfirm"));
-                if (
-                    confirm
-                        .showAndWait()
-                        .filter(r -> r == ButtonType.OK)
-                        .isEmpty()
-                ) return;
+                if (confirm.showAndWait().filter(r -> r == ButtonType.OK).isEmpty()) return;
             }
-            removeLanguageFromMultiTexts(sel, multiTexts);
-            langs.remove(sel);
-            table.setItems(FXCollections.observableArrayList(langs));
+            // Removing the forms drops the language occurrences; then the language itself.
+            for (MultiText mt : List.copyOf(multiTexts)) {
+                if (mt.getForm(sel).isPresent()) mt.removeForm(sel);
+            }
+            markDirty();
+            try {
+                if (manager.hasLanguage(sel)) manager.removeLanguage(sel);
+            } catch (IllegalArgumentException ex) {
+                // Still used somewhere outside the listed texts (e.g. the header).
+                showError(I18n.get("btn.delete"), I18n.get("error.languageStillUsed", sel));
+            }
+            reload.run();
         });
 
         HBox controls = new HBox(8, addField, addBtn, removeBtn);
@@ -4512,41 +4137,13 @@ public final class MainController {
             .count();
     }
 
-    private void removeLanguageFromMultiTexts(
-        String lang,
-        List<MultiText> multiTexts
-    ) {
-        if (lang == null || lang.isBlank() || multiTexts == null) return;
-        for (MultiText mt : multiTexts) {
-            if (mt.getForm(lang).isPresent() && !mt.isEmpty()) {
-                try {
-                    mt.removeForm(lang);
-                } catch (Exception ignored) {}
-            }
-        }
-    }
-
-    /** Adds a language by inserting an empty form in the first available multitext of the appropriate type. */
-    private boolean addLanguageToDictionary(String lang, boolean isObject) {
-        if (
-            currentDictionary == null || lang == null || lang.isBlank()
-        ) return false;
-        var ldc = currentDictionary.getLiftDictionaryRegistry();
-        List<MultiText> targets = isObject
-            ? ldc.getObjectText()
-            : ldc.getMetaText();
-        for (MultiText mt : targets) {
-            if (!mt.getForm(lang).isPresent()) {
-                try {
-                    mt.add(new Form(lang, ""));
-                    return true;
-                } catch (Exception ignored) {}
-            }
-        }
-        return false;
-    }
-
     /* ─── Outil menu ─── */
+    /**
+     * Checks the dictionary for common problems and shows a report: entries without form,
+     * senses without gloss or definition, references to unknown entries or senses, fields and
+     * traits whose name is not declared in the header, trait values outside their range,
+     * types not declared in the header, and empty forms.
+     */
     @FXML
     private void onValidateDictionary() {
         if (currentDictionary == null) {
@@ -4556,18 +4153,116 @@ public final class MainController {
             );
             return;
         }
-        var c = currentDictionary.getLiftDictionaryRegistry();
-        showInfo(
-            I18n.get("error.validation"),
+        var reg = currentDictionary.getLiftDictionaryRegistry();
+        Map<String, List<String>> issues = new LinkedHashMap<>();
+        java.util.function.BiConsumer<String, String> issue = (key, where) ->
+            issues.computeIfAbsent(I18n.get(key), k -> new ArrayList<>()).add(where);
+
+        for (LiftEntry e : reg.getEntries()) {
+            if (e.getForms().isEmpty()) issue.accept("validate.entryWithoutForm", describeForReport(e));
+        }
+        for (LiftSense sn : reg.getSenses()) {
+            if (sn.getGlosses().isEmpty() && sn.getDefinition().isEmpty()) {
+                issue.accept("validate.senseWithoutGloss", describeForReport(sn));
+            }
+        }
+        for (LiftRelation r : reg.getRelations()) {
+            if (r.getRefID().filter(id -> !id.isBlank()).isPresent() && r.getRefObject() == null) {
+                issue.accept("validate.danglingReference", describeForReport(r) + " → " + r.getRefID().get());
+            }
+        }
+        for (LiftVariant v : reg.getVariants()) {
+            if (v.getRefId().filter(id -> !id.isBlank()).isPresent() && v.getRefObject() == null) {
+                issue.accept("validate.danglingReference", describeForReport(v) + " → " + v.getRefId().get());
+            }
+        }
+        for (LiftField f : reg.getFields()) {
+            if (f.getSpecification().getKind() == LiftFieldAndTraitDefinitionKind.UNKNOWN) {
+                issue.accept("validate.undeclaredField", describeForReport(f) + " : " + f.getSpecification().getName());
+            }
+        }
+        for (LiftTrait t : reg.getTraits()) {
+            LiftFieldAndTraitDefinition spec = t.getSpecification();
+            if (spec.getKind() == LiftFieldAndTraitDefinitionKind.UNKNOWN) {
+                issue.accept("validate.undeclaredTrait", describeForReport(t) + " : " + spec.getName());
+            }
+            spec.getResolvedFeatureSet().ifPresent(set -> {
+                for (String token : traitValueTokens(t)) {
+                    if (!set.hasFeature(token)) {
+                        issue.accept("validate.traitValueOutOfRange",
+                            describeForReport(t) + " : " + spec.getName() + " = " + token);
+                    }
+                }
+            });
+        }
+        List<HasType> typed = new ArrayList<>();
+        typed.addAll(reg.getNotes());
+        typed.addAll(reg.getTranslations());
+        typed.addAll(reg.getAnnotations());
+        typed.addAll(reg.getRelations());
+        typed.addAll(reg.getEtymologies());
+        typed.addAll(reg.getReversals());
+        for (HasType x : typed) {
+            Feature type = x.getType();
+            if (type == null) continue;
+            FeatureSet set = type.getParent();
+            if (set == null || set.getFeature(type.getId()) != type) {
+                issue.accept("validate.undeclaredType", describeForReport(x) + " : " + type.getId());
+            }
+        }
+        List<MultiText> texts = new ArrayList<>(reg.getObjectText());
+        texts.addAll(reg.getMetaText());
+        for (MultiText mt : texts) {
+            for (Form f : mt.getForms()) {
+                if (f.toPlainText() == null || f.toPlainText().isBlank()) {
+                    issue.accept("validate.emptyForm", describeForReport(mt.getParent()) + " [" + f.getLang() + "]");
+                }
+            }
+        }
+
+        StringBuilder report = new StringBuilder();
+        int total = 0;
+        for (var e : issues.entrySet()) {
+            total += e.getValue().size();
+            report.append(e.getKey()).append(" (").append(e.getValue().size()).append(")\n");
+            e.getValue().stream().limit(200).forEach(w -> report.append("    ").append(w).append("\n"));
+            if (e.getValue().size() > 200) report.append("    …\n");
+            report.append("\n");
+        }
+        Alert a = new Alert(total == 0 ? Alert.AlertType.INFORMATION : Alert.AlertType.WARNING);
+        a.setTitle(I18n.get("error.validation"));
+        a.setHeaderText(
             I18n.get(
                 "info.validationResult",
-                c.getEntries().size(),
-                c.getSenses().size(),
-                c.getExamples().size(),
+                reg.getEntries().size(),
+                reg.getSenses().size(),
+                reg.getExamples().size(),
                 String.join(", ", currentDictionary.getObjectLanguageManager().getLanguages()),
                 String.join(", ", currentDictionary.getMetaLanguageManager().getLanguages())
-            )
+            ) + "\n" + (total == 0 ? I18n.get("validate.noIssue") : I18n.get("validate.issues", total))
         );
+        if (total > 0) {
+            TextArea area = new TextArea(report.toString());
+            area.setEditable(false);
+            area.setWrapText(false);
+            area.setPrefSize(720, 420);
+            a.getDialogPane().setContent(area);
+            a.setResizable(true);
+        }
+        a.showAndWait();
+    }
+
+    /** Short description of a component for the validation report: its type and its entry. */
+    private static String describeForReport(Object o) {
+        String kind = o == null ? "" : o.getClass().getSimpleName().replaceFirst("^Lift", "");
+        LiftEntry e = owningEntry(o);
+        if (e == null) return kind;
+        String form = e.getForms().getForms().stream()
+            .map(Form::toPlainText)
+            .filter(t -> t != null && !t.isBlank())
+            .findFirst()
+            .orElse(e.getId().orElse("?"));
+        return kind + " — " + form;
     }
 
     @FXML
@@ -4855,19 +4550,18 @@ public final class MainController {
             .addListener((obs, o, n) -> {
                 if (n != null) populateFieldTypeSummaryEditor(n);
             });
-        VBox wrapper = wrapTableWithFilters(table);
+        VBox wrapper = wrapTableWithFilters(table, this::updateCountLabel, searchField.textProperty());
         tableContainer.getChildren().setAll(wrapper);
         updateCountLabel(table.getItems().size(), table.getItems().size());
     }
 
     private void populateFieldTypeSummaryEditor(FieldTypeRow row) {
-        setModifyButtonVisible(false);
         LinkedHashMap<String, String> values = new LinkedHashMap<>();
         values.put(I18n.get("col.type"), row.fieldType());
         values.put(I18n.get("col.frequency"), String.valueOf(row.frequency()));
         populateSummaryEditor(I18n.get("nav.fieldTypes"), "", values);
         Button accessBtn = new Button(I18n.get("btn.accessObjects"));
-        accessBtn.getStyleClass().add("example-add-button");
+        accessBtn.getStyleClass().addAll("example-add-button", "no-dirty");
         accessBtn.setMaxWidth(Double.MAX_VALUE);
         accessBtn.setOnAction(e -> showObjectsWithFieldType(row.fieldType()));
         editorContainer.getChildren().add(accessBtn);
@@ -4922,7 +4616,7 @@ public final class MainController {
                     categoryKind
                 );
             });
-        VBox wrapper = wrapTableWithFilters(table);
+        VBox wrapper = wrapTableWithFilters(table, this::updateCountLabel, searchField.textProperty());
         tableContainer.getChildren().setAll(wrapper);
         updateCountLabel(table.getItems().size(), table.getItems().size());
     }
@@ -4934,8 +4628,18 @@ public final class MainController {
      * Each TextField filters its column; only rows matching ALL column filters are shown.
      * If searchTextProperty is non-null, the global search bar also filters rows (any visible column).
      */
+    /** The search-field listener of the table view currently shown, if any. */
+    private javafx.beans.value.ChangeListener<String> activeSearchListener;
+
+    private void detachSearchListener() {
+        if (activeSearchListener != null && searchField != null) {
+            searchField.textProperty().removeListener(activeSearchListener);
+        }
+        activeSearchListener = null;
+    }
+
     @SuppressWarnings("unchecked")
-    private static <T> VBox wrapTableWithFilters(
+    private <T> VBox wrapTableWithFilters(
         TableView<T> table,
         java.util.function.BiConsumer<Integer, Integer> onCountChanged,
         javafx.beans.property.StringProperty searchTextProperty
@@ -4956,6 +4660,7 @@ public final class MainController {
         AtomicBoolean internalUpdate = new AtomicBoolean(false);
 
         GridPane filterRow = new GridPane();
+        filterRow.getStyleClass().add("no-dirty");
         filterRow.setHgap(0);
         filterRow.setPadding(new Insets(4, 0, 4, 0));
         filterRow.setStyle("-fx-background-color: #eef2f3;");
@@ -5035,10 +4740,13 @@ public final class MainController {
         };
 
         if (searchTextProperty != null) {
-            searchTextProperty.addListener((obs, o, n) -> {
+            // Only the table shown listens to the search field.
+            detachSearchListener();
+            activeSearchListener = (obs, o, n) -> {
                 refreshPredicate.run();
                 refreshFacetChoices.run();
-            });
+            };
+            searchTextProperty.addListener(activeSearchListener);
         }
 
         Button clearBtn = new Button(I18n.get("filter.resetAll"));
@@ -5068,6 +4776,7 @@ public final class MainController {
         });
 
         HBox header = new HBox();
+        header.getStyleClass().add("no-dirty");
         header.setPadding(new Insets(0, 6, 4, 6));
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -5209,17 +4918,6 @@ public final class MainController {
         return wrapper;
     }
 
-    private static <T> VBox wrapTableWithFilters(TableView<T> table) {
-        return wrapTableWithFilters(table, null, null);
-    }
-
-    private static <T> VBox wrapTableWithFilters(
-        TableView<T> table,
-        java.util.function.BiConsumer<Integer, Integer> onCountChanged
-    ) {
-        return wrapTableWithFilters(table, onCountChanged, null);
-    }
-
     private static <T> boolean rowMatchesSearch(
         T row,
         List<TableColumn<T, ?>> leaves,
@@ -5315,12 +5013,6 @@ public final class MainController {
             return;
         }
         LiftHeader header = currentDictionary.getHeader();
-        // if (header == null || factory == null) {
-        //     tableContainer
-        //         .getChildren()
-        //         .setAll(new Label(I18n.get("cfg.noHeader")));
-        //     return;
-        // }
 
         FeatureSet range = header.hasFeatureSet(rangeId)
             ? header.getFeatureSet(rangeId)
@@ -5334,7 +5026,7 @@ public final class MainController {
         // ── Top: Range properties (description, label, abbrev) ─────────────
         TitledPane rangePropsPane = new TitledPane(
             I18n.get("cfg.rangeProperties"),
-            buildRangePropertiesEditor(range, metaLangs)
+            buildRangePropertiesEditor(range)
         );
         rangePropsPane.setExpanded(true);
         rangePropsPane.setAnimated(false);
@@ -5394,7 +5086,7 @@ public final class MainController {
             if (selItem == null) return;
             if (selItem == null || selItem.getValue() == null) return;
             Feature sel = selItem.getValue();
-            long usage = countRangeElementUsage(rangeId, sel.getId());
+            long usage = countFeatureUsage(sel);
             if (usage > 0) showError(
                 I18n.get("btn.delete"),
                 I18n.get("cfg.deleteNotAllowed", usage)
@@ -5420,11 +5112,11 @@ public final class MainController {
             );
             dlg.showAndWait().ifPresent(newName -> {
                 if (!newName.isBlank()) {
-                    renameRangeElementInData(
-                        rangeId,
-                        selItem.getValue().getId(),
-                        newName
-                    );
+                    if (range.hasFeature(newName.trim())) {
+                        showError(I18n.get("cfg.rename"), I18n.get("cfg.idExists", newName.trim()));
+                        return;
+                    }
+                    renameFeature(range, selItem.getValue().getId(), newName.trim());
                     showHeaderRangeView(rangeId);
                 }
             });
@@ -5470,43 +5162,28 @@ public final class MainController {
     }
 
     /** Build a small GridPane of MultiTextEditors for description / label / abbrev of a range. */
-    private VBox buildRangePropertiesEditor(
-        FeatureSet range,
-        List<String> metaLangs
-    ) {
+    private VBox buildRangePropertiesEditor(FeatureSet range) {
         VBox box = new VBox(8);
         box.setPadding(new Insets(6));
         addMultiTextRow(
             box,
             I18n.get("cfg.description"),
-            range.getDescription(),
-            metaLangs
-        );
+            range.getDescription());
         addMultiTextRow(
             box,
             I18n.get("cfg.label"),
-            range.getLabel(),
-            metaLangs
-        );
+            range.getLabel());
         addMultiTextRow(
             box,
             I18n.get("cfg.abbrev"),
-            range.getAbbrev(),
-            metaLangs
-        );
+            range.getAbbrev());
         return box;
     }
 
-    private void addMultiTextRow(
-        VBox box,
-        String lbl,
-        MultiText mt,
-        List<String> langs
-    ) {
+    private void addMultiTextRow(VBox box, String lbl, MultiText mt) {
         Label l = new Label(lbl);
         l.setStyle("-fx-font-weight:bold; -fx-font-size:12px;");
         MultiTextEditor ed = new MultiTextEditor(currentDictionary);
-        // ed.setAvailableLanguages(langs);
         ed.setMultiText(mt);
         box.getChildren().addAll(l, ed);
     }
@@ -5527,7 +5204,6 @@ public final class MainController {
                 .setAll(new Label(I18n.get("cfg.noHeader")));
             return;
         }
-        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
         VBox box = new VBox(10);
         box.setPadding(new Insets(12));
         Label title = new Label(I18n.get("nav.cfgDesc"));
@@ -5542,7 +5218,7 @@ public final class MainController {
         int row = 0;
         LiftVersion version = currentDictionary.getLiftVersion();
         if (version != null) {
-            Label vLabel = new Label("LIFT version :");
+            Label vLabel = new Label(I18n.get("cfg.liftVersion"));
             vLabel.setStyle("-fx-font-weight:bold;");
             TextField vField = new TextField(version.toString());
             vField.setEditable(false);
@@ -5554,7 +5230,7 @@ public final class MainController {
         }
         String producer = currentDictionary.getLiftProducer();
         if (producer != null && !producer.isBlank()) {
-            Label pLabel = new Label("Producer :");
+            Label pLabel = new Label(I18n.get("cfg.producer"));
             pLabel.setStyle("-fx-font-weight:bold;");
             TextField pField = new TextField(producer);
             pField.setEditable(false);
@@ -5568,9 +5244,7 @@ public final class MainController {
         addMultiTextRow(
             box,
             I18n.get("cfg.description"),
-            header.getDescription(),
-            metaLangs
-        );
+            header.getDescription());
         tableContainer.getChildren().setAll(box);
         editorContainer.getChildren().clear();
         editEntryTitle.setText(I18n.get("nav.cfgDesc"));
@@ -5640,102 +5314,6 @@ public final class MainController {
         return tree;
     }
 
-    private void showHeaderAllRangesView() {
-        if (currentDictionary == null) {
-            tableContainer
-                .getChildren()
-                .setAll(new Label(I18n.get("cfg.noHeader")));
-            return;
-        }
-        LiftHeader header = currentDictionary
-            .getHeader();
-        if (header == null) {
-            tableContainer
-                .getChildren()
-                .setAll(new Label(I18n.get("cfg.noHeader")));
-            return;
-        }
-
-        TableView<FeatureSet> rangeTable = new TableView<>();
-        rangeTable
-            .getColumns()
-            .addAll(
-                col(I18n.get("cfg.rangeId"), FeatureSet::getId),
-                col(I18n.get("cfg.usageCount"), r ->
-                    String.valueOf(r.getFeatures().values().size())
-                ),
-                col(I18n.get("cfg.description"), r ->
-                    r
-                        .getDescription()
-                        .getForms()
-                        .stream()
-                        .findFirst()
-                        .map(Form::toPlainText)
-                        .orElse("")
-                )
-            );
-        rangeTable.getItems().addAll(header.getFeatureSets());
-
-        rangeTable
-            .getSelectionModel()
-            .selectedItemProperty()
-            .addListener((obs, o, n) -> {
-                if (n != null) {
-                    editorContainer.getChildren().clear();
-                    editEntryTitle.setText(
-                        I18n.get("cfg.rangeElements", n.getId())
-                    );
-                    editEntryCode.setText(n.getId());
-
-                    VBox elemBox = new VBox(4);
-                    for (Feature re : n
-                        .getFeatures()
-                        .values()) {
-                        String label =
-                            re.getId() +
-                            " – " +
-                            re
-                                .getDescription()
-                                .getForms()
-                                .stream()
-                                .findFirst()
-                                .map(Form::toPlainText)
-                                .orElse("");
-                        elemBox.getChildren().add(new Label(label));
-                    }
-                    Hyperlink editLink = new Hyperlink(
-                        I18n.get("cfg.rangeElements", n.getId())
-                    );
-                    editLink.setOnAction(e -> showHeaderRangeView(n.getId()));
-                    editorContainer.getChildren().addAll(editLink, elemBox);
-                }
-            });
-
-        TextField newRangeField = new TextField();
-        newRangeField.setPromptText(I18n.get("cfg.rangeId"));
-        Button addBtn = new Button(I18n.get("cfg.addElement"));
-        addBtn.setOnAction(e -> {
-            String id = newRangeField.getText().trim();
-            if (!id.isEmpty() && !header.hasFeatureSet(id)) {
-                FeatureSet newRange = header.addFeatureSet(id);
-                rangeTable.getItems().add(newRange);
-                newRangeField.clear();
-            }
-        });
-
-        HBox controls = new HBox(8, newRangeField, addBtn);
-        controls.setPadding(new Insets(6, 0, 0, 0));
-        HBox.setHgrow(newRangeField, Priority.ALWAYS);
-
-        VBox wrapper = new VBox(6, wrapTableWithFilters(rangeTable), controls);
-        VBox.setVgrow(wrapper.getChildren().get(0), Priority.ALWAYS);
-        tableContainer.getChildren().setAll(wrapper);
-        updateCountLabel(
-            rangeTable.getItems().size(),
-            rangeTable.getItems().size()
-        );
-    }
-
     private void showHeaderFieldDefsView() {
         if (currentDictionary == null) {
             tableContainer
@@ -5745,12 +5323,6 @@ public final class MainController {
         }
         LiftHeader header = currentDictionary
             .getHeader();
-        // if (header == null || factory == null) {
-        //     tableContainer
-        //         .getChildren()
-        //         .setAll(new Label(I18n.get("cfg.noHeader")));
-        //     return;
-        // }
 
         TableView<LiftFieldAndTraitDefinition> table = new TableView<>();
         table
@@ -5811,7 +5383,7 @@ public final class MainController {
         HBox controls = new HBox(8, addBtn, deleteBtn);
         controls.setPadding(new Insets(6, 0, 0, 0));
 
-        VBox wrapper = new VBox(6, wrapTableWithFilters(table), controls);
+        VBox wrapper = new VBox(6, wrapTableWithFilters(table, this::updateCountLabel, searchField.textProperty()), controls);
         VBox.setVgrow(wrapper.getChildren().get(0), Priority.ALWAYS);
         tableContainer.getChildren().setAll(wrapper);
         updateCountLabel(table.getItems().size(), table.getItems().size());
@@ -5889,7 +5461,9 @@ public final class MainController {
                     .stream()
                     .anyMatch(fd -> fd.getName().equals(name))
             ) return null;
-            LiftFieldAndTraitDefinition fd = header.createFieldDefinition(name);
+            LiftFieldAndTraitDefinition fd = rbTrait.isSelected()
+                ? header.createTraitDefinition(name)
+                : header.createFieldDefinition(name);
             String typeVal = typeCombo.getValue();
             if (typeVal != null && !typeVal.isBlank()) fd.setDataModel(
                 Optional.of(typeVal)
@@ -5932,14 +5506,12 @@ public final class MainController {
         );
         editEntryCode.setText(range.getId());
         editorContainer.getChildren().clear();
-        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
 
         addSection(
             editorContainer,
             I18n.get("cfg.label"),
             () -> {
                 MultiTextEditor m = new MultiTextEditor(currentDictionary);
-                // m.setAvailableLanguages(metaLangs);
                 m.setMultiText(elem.getLabel());
                 return m;
             },
@@ -5950,7 +5522,6 @@ public final class MainController {
             I18n.get("cfg.abbrev"),
             () -> {
                 MultiTextEditor m = new MultiTextEditor(currentDictionary);
-                // m.setAvailableLanguages(metaLangs);
                 m.setMultiText(elem.getAbbrev());
                 return m;
             },
@@ -5961,7 +5532,6 @@ public final class MainController {
             I18n.get("cfg.description"),
             () -> {
                 MultiTextEditor m = new MultiTextEditor(currentDictionary);
-                // m.setAvailableLanguages(metaLangs);
                 m.setMultiText(elem.getDescription());
                 return m;
             },
@@ -5974,7 +5544,6 @@ public final class MainController {
         String kindLabel = fieldDefKindLabel(fd);
         editEntryCode.setText(kindLabel + " – " + fd.getTypeStr().orElse(""));
         editorContainer.getChildren().clear();
-        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
 
         addSection(
             editorContainer,
@@ -6007,11 +5576,16 @@ public final class MainController {
                     );
                 typeCombo.setValue(fd.getTypeStr().orElse(""));
                 typeCombo.valueProperty().addListener((obs, o, n) -> {
-                    fd.setDataModel(
-                        n == null || n.isBlank()
-                            ? Optional.empty()
-                            : Optional.of(n)
-                    );
+                    try {
+                        fd.setDataModel(
+                            n == null || n.isBlank()
+                                ? Optional.empty()
+                                : Optional.of(n.trim())
+                        );
+                        markDirty();
+                    } catch (IllegalArgumentException ex) {
+                        showError(I18n.get("cfg.fieldDefType"), I18n.get("error.invalidValue", n));
+                    }
                 });
                 GridPane.setHgrow(typeCombo, Priority.ALWAYS);
                 g.add(typeCombo, 1, 2);
@@ -6019,32 +5593,57 @@ public final class MainController {
                 g.add(new Label(I18n.get("cfg.targets")), 0, 3);
                 TextField classTf = new TextField(fd.getTargetAsString());
                 classTf.setPromptText("entry sense variant ...");
-                classTf
-                    .textProperty()
-                    .addListener((obs, o, n) -> {
-                        if (!n.isBlank()) {
-                           fd.setTargets(n);
-                        }
-                    });
+                // Applied when the field is validated (Enter or focus lost), and only if every
+                // target is a known LIFT element name.
+                Runnable applyTargets = () -> {
+                    String n = classTf.getText().trim();
+                    if (n.isEmpty() || n.equals(fd.getTargetAsString())) {
+                        classTf.setStyle("");
+                        return;
+                    }
+                    try {
+                        LiftFieldAndTraitDefinitionTarget.parseTargetString(n);
+                        fd.setTargets(n);
+                        classTf.setStyle("");
+                        markDirty();
+                    } catch (RuntimeException ex) {
+                        classTf.setStyle("-fx-border-color: #c0392b; -fx-border-width: 2;");
+                    }
+                };
+                classTf.setOnAction(e -> applyTargets.run());
+                classTf.focusedProperty().addListener((obs, was, is) -> {
+                    if (!is) applyTargets.run();
+                });
                 GridPane.setHgrow(classTf, Priority.ALWAYS);
                 g.add(classTf, 1, 3);
 
                 g.add(new Label(I18n.get("cfg.optionRange")), 0, 4);
                 ComboBox<FeatureSet> orCb = new ComboBox<>();
                 orCb.setItems(currentDictionary.getHeader().getFeatureSets());
-                orCb.getSelectionModel().selectedItemProperty().addListener((obs, o, n) ->
-                    fd.setResolvedRange(Optional.of(n))
-                );
+                orCb.setConverter(new javafx.util.StringConverter<>() {
+                    @Override
+                    public String toString(FeatureSet f) {
+                        return f == null ? "" : f.getId();
+                    }
 
-                //TextField orTf = new TextField(fd.getOptionRange().orElse(""));
-                //orTf.setPromptText("range id...");
-                //orTf.textProperty().addListener((obs, o, n) ->
-                //    fd.setOptionRange(
-                //        n.isBlank() ? Optional.empty() : Optional.of(n)
-                //    )
-                //);
-                //GridPane.setHgrow(orTf, Priority.ALWAYS);
-                //g.add(orTf, 1, 4);
+                    @Override
+                    public FeatureSet fromString(String str) {
+                        return null;
+                    }
+                });
+                orCb.setCellFactory(lv -> new ListCell<>() {
+                    @Override
+                    protected void updateItem(FeatureSet item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setText(empty || item == null ? null : item.getId());
+                    }
+                });
+                orCb.setValue(fd.getResolvedFeatureSet().orElse(null));
+                orCb.valueProperty().addListener((obs, o, n) -> {
+                    fd.setResolvedRange(Optional.ofNullable(n));
+                    markDirty();
+                });
+
                 GridPane.setHgrow(orCb, Priority.ALWAYS);
                 g.add(orCb, 1, 4);
                 return g;
@@ -6057,7 +5656,6 @@ public final class MainController {
             I18n.get("cfg.label"),
             () -> {
                 MultiTextEditor m = new MultiTextEditor(currentDictionary);
-                // m.setAvailableLanguages(metaLangs);
                 m.setMultiText(fd.getLabel());
                 return m;
             },
@@ -6068,7 +5666,6 @@ public final class MainController {
             I18n.get("cfg.description"),
             () -> {
                 MultiTextEditor m = new MultiTextEditor(currentDictionary);
-                // m.setAvailableLanguages(metaLangs);
                 m.setMultiText(fd.getDescription());
                 return m;
             },
@@ -6094,207 +5691,62 @@ public final class MainController {
 
     /* ─── Header usage counting & renaming ─── */
 
-    private long countRangeElementUsage(String rangeId, String elementId) {
-        if (currentDictionary == null) return 0;
-        var comps = currentDictionary.getLiftDictionaryRegistry();
-        if ("note-type".equals(rangeId)) return comps
-            .getNotes()
-            .stream()
-            .filter(n -> elementId.equals(n.getType().getId()))
+    /**
+     * Number of components that use a feature of the header: as their type (notes,
+     * translations, annotations, relations, etymologies, reversals, variants), as their
+     * grammatical info, or in the value of a trait whose definition points at the feature's set.
+     */
+    private long countFeatureUsage(Feature f) {
+        if (currentDictionary == null || f == null) return 0;
+        var reg = currentDictionary.getLiftDictionaryRegistry();
+        long n = 0;
+        n += reg.getNotes().stream().filter(x -> x.getType() == f).count();
+        n += reg.getTranslations().stream().filter(x -> x.getType() == f).count();
+        n += reg.getAnnotations().stream().filter(x -> x.getType() == f).count();
+        n += reg.getRelations().stream().filter(x -> x.getType() == f).count();
+        n += reg.getEtymologies().stream().filter(x -> x.getType() == f).count();
+        n += reg.getReversals().stream().filter(x -> x.getType() == f).count();
+        n += reg.getVariants().stream().filter(x -> x.getType() == f).count();
+        n += reg.getGrammaticalInfos().stream().filter(g -> g.getGramInfoValue() == f).count();
+        FeatureSet set = f.getParent();
+        n += reg.getTraits().stream()
+            .filter(t -> traitUsesFeatureSet(t, set) && traitValueTokens(t).contains(f.getId()))
             .count();
-        if ("translation-type".equals(rangeId)) return comps
-            .getExamples()
-            .stream()
-            .filter(ex -> ex.getTranslations().containsKey(elementId))
-            .count();
-        if ("grammatical-info".equals(rangeId)) return comps
-            .getSenses()
-            .stream()
-            .filter(s ->
-                s
-                    .getGrammaticalInfo()
-                    .map(g -> elementId.equals(g.getGramInfoValue().getId()))
-                    .orElse(false)
-            )
-            .count();
-        return comps
-            .getTraits()
-            .stream()
-            .filter(
-                t ->
-                    rangeId.equals(t.getSpecification().getName()) &&
-                    elementId.equals(t.getValue())
-            )
-            .count();
+        return n;
     }
 
-    private long countFieldUsage(String fieldName) {
-        if (currentDictionary == null) return 0;
-        return currentDictionary
-            .getLiftDictionaryRegistry()
-            .getFields()
-            .stream()
-            .filter(f -> fieldName.equals(f.getSpecification().getName()))
-            .count();
+    /** Whether the values of a trait are ids of the features of {@code set}. */
+    private static boolean traitUsesFeatureSet(LiftTrait t, FeatureSet set) {
+        if (set == null) return false;
+        LiftFieldAndTraitDefinition spec = t.getSpecification();
+        return spec.getResolvedFeatureSet()
+            .map(r -> r == set)
+            .orElse(spec.getName().equals(set.getId()));
     }
 
-    private void renameRangeElementInData(
-        String rangeId,
-        String oldId,
-        String newId
-    ) {
-        //if (currentDictionary == null) return;
-        var comps = currentDictionary.getLiftDictionaryRegistry();
-        LiftHeader header = currentDictionary.getHeader();
-        if (header != null) {
-            FeatureSet range = header.getFeatureSet(rangeId);
-            Feature element = range.getFeature(oldId);
-            range.changeFeatureId(element, newId);
+    private static List<String> traitValueTokens(LiftTrait t) {
+        String v = t.getValue();
+        if (v == null || v.isBlank()) return List.of();
+        return List.of(v.trim().split("\\s+"));
+    }
+
+    /**
+     * Renames a feature of the header. Components referring to the feature object follow
+     * automatically; trait values, which hold the feature id as text, are updated here.
+     */
+    private void renameFeature(FeatureSet set, String oldId, String newId) {
+        Feature element = set.getFeature(oldId);
+        if (element == null) return;
+        set.changeFeatureId(element, newId);
+        for (LiftTrait t : currentDictionary.getLiftDictionaryRegistry().getTraits()) {
+            if (!traitUsesFeatureSet(t, set)) continue;
+            List<String> tokens = traitValueTokens(t);
+            if (!tokens.contains(oldId)) continue;
+            t.setValue(String.join(" ", tokens.stream().map(x -> x.equals(oldId) ? newId : x).toList()));
         }
-        // No need any more since those object have reference to Definition objects, not to the actual string.
-        // if ("note-type".equals(rangeId)) {
-        //     currentDictionary.getHeader().getRange(rangeId).changeElementId(oldId, newId);
-        //     // comps
-        //     //     .getAllNotes()
-        //     //     .stream()
-        //     //     .filter(n -> oldId.equals(n.getType()))
-        //     //     .forEach(n -> n.setType(newId));
-        // } else if ("grammatical-info".equals(rangeId)) {
-        //     comps
-        //         .getSenses()
-        //         .stream()
-        //         .filter(s ->
-        //             s
-        //                 .getGrammaticalInfo()
-        //                 .map(g -> oldId.equals(g.getValue()))
-        //                 .orElse(false)
-        //         )
-        //         .forEach(s -> s.setGrammaticalInfo(newId));
-        // } else {
-        //     comps
-        //         .getTraitsReadOnly()
-        //         .stream()
-        //         .filter(
-        //             t ->
-        //                 rangeId.equals(t.getDefinition().getName()) &&
-        //                 oldId.equals(t.getValue())
-        //         )
-        //         .forEach(t -> t.setValue(newId));
-        // }
     }
 
     /* ════════════════════ AUTO-POPULATE HEADER ════════════════════ */
-
-    private void ensureHeaderComplete() {
-        if (currentDictionary == null) return;
-        DictionaryComponentBuilderFactory factory = currentDictionary.getComponentBuilder();
-        if (factory == null) return;
-        var comps = currentDictionary.getLiftDictionaryRegistry();
-        LiftHeader header = currentDictionary.getHeader();
-        //if (header == null) header = factory.createHeader();
-
-        String autoDesc = I18n.get("cfg.autoAdded");
-        List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
-        String descLang = metaLangs.isEmpty() ? "en" : metaLangs.get(0);
-
-        // ensureRange(
-        //     factory,
-        //     header,
-        //     "note-type",
-        //     comps
-        //         .getAllNotes()
-        //         .stream()
-        //         //.map(LiftNote::getType)
-        //         .map(x -> x.getType().getId())
-        //         .filter(Objects::nonNull)
-        //         .collect(Collectors.toSet()),
-        //     descLang,
-        //     autoDesc
-        // );
-
-        // ensureRange(
-        //     factory,
-        //     header,
-        //     "translation-type",
-        //     comps
-        //         .getAllExamples()
-        //         .stream()
-        //         .flatMap(ex -> ex.getTranslations().keySet().stream())
-        //         .collect(Collectors.toSet()),
-        //     descLang,
-        //     autoDesc
-        // );
-
-        // ensureRange(
-        //     factory,
-        //     header,
-        //     "grammatical-info",
-        //     comps
-        //         .getAllSenses()
-        //         .stream()
-        //         .map(s ->
-        //             s
-        //                 .getGrammaticalInfo()
-        //                 .map(GrammaticalInfo::getValue)
-        //                 .orElse(null)
-        //         )
-        //         .filter(Objects::nonNull)
-        //         .collect(Collectors.toSet()),
-        //     descLang,
-        //     autoDesc
-        // );
-
-        // Map<String, Set<String>> traitsByName = new HashMap<>();
-        // for (LiftTrait t : comps.getTraitsReadOnly()) {
-        //     traitsByName
-        //         .computeIfAbsent(t.getDefinition().getName(), k -> new TreeSet<>())
-        //         .add(t.getValue());
-        // }
-        // for (var entry : traitsByName.entrySet()) {
-        //     ensureRange(
-        //         factory,
-        //         header,
-        //         entry.getKey(),
-        //         entry.getValue(),
-        //         descLang,
-        //         autoDesc
-        //     );
-        // }
-
-        // Set<String> definedFieldDefs = header
-        //     .getFieldsAndTraitsDefinitions()
-        //     .stream()
-        //     .map(LiftFieldAndTraitDefinition::getName)
-        //     .collect(Collectors.toSet());
-
-        // Set<String> fieldNames = comps
-        //     .getFieldsReadOnly()
-        //     .stream()
-        //     .map(LiftField::getName)
-        //     .map(LiftFieldAndTraitDefinition::getName)
-        //     .collect(Collectors.toSet());
-        // for (String fn : fieldNames) {
-        //     if (!definedFieldDefs.contains(fn)) {
-        //         LiftFieldAndTraitDefinition fd = header.createFieldDefinition(fn);
-        //         fd.setType(Optional.of("multitext"));
-        //         fd.getDescription().add(new Form(descLang, autoDesc));
-        //         definedFieldDefs.add(fn);
-        //     }
-        // }
-
-        // Set<String> traitNames = comps
-        //     .getTraitsReadOnly()
-        //     .stream()
-        //     .map(x -> x.getDefinition().getName())
-        //     .collect(Collectors.toSet());
-        // for (String tn : traitNames) {
-        //     if (!definedFieldDefs.contains(tn)) {
-        //         LiftFieldAndTraitDefinition fd = header.createTraitDefinition(tn);
-        //         fd.setType(Optional.of("option"));
-        //         fd.getDescription().add(new Form(descLang, autoDesc));
-        //     }
-        // }
-    }
 
     private static String fieldDefKindLabel(LiftFieldAndTraitDefinition fd) {
         if (fd == null) return "";
@@ -6303,76 +5755,13 @@ public final class MainController {
         return I18n.get("cfg.kindUnknown");
     }
 
-    // /** Find the LiftFieldAndTraitDefinition for a given trait/field name in the current dictionary header. */
-    // private Optional<LiftFieldAndTraitDefinition> findFieldDef(String name) {
-    //     if (currentDictionary == null || name == null) return Optional.empty();
-    //     LiftHeader header = currentDictionary
-    //         .getHeader();
-    //     if (header == null) return Optional.empty();
-    //     return header
-    //         .getFieldsAndTraitsDefinitions()
-    //         .stream()
-    //         .filter(fd -> name.equals(fd.getName()))
-    //         .findFirst();
-    // }
 
-    // private static void ensureRange(
-    //     LiftXMLFactory factory,
-    //     LiftHeader header,
-    //     String rangeId,
-    //     Set<String> values,
-    //     String descLang,
-    //     String autoDesc
-    // ) {
-    //     LiftHeaderRange range = header
-    //         .getRanges()
-    //         .stream()
-    //         .filter(r -> rangeId.equals(r.getId()))
-    //         .findFirst()
-    //         .orElseGet(() -> header.createRange(rangeId));
-    //     Set<String> existing = range
-    //         .getRangeElements()
-    //         .values()
-    //         .stream()
-    //         .map(LiftHeaderRangeElement::getId)
-    //         .collect(Collectors.toSet());
-    //     for (String val : values) {
-    //         if (!existing.contains(val)) {
-    //             LiftHeaderRangeElement newElem = range.createRangeElement(val);
-    //             newElem.getDescription().add(new Form(descLang, autoDesc));
-    //         }
-    //     }
-    // }
 
     /* ────────────────── UTILITIES ────────────────── */
 
     @FunctionalInterface
     private interface NodeFactory {
         javafx.scene.Node create();
-    }
-
-    @FunctionalInterface
-    private interface ItemRenderer<T> {
-        javafx.scene.Node render(T item);
-    }
-
-    @FunctionalInterface
-    private interface ListSupplier {
-        List<String> get();
-    }
-
-    private static TableColumn<CategoryRow, String> colCat(
-        String title,
-        java.util.function.Function<CategoryRow, String> extractor
-    ) {
-        TableColumn<CategoryRow, String> c = new TableColumn<>(title);
-        c.setCellValueFactory(cd ->
-            new ReadOnlyStringWrapper(
-                cd.getValue() == null ? "" : extractor.apply(cd.getValue())
-            )
-        );
-        c.setPrefWidth(title.equals("Fréquence") ? 100 : 250);
-        return c;
     }
 
     private static <T> TableColumn<T, String> col(
@@ -6389,25 +5778,6 @@ public final class MainController {
         return c;
     }
 
-    private static <T> TableColumn<T, String> makeCol(
-        String title,
-        Callback<
-            TableColumn.CellDataFeatures<T, String>,
-            ObservableValue<String>
-        > extractor
-    ) {
-        TableColumn<T, String> c = new TableColumn<>(title);
-        c.setCellValueFactory(extractor);
-        c.setPrefWidth(140);
-        return c;
-    }
-
-    private static void addSectionTitle(VBox container, String i18nKey) {
-        Label lbl = new Label(I18n.get(i18nKey));
-        lbl.getStyleClass().add("editor-section-title");
-        container.getChildren().add(lbl);
-    }
-
     private static void addSection(
         VBox container,
         String title,
@@ -6415,52 +5785,6 @@ public final class MainController {
         boolean expanded
     ) {
         TitledPane tp = new TitledPane(title, factory.create());
-        tp.setExpanded(expanded);
-        tp.setAnimated(false);
-        container.getChildren().add(tp);
-    }
-
-    private static <T> void addListSection(
-        VBox container,
-        String title,
-        List<T> items,
-        ItemRenderer<T> renderer,
-        boolean expanded
-    ) {
-        addListSection(container, title, items, renderer, expanded, null);
-    }
-
-    private static <T> void addListSection(
-        VBox container,
-        String title,
-        List<T> items,
-        ItemRenderer<T> renderer,
-        boolean expanded,
-        Runnable onAdd
-    ) {
-        VBox box = new VBox(4);
-        if (onAdd != null) {
-            Button addBtn = new Button(I18n.get("btn.add"));
-            addBtn.getStyleClass().add("example-add-button");
-            addBtn.setOnAction(e -> onAdd.run());
-            box.getChildren().add(addBtn);
-        }
-        if (items == null || items.isEmpty()) {
-            box.getChildren().add(new Label(I18n.get("editor.none")));
-            TitledPane tp = new TitledPane(title + " (0)", box);
-            tp.setExpanded(false);
-            tp.setAnimated(false);
-            container.getChildren().add(tp);
-            return;
-        }
-        int i = 1;
-        for (T item : items) {
-            TitledPane ip = new TitledPane("#" + i++, renderer.render(item));
-            ip.setExpanded(false);
-            ip.setAnimated(false);
-            box.getChildren().add(ip);
-        }
-        TitledPane tp = new TitledPane(title + " (" + items.size() + ")", box);
         tp.setExpanded(expanded);
         tp.setAnimated(false);
         container.getChildren().add(tp);
@@ -6506,6 +5830,15 @@ public final class MainController {
                   .orElse("");
     }
 
+    /** The translation of an example with the given type id, or null. */
+    private static MultiText translationOfType(LiftExample ex, String typeId) {
+        return ex.getTranslations().entrySet().stream()
+            .filter(e -> e.getKey() != null && typeId.equals(e.getKey().getId()))
+            .map(Map.Entry::getValue)
+            .findFirst()
+            .orElse(null);
+    }
+
     private static String getTraitValueFor(LiftVariant v, String name) {
         return v == null || v.getTraits() == null
             ? ""
@@ -6523,8 +5856,6 @@ public final class MainController {
         HasRelations p = r.getParent();
         if (p instanceof LiftEntry e) return e.getForms();
         if (p instanceof LiftSense s) return s.getParentEntry().getForms(); //findParentEntry(s)
-            // .map(LiftEntry::getForms)
-            // .orElse(null);
         if (p instanceof LiftVariant v) return v.getParent() != null
             ? v.getParent().getForms()
             : null;
@@ -6551,6 +5882,7 @@ public final class MainController {
 
     private static String describeParent(Object parent) {
         if (parent == null) return "";
+        if (parent instanceof MultiText mt) return describeParent(mt.getParent());
         if (parent instanceof LiftEntry e) return (
             "entry:" + e.getId().orElse("?")
         );
@@ -6563,6 +5895,7 @@ public final class MainController {
 
     private static String describeParentType(Object parent) {
         if (parent == null) return "";
+        if (parent instanceof MultiText mt) return describeParentType(mt.getParent());
         if (parent instanceof LiftEntry) return I18n.get("nav.entries");
         if (parent instanceof LiftSense) return I18n.get("nav.senses");
         if (parent instanceof LiftExample) return I18n.get("nav.examples");
@@ -6575,170 +5908,16 @@ public final class MainController {
 
     /* ─── Known dropdown values from header ranges ─── */
 
-    // private List<String> getKnownTraitNames() {
-    //     return getKnownTraitNamesFor(null);
-    // }
 
-    // /**
-    //  * Returns trait names allowed for the given target element type.
-    //  * If {@code target} is null, returns all trait names.
-    //  * Filters via field-definition/@class: only include a trait name if its
-    //  * LiftFieldAndTraitDefinition has no @class restriction, or if it includes {@code target}.
-    //  */
-    // private List<String> getKnownTraitNamesFor(
-    //     LiftFieldAndTraitDefinitionTarget target
-    // ) {
-    //     if (currentDictionary == null) return List.of();
-    //     LiftHeader h = currentDictionary
-    //         .getHeader();
-    //     if (h != null && !h.getFieldsAndTraitsDefinitions().isEmpty()) {
-    //         return h
-    //             .getFieldsAndTraitsDefinitions()
-    //             .stream()
-    //             .filter(
-    //                 fd ->
-    //                     fd.getKind() == LiftFieldAndTraitDefinitionKind.TRAIT ||
-    //                     fd.getKind() == LiftFieldAndTraitDefinitionKind.UNKNOWN
-    //             )
-    //             .filter(
-    //                 fd ->
-    //                     target == null ||
-    //                     fd.getTargets().isEmpty() ||
-    //                     fd.getTargets().contains(target)
-    //             )
-    //             .map(LiftFieldAndTraitDefinition::getName)
-    //             .sorted()
-    //             .toList();
-    //     }
-    //     // Fallback: scan data
-    //     Set<String> standardRanges = Set.of(
-    //         "note-type",
-    //         "translation-type",
-    //         "grammatical-info"
-    //     );
-    //     if (h != null) {
-    //         return h
-    //             .getRanges()
-    //             .stream()
-    //             .map(LiftHeaderRange::getId)
-    //             .filter(id -> !standardRanges.contains(id))
-    //             .sorted()
-    //             .toList();
-    //     }
-    //     return currentDictionary.getTraitName().stream().sorted().toList();
-    // }
 
-    // private Map<String, Set<String>> getKnownTraitValues() {
-    //     if (currentDictionary == null) return Map.of();
-    //     Map<String, Set<String>> result = new HashMap<>();
-    //     LiftHeader h = currentDictionary
-    //         .getHeader();
-    //     if (h != null) {
-    //         Set<String> standardRanges = Set.of(
-    //             "note-type",
-    //             "translation-type",
-    //             "grammatical-info"
-    //         );
-    //         for (LiftHeaderRange r : h.getRanges()) {
-    //             if (standardRanges.contains(r.getId())) continue;
-    //             Set<String> vals = r
-    //                 .getRangeElements()
-    //                 .values()
-    //                 .stream()
-    //                 .map(LiftHeaderRangeElement::getId)
-    //                 .collect(Collectors.toCollection(TreeSet::new));
-    //             result.put(r.getId(), vals);
-    //         }
-    //     }
-    //     if (result.isEmpty()) {
-    //         for (LiftTrait t : currentDictionary
-    //             .getLiftDictionaryRegistry()
-    //             .getTraitsReadOnly()) {
-    //             result
-    //                 .computeIfAbsent(t.getDefinition().getName(), k -> new TreeSet<>())
-    //                 .add(t.getValue());
-    //         }
-    //     }
-    //     return result;
-    // }
 
-    // private List<String> getKnownAnnotationNames() {
-    //     return currentDictionary == null
-    //         ? List.of()
-    //         : currentDictionary
-    //               .getLiftDictionaryRegistry()
-    //               .getAnnotationsReadOnly()
-    //               .stream()
-    //               .map(LiftAnnotation::getName)
-    //               .filter(Objects::nonNull)
-    //               .distinct()
-    //               .sorted()
-    //               .toList();
-    // }
 
-    // /** Returns field (not trait) type names allowed for the given target element type. */
-    // private List<String> getKnownFieldTypesFor(
-    //     LiftFieldAndTraitDefinitionTarget target
-    // ) {
-    //     if (currentDictionary == null) return List.of();
-    //     LiftHeader h = currentDictionary
-    //         .getHeader();
-    //     if (h != null && !h.getFieldsAndTraitsDefinitions().isEmpty()) {
-    //         return h
-    //             .getFieldsAndTraitsDefinitions()
-    //             .stream()
-    //             .filter(
-    //                 fd ->
-    //                     fd.getKind() == LiftFieldAndTraitDefinitionKind.FIELD ||
-    //                     fd.getKind() == LiftFieldAndTraitDefinitionKind.UNKNOWN
-    //             )
-    //             .filter(
-    //                 fd ->
-    //                     target == null ||
-    //                     fd.getTargets().isEmpty() ||
-    //                     fd.getTargets().contains(target)
-    //             )
-    //             .map(LiftFieldAndTraitDefinition::getName)
-    //             .sorted()
-    //             .toList();
-    //     }
-    //     return currentDictionary.getFieldType().stream().sorted().toList();
-    // }
 
-    // private List<String> getKnownNoteTypes() {
-    //     return getHeaderRangeValues("note-type");
-    // }
 
-    // private List<String> getKnownRelationTypes() {
-    //     return getHeaderRangeValues("lexical-relation");
-    // }
 
     private List<String> getKnownGramInfoValues() {
-        return getHeaderRangeValues("grammatical-info");
-    }
-
-    private List<String> getHeaderRangeValues(String rangeId) {
         if (currentDictionary == null) return List.of();
-        LiftHeader h = currentDictionary
-            .getHeader();
-        if (h != null) {
-            return h
-                .getFeatureSets()
-                .stream()
-                .filter(r -> rangeId.equals(r.getId()))
-                .findFirst()
-                .map(r ->
-                    r
-                        .getFeatures()
-                        .values()
-                        .stream()
-                        .map(Feature::getId)
-                        .sorted()
-                        .toList()
-                )
-                .orElse(List.of());
-        }
-        return List.of();
+        return EditorSupport.sortedFeatureIds(currentDictionary.getHeader().getGrammaticalInfoManager());
     }
 
     private void showError(String title, String msg) {
@@ -6879,6 +6058,8 @@ public final class MainController {
                         .equals(I18n.getLocale().getLanguage())
                 ) {
                     I18n.setLocale(newLocale);
+                    // Hand the open dictionary over to the controller of the reloaded scene.
+                    handoff = new Handoff(currentDictionary, currentFile, demo, dirty);
                     Platform.runLater(
                         fr.cnrs.lacito.liftgui.MainApp::reloadScene
                     );
@@ -6924,364 +6105,126 @@ public final class MainController {
         }
     }
 
-    private record ConfigRow(
-        javafx.beans.property.StringProperty abbrev,
-        javafx.beans.property.StringProperty description
-    ) {
-        ConfigRow(String a, String d) {
-            this(
-                new javafx.beans.property.SimpleStringProperty(a),
-                new javafx.beans.property.SimpleStringProperty(d)
-            );
-        }
-    }
+    /** A row of a header type view: one feature of a feature set. */
+    private record FeatureRow(Feature feature, String id, String description, long usage) {}
 
-    @FunctionalInterface
-    private interface UsageChecker {
-        long count(String value);
-    }
-
-    private void showConfigDialog(String title, ListSupplier supplier) {
-        showConfigDialog(title, supplier, val -> 0L);
-    }
-
-    private void showConfigDialog(
-        String title,
-        ListSupplier supplier,
-        UsageChecker usageChecker
-    ) {
-        List<String> items = supplier.get();
-        Dialog<Void> dlg = new Dialog<>();
-        dlg.setTitle(I18n.get("config.title", title));
-        dlg.setHeaderText(I18n.get("config.header", title, items.size()));
-        dlg.setResizable(true);
-        dlg.getDialogPane().setPrefSize(620, 480);
-        // ← Remplace CLOSE par OK + CANCEL
-        dlg.getDialogPane()
-            .getButtonTypes()
-            .addAll(ButtonType.OK, ButtonType.CANCEL);
-
-        TableView<ConfigRow> configTable = new TableView<>();
-        configTable.setEditable(true);
-        configTable.setPrefHeight(320);
-
-        TableColumn<ConfigRow, String> abbrCol = new TableColumn<>(
-            I18n.get("col.abbreviation")
-        );
-        abbrCol.setCellValueFactory(cd -> cd.getValue().abbrev());
-        abbrCol.setCellFactory(TextFieldTableCell.forTableColumn());
-        abbrCol.setOnEditCommit(e ->
-            e.getRowValue().abbrev().set(e.getNewValue())
-        );
-        abbrCol.setPrefWidth(180);
-
-        TableColumn<ConfigRow, String> usageCol = new TableColumn<>(
-            I18n.get("cfg.usageCount")
-        );
-        usageCol.setCellValueFactory(cd -> {
-            long n = usageChecker.count(cd.getValue().abbrev().get());
-            return new javafx.beans.property.ReadOnlyStringWrapper(
-                String.valueOf(n)
-            );
-        });
-        usageCol.setPrefWidth(80);
-
-        TableColumn<ConfigRow, String> descCol = new TableColumn<>(
-            I18n.get("col.description")
-        );
-        descCol.setCellValueFactory(cd -> cd.getValue().description());
-        descCol.setCellFactory(TextFieldTableCell.forTableColumn());
-        descCol.setOnEditCommit(e ->
-            e.getRowValue().description().set(e.getNewValue())
-        );
-        descCol.setPrefWidth(320);
-
-        configTable.getColumns().addAll(abbrCol, usageCol, descCol);
-        for (String item : items)
-            configTable.getItems().add(new ConfigRow(item, ""));
-
-        TextField addAbbrField = new TextField();
-        addAbbrField.setPromptText(I18n.get("config.addAbbr"));
-        TextField addDescField = new TextField();
-        addDescField.setPromptText(I18n.get("config.addDesc"));
-        Button addBtn = new Button(I18n.get("btn.add"));
-        addBtn.setOnAction(e -> {
-            String a = addAbbrField.getText().trim();
-            if (!a.isEmpty()) {
-                configTable
-                    .getItems()
-                    .add(new ConfigRow(a, addDescField.getText().trim()));
-                addAbbrField.clear();
-                addDescField.clear();
-            }
-        });
-
-        Button removeBtn = new Button(I18n.get("btn.delete"));
-        removeBtn.setOnAction(e -> {
-            ConfigRow sel = configTable.getSelectionModel().getSelectedItem();
-            if (sel == null) return;
-            long usage = usageChecker.count(sel.abbrev().get());
-            if (usage > 0) {
-                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-                confirm.setTitle(I18n.get("btn.delete"));
-                confirm.setHeaderText(
-                    I18n.get("config.deleteWarning", sel.abbrev().get(), usage)
-                );
-                confirm.setContentText(I18n.get("config.deleteConfirm"));
-                confirm
-                    .showAndWait()
-                    .filter(r -> r == ButtonType.OK)
-                    .ifPresent(r -> configTable.getItems().remove(sel));
-            } else {
-                configTable.getItems().remove(sel);
-            }
-        });
-
-        HBox controls = new HBox(
-            8,
-            addAbbrField,
-            addDescField,
-            addBtn,
-            removeBtn
-        );
-        controls.setPadding(new Insets(6, 0, 0, 0));
-        HBox.setHgrow(addAbbrField, Priority.ALWAYS);
-        HBox.setHgrow(addDescField, Priority.ALWAYS);
-
-        VBox content = new VBox(6, configTable, controls);
-        dlg.getDialogPane().setContent(content);
-
-        // ← Sauvegarde dans le header LIFT si OK
-        dlg.setResultConverter(bt -> {
-            if (bt == ButtonType.OK) {
-                persistConfigToHeader(title, configTable.getItems());
-            }
-            return null;
-        });
-
-        dlg.showAndWait();
-    }
-
-    private void showConfigInlineView(
-        String title,
-        ListSupplier supplier,
-        UsageChecker usageChecker
-    ) {
-        List<String> items = supplier.get();
-
-        VBox box = new VBox(10);
-        box.setPadding(new Insets(12));
-        Label heading = new Label(title);
-        heading.setStyle(
-            "-fx-font-size:15px; -fx-font-weight:bold; -fx-text-fill:#4c6f76;"
-        );
-        Label countLabel = new Label(
-            I18n.get("config.header", title, items.size())
-        );
-        countLabel.setStyle("-fx-text-fill:#666;");
-
-        TableView<ConfigRow> configTable = new TableView<>();
-        configTable.setEditable(true);
-
-        TableColumn<ConfigRow, String> abbrCol = new TableColumn<>(
-            I18n.get("col.abbreviation")
-        );
-        abbrCol.setCellValueFactory(cd -> cd.getValue().abbrev());
-        abbrCol.setCellFactory(TextFieldTableCell.forTableColumn());
-        abbrCol.setOnEditCommit(e ->
-            e.getRowValue().abbrev().set(e.getNewValue())
-        );
-        abbrCol.setPrefWidth(180);
-
-        TableColumn<ConfigRow, String> usageCol = new TableColumn<>(
-            I18n.get("cfg.usageCount")
-        );
-        usageCol.setCellValueFactory(cd -> {
-            long n = usageChecker.count(cd.getValue().abbrev().get());
-            return new javafx.beans.property.ReadOnlyStringWrapper(
-                String.valueOf(n)
-            );
-        });
-        usageCol.setPrefWidth(80);
-
-        TableColumn<ConfigRow, String> descCol = new TableColumn<>(
-            I18n.get("col.description")
-        );
-        descCol.setCellValueFactory(cd -> cd.getValue().description());
-        descCol.setCellFactory(TextFieldTableCell.forTableColumn());
-        descCol.setOnEditCommit(e ->
-            e.getRowValue().description().set(e.getNewValue())
-        );
-        descCol.setPrefWidth(320);
-
-        configTable.getColumns().addAll(abbrCol, usageCol, descCol);
-        for (String item : items)
-            configTable.getItems().add(new ConfigRow(item, ""));
-
-        TextField addAbbrField = new TextField();
-        addAbbrField.setPromptText(I18n.get("config.addAbbr"));
-        TextField addDescField = new TextField();
-        addDescField.setPromptText(I18n.get("config.addDesc"));
-        Button addBtn = new Button(I18n.get("btn.add"));
-        addBtn.setOnAction(e -> {
-            String a = addAbbrField.getText().trim();
-            if (!a.isEmpty()) {
-                configTable
-                    .getItems()
-                    .add(new ConfigRow(a, addDescField.getText().trim()));
-                addAbbrField.clear();
-                addDescField.clear();
-                countLabel.setText(
-                    I18n.get(
-                        "config.header",
-                        title,
-                        configTable.getItems().size()
-                    )
-                );
-            }
-        });
-
-        Button removeBtn = new Button(I18n.get("btn.delete"));
-        removeBtn.setOnAction(e -> {
-            ConfigRow sel = configTable.getSelectionModel().getSelectedItem();
-            if (sel == null) return;
-            long usage = usageChecker.count(sel.abbrev().get());
-            if (usage > 0) {
-                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-                confirm.setTitle(I18n.get("btn.delete"));
-                confirm.setHeaderText(
-                    I18n.get("config.deleteWarning", sel.abbrev().get(), usage)
-                );
-                confirm.setContentText(I18n.get("config.deleteConfirm"));
-                confirm
-                    .showAndWait()
-                    .filter(r -> r == ButtonType.OK)
-                    .ifPresent(r -> {
-                        configTable.getItems().remove(sel);
-                        countLabel.setText(
-                            I18n.get(
-                                "config.header",
-                                title,
-                                configTable.getItems().size()
-                            )
-                        );
-                    });
-            } else {
-                configTable.getItems().remove(sel);
-                countLabel.setText(
-                    I18n.get(
-                        "config.header",
-                        title,
-                        configTable.getItems().size()
-                    )
-                );
-            }
-        });
-
-        Button saveBtn = new Button(I18n.get("btn.save"));
-        saveBtn.setStyle(
-            "-fx-background-color: #4c6f76; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 7 16 7 16;"
-        );
-        saveBtn.setOnAction(e -> {
-            persistConfigToHeader(title, configTable.getItems());
-            showInfo(title, I18n.get("info.saved"));
-        });
-
-        HBox controls = new HBox(
-            8,
-            addAbbrField,
-            addDescField,
-            addBtn,
-            removeBtn,
-            saveBtn
-        );
-        controls.setPadding(new Insets(6, 0, 0, 0));
-        HBox.setHgrow(addAbbrField, Priority.ALWAYS);
-        HBox.setHgrow(addDescField, Priority.ALWAYS);
-
-        box.getChildren().addAll(heading, countLabel, configTable, controls);
-        tableContainer.getChildren().setAll(box);
+    /**
+     * Edits a header feature set (note types, translation types…) in place: ids can be
+     * renamed, descriptions edited, features added, and features that nothing uses deleted.
+     * Every change is applied to the header immediately.
+     */
+    private void showFeatureSetView(String title, FeatureSet set) {
         editorContainer.getChildren().clear();
         editEntryTitle.setText(title);
         editEntryCode.setText("");
-    }
+        if (set == null) {
+            tableContainer.getChildren().setAll(new Label(I18n.get("cfg.noHeader")));
+            return;
+        }
+        String descLang = firstMetaLanguage();
 
-    private void persistConfigToHeader(
-        String dialogTitle,
-        List<ConfigRow> rows
-    ) {
-        if (currentDictionary == null) return;
-        // if (factory == null) return;
-        LiftHeader header = currentDictionary
-            .getHeader();
-        // if (header == null) return;
+        TableView<FeatureRow> table = new TableView<>();
+        table.setEditable(true);
+        Runnable reload = () -> {
+            table.getItems().setAll(
+                EditorSupport.sortedFeatures(set).stream()
+                    .map(f -> new FeatureRow(
+                        f,
+                        f.getId(),
+                        f.getDescription().getForm(descLang).map(Form::toPlainText).orElse(""),
+                        countFeatureUsage(f)))
+                    .toList()
+            );
+            updateCountLabel(table.getItems().size(), table.getItems().size());
+        };
 
-        // Détermine le rangeId selon le titre du dialogue
-        String rangeId = null;
-        if (
-            dialogTitle.equals(I18n.get("menu.config.noteTypes")) ||
-            dialogTitle.equals(I18n.get("nav.cfgManageNoteTypes"))
-        ) rangeId = "note-type";
-        else if (
-            dialogTitle.equals(I18n.get("menu.config.translationTypes")) ||
-            dialogTitle.equals(I18n.get("nav.cfgManageTransTypes"))
-        ) rangeId = "translation-type";
-        else if (
-            dialogTitle.equals(I18n.get("menu.config.traitTypes"))
-        ) rangeId = "grammatical-info";
-        else if (
-            dialogTitle.equals(I18n.get("menu.config.annotationTypes")) ||
-            dialogTitle.equals(I18n.get("nav.cfgManageAnnotationTypes"))
-        ) rangeId = "annotation-type";
-        else if (
-            dialogTitle.equals(I18n.get("nav.cfgManageRelationTypes"))
-        ) rangeId = "lexical-relation";
-
-        if (rangeId != null) {
-            // Trouve ou crée le range
-            final String finalRangeId = rangeId;
-            FeatureSet range = header
-                .getFeatureSets()
-                .stream()
-                .filter(r -> finalRangeId.equals(r.getId()))
-                .findFirst()
-                .orElseGet(() -> header.addFeatureSet(finalRangeId));
-
-            // Ajoute les nouveaux éléments manquants
-            Set<String> existing = range
-                .getFeatures()
-                .values()
-                .stream()
-                .map(Feature::getId)
-                .collect(Collectors.toSet());
-            List<String> metaLangs = new ArrayList<>(currentDictionary.getMetaLanguageManager().getLanguages());
-            String descLang = metaLangs.isEmpty() ? "en" : metaLangs.get(0);
-
-            for (ConfigRow row : rows) {
-                String val = row.abbrev().get();
-                if (val == null || val.isBlank()) continue;
-                if (!existing.contains(val)) {
-                    Feature elem = range.addFeature(val);
-                    String desc = row.description().get();
-                    if (desc != null && !desc.isBlank()) {
-                        elem.getDescription().add(new Form(descLang, desc));
-                    }
+        TableColumn<FeatureRow, String> idCol = new TableColumn<>(I18n.get("col.abbreviation"));
+        idCol.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().id()));
+        idCol.setCellFactory(TextFieldTableCell.forTableColumn());
+        idCol.setOnEditCommit(e -> {
+            String newId = e.getNewValue() == null ? "" : e.getNewValue().trim();
+            String oldId = e.getRowValue().id();
+            if (!newId.isEmpty() && !newId.equals(oldId)) {
+                if (set.hasFeature(newId)) {
+                    showError(title, I18n.get("cfg.idExists", newId));
+                } else {
+                    renameFeature(set, oldId, newId);
+                    markDirty();
                 }
             }
+            reload.run();
+        });
+        idCol.setPrefWidth(180);
 
-            // Retire les éléments supprimés (non utilisés)
-            Set<String> newValues = rows
-                .stream()
-                .map(r -> r.abbrev().get())
-                .filter(v -> v != null && !v.isBlank())
-                .collect(Collectors.toSet());
-            range
-                .getFeatures()
-                .values()
-                .removeIf(re -> !newValues.contains(re.getId()));
+        TableColumn<FeatureRow, String> usageCol = new TableColumn<>(I18n.get("cfg.usageCount"));
+        usageCol.setCellValueFactory(cd -> new ReadOnlyStringWrapper(String.valueOf(cd.getValue().usage())));
+        usageCol.setEditable(false);
+        usageCol.setPrefWidth(80);
 
-            rebuildHeaderCfgChildren();
-        }
+        TableColumn<FeatureRow, String> descCol = new TableColumn<>(I18n.get("col.description") + " [" + descLang + "]");
+        descCol.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().description()));
+        descCol.setCellFactory(TextFieldTableCell.forTableColumn());
+        descCol.setOnEditCommit(e -> {
+            e.getRowValue().feature().getDescription().formTextProperty(descLang)
+                .set(e.getNewValue() == null ? "" : e.getNewValue());
+            markDirty();
+            reload.run();
+        });
+        descCol.setPrefWidth(320);
+
+        table.getColumns().addAll(List.of(idCol, usageCol, descCol));
+        reload.run();
+
+        TextField addIdField = new TextField();
+        addIdField.setPromptText(I18n.get("config.addAbbr"));
+        TextField addDescField = new TextField();
+        addDescField.setPromptText(I18n.get("config.addDesc"));
+        Button addBtn = new Button(I18n.get("btn.add"));
+        addBtn.setOnAction(e -> {
+            String id = addIdField.getText().trim();
+            if (id.isEmpty()) return;
+            if (set.hasFeature(id)) {
+                showError(title, I18n.get("cfg.idExists", id));
+                return;
+            }
+            Feature f = set.addFeature(id);
+            String desc = addDescField.getText().trim();
+            if (!desc.isEmpty()) f.getDescription().formTextProperty(descLang).set(desc);
+            addIdField.clear();
+            addDescField.clear();
+            reload.run();
+        });
+
+        Button removeBtn = new Button(I18n.get("btn.delete"));
+        removeBtn.setOnAction(e -> {
+            FeatureRow sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null) return;
+            long usage = countFeatureUsage(sel.feature());
+            if (usage > 0) {
+                showError(I18n.get("btn.delete"), I18n.get("cfg.deleteNotAllowed", usage));
+                return;
+            }
+            set.removeFeature(sel.id());
+            reload.run();
+        });
+
+        HBox controls = new HBox(8, addIdField, addDescField, addBtn, removeBtn);
+        controls.setPadding(new Insets(6, 0, 0, 0));
+        HBox.setHgrow(addIdField, Priority.ALWAYS);
+        HBox.setHgrow(addDescField, Priority.ALWAYS);
+
+        Label heading = new Label(title);
+        heading.setStyle("-fx-font-size:15px; -fx-font-weight:bold; -fx-text-fill:#4c6f76;");
+        VBox box = new VBox(10, heading, table, controls);
+        box.setPadding(new Insets(12));
+        VBox.setVgrow(table, Priority.ALWAYS);
+        tableContainer.getChildren().setAll(box);
+    }
+
+    private String firstMetaLanguage() {
+        if (currentDictionary == null) return "en";
+        return currentDictionary.getMetaLanguageManager().getLanguages().stream()
+            .sorted().findFirst().orElse("en");
     }
 
     private LiftDictionary loadDemoDictionary() {

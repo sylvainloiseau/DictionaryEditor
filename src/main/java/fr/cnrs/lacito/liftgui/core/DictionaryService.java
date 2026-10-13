@@ -2,6 +2,7 @@ package fr.cnrs.lacito.liftgui.core;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.LiftDocumentLoadingException;
+import fr.cnrs.lacito.liftgui.ui.I18n;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -36,20 +37,20 @@ public final class DictionaryService {
 
         if (!file.exists() || !file.isFile()) {
             throw new FileNotFoundException(
-                "Fichier introuvable: " + file.getAbsolutePath()
+                I18n.get("service.fileNotFound", file.getAbsolutePath())
             );
         }
 
         if (!Files.isReadable(file.toPath())) {
             throw new IOException(
-                "Fichier illisible: " + file.getAbsolutePath()
+                I18n.get("service.fileNotReadable", file.getAbsolutePath())
             );
         }
 
         String name = file.getName().toLowerCase();
         if (!name.endsWith(".lift")) {
             throw new LiftOpenException(
-                "Le fichier doit avoir l'extension .lift"
+                I18n.get("service.notLiftExtension")
             );
         }
 
@@ -57,7 +58,7 @@ public final class DictionaryService {
         // (Sans refaire de parsing XML.)
         if (!looksLikeLift(file)) {
             throw new LiftOpenException(
-                "Format invalide: le fichier ne ressemble pas a un document LIFT"
+                I18n.get("service.notLiftDocument")
             );
         }
 
@@ -71,8 +72,7 @@ public final class DictionaryService {
                 e
             );
             throw new LiftOpenException(
-                "Impossible de charger le fichier LIFT: " +
-                    describeThrowable(e),
+                I18n.get("service.cannotLoad", describeThrowable(e)),
                 e
             );
         } catch (RuntimeException e) {
@@ -84,8 +84,7 @@ public final class DictionaryService {
                 e
             );
             throw new LiftOpenException(
-                "Format invalide pendant la lecture du LIFT: " +
-                    describeThrowable(e),
+                I18n.get("service.invalidFormat", describeThrowable(e)),
                 e
             );
         }

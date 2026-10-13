@@ -1,5 +1,5 @@
 /**
- 
+
 * @author Inès GBADAMASSI
 * @author Maryse GOEH-AKUE
 * @author Ermeline BRESSON
@@ -12,6 +12,7 @@ package fr.cnrs.lacito.liftgui.ui.controls;
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftAnnotation;
 import fr.cnrs.lacito.liftapi.model.MultiText;
+import fr.cnrs.lacito.liftgui.ui.I18n;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -31,6 +32,10 @@ import java.util.function.BiConsumer;
  *   lg : |_text_field_________| [-] [edit]
  * </pre>
  *
+ * The languages offered are the dictionary's meta-languages by default; call
+ * {@link #useObjectLanguages()} for a multitext written in the object language (entry forms,
+ * example text, variant/etymology forms, pronunciations).
+ *
  * Below all rows, a ComboBox dropdown lets the user pick an unused language to add a new row.
  * The dropdown is disabled when the field is populated for every available language.
  */
@@ -39,23 +44,22 @@ public final class MultiTextEditor extends VBox {
     private final VBox rowsBox = new VBox(6);
     private final VBox annotationsBox = new VBox(6);
     private final ComboBox<String> addLangCombo = new ComboBox<>();
-    private final TitledPane annotationsPane = new TitledPane("Annotations", annotationsBox);
+    private final TitledPane annotationsPane = new TitledPane(I18n.get("editor.annotations"), annotationsBox);
     private final ObservableList<String> allLanguages = FXCollections.observableArrayList();
-
     private MultiText multiText;
     private boolean readOnly;
     /** When true: one {@link TextField} row per configured language (no language picker ComboBox). */
     private boolean fixedLanguageRows;
     private BiConsumer<String, MultiText> onAddAnnotation;
     private List<String> knownAnnotationNames = List.of();
-    private LiftDictionary dictionary;
+    private final LiftDictionary dictionary;
 
     public MultiTextEditor(LiftDictionary dictionary) {
         super(8);
         this.dictionary = dictionary;
         setPadding(new Insets(4, 0, 4, 0));
 
-        addLangCombo.setPromptText("Ajouter une langue…");
+        addLangCombo.setPromptText(I18n.get("multitext.addLanguage"));
         addLangCombo.setPrefWidth(200);
         addLangCombo.setEditable(false);
         addLangCombo.setOnAction(e -> {
@@ -72,8 +76,12 @@ public final class MultiTextEditor extends VBox {
         annotationsBox.setPadding(new Insets(8, 16, 8, 16));
 
         getChildren().addAll(rowsBox, addLangCombo, annotationsPane);
+        setAvailableLanguages(dictionary.getMetaLanguageManager().getLanguages());
+    }
 
-        setTmpAvailableLanguages(dictionary.getMetaLanguageManager().getLanguages());
+    /** Offers the dictionary's object languages instead of its meta-languages. */
+    public void useObjectLanguages() {
+        setAvailableLanguages(dictionary.getObjectLanguageManager().getLanguages());
     }
 
     /** Optional: when set, enables "add annotation" button in the Annotations pane. Callback receives (name, multiText). */
@@ -83,7 +91,7 @@ public final class MultiTextEditor extends VBox {
         rebuildAnnotations();
     }
 
-    public void setTmpAvailableLanguages(Collection<String> langs) {
+    public void setAvailableLanguages(Collection<String> langs) {
         allLanguages.setAll(normalizeLangs(langs));
         if (multiText != null) {
             for (String l : sorted(multiText.getLangs())) {
@@ -95,9 +103,6 @@ public final class MultiTextEditor extends VBox {
             rebuild();
         } else {
             refreshAddLangChoices();
-            for (var node : rowsBox.getChildren()) {
-                if (node instanceof Row r) r.langLabel.setText(r.boundLang);
-            }
             rebuildAnnotations();
         }
     }
@@ -108,7 +113,7 @@ public final class MultiTextEditor extends VBox {
     }
 
     /**
-     * When true, shows a text field for every language from {@link #setAvailableLanguages(Collection)}
+     * When true, shows a text field for every available language
      * instead of only languages that already have content plus a dropdown to add a language.
      * Use for entry forms, sense gloss/definition, example text, etc.
      */
@@ -129,6 +134,7 @@ public final class MultiTextEditor extends VBox {
         for (var node : rowsBox.getChildren()) {
             if (node instanceof Row r) r.applyReadOnly(readOnly);
         }
+        rebuildAnnotations();
     }
 
     private void rebuild() {
@@ -140,18 +146,11 @@ public final class MultiTextEditor extends VBox {
         }
         allLanguages.sort(Comparator.naturalOrder());
 
-        if (fixedLanguageRows) {
-            for (String lang : new ArrayList<>(allLanguages)) {
-                Row row = new Row(lang, true);
-                rowsBox.getChildren().add(row);
-                if (readOnly) row.applyReadOnly(true);
-            }
-        } else {
-            for (String lang : sorted(multiText.getLangs())) {
-                Row row = new Row(lang, false);
-                rowsBox.getChildren().add(row);
-                if (readOnly) row.applyReadOnly(true);
-            }
+        List<String> langs = fixedLanguageRows ? new ArrayList<>(allLanguages) : sorted(multiText.getLangs());
+        for (String lang : langs) {
+            Row row = new Row(lang, fixedLanguageRows);
+            rowsBox.getChildren().add(row);
+            if (readOnly) row.applyReadOnly(true);
         }
         refreshAddLangChoices();
         rebuildAnnotations();
@@ -165,7 +164,6 @@ public final class MultiTextEditor extends VBox {
             allLanguages.add(l);
             allLanguages.sort(Comparator.naturalOrder());
         }
-        multiText.formTextProperty(l).set("");
         rowsBox.getChildren().add(new Row(l, fixedLanguageRows));
     }
 
@@ -187,23 +185,23 @@ public final class MultiTextEditor extends VBox {
     private void rebuildAnnotations() {
         annotationsBox.getChildren().clear();
         List<LiftAnnotation> annotations = getAnnotationsSafe();
+        boolean editable = onAddAnnotation != null && multiText != null && !readOnly;
 
-        if (onAddAnnotation != null && multiText != null) {
-            Button addBtn = new Button("+ Annotation");
+        if (editable) {
+            Button addBtn = new Button(I18n.get("btn.addAnnotation"));
             addBtn.getStyleClass().add("example-add-button");
             addBtn.setOnAction(e -> {
-                String name = null;
+                String name;
                 if (knownAnnotationNames.isEmpty()) {
                     TextInputDialog dlg = new TextInputDialog("");
-                    dlg.setTitle("Ajouter une annotation");
-                    dlg.setHeaderText("Nom du type d'annotation");
-                    dlg.setContentText("Nom :");
+                    dlg.setTitle(I18n.get("btn.addAnnotation"));
+                    dlg.setHeaderText(I18n.get("col.type"));
                     name = dlg.showAndWait().orElse(null);
                 } else {
                     ChoiceDialog<String> dlg = new ChoiceDialog<>(
                         knownAnnotationNames.get(0), knownAnnotationNames);
-                    dlg.setTitle("Ajouter une annotation");
-                    dlg.setHeaderText("Type d'annotation");
+                    dlg.setTitle(I18n.get("btn.addAnnotation"));
+                    dlg.setHeaderText(I18n.get("col.type"));
                     name = dlg.showAndWait().orElse(null);
                 }
                 if (name != null && !name.trim().isBlank()) {
@@ -214,26 +212,25 @@ public final class MultiTextEditor extends VBox {
             annotationsBox.getChildren().add(addBtn);
         }
 
-        if (annotations.isEmpty() && (onAddAnnotation == null || multiText == null)) {
-            annotationsBox.getChildren().add(new Label("(aucune annotation)"));
+        if (annotations.isEmpty()) {
+            if (!editable) annotationsBox.getChildren().add(new Label(I18n.get("editor.none")));
             return;
         }
-        if (annotations.isEmpty()) return;
 
-        List<String> knownNames = dictionary.getHeader().getAnnotationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
-            // .map(LiftAnnotation::getName)
-            // .filter(Objects::nonNull)
-            // .distinct()
-            // .sorted()
-            // .toList();
-
+        MultiText owner = multiText;
         int i = 1;
         for (LiftAnnotation a : annotations) {
             AnnotationEditor ae = new AnnotationEditor(dictionary);
-            ae.setAnnotation(a, allLanguages, knownNames);
-
-            String title = a.getType() == null || a.getType().getId().isBlank() ? "#" + i : "#" + i + " - " + a.getType();
-            TitledPane tp = new TitledPane(title, ae);
+            ae.setAnnotation(a);
+            String type = EditorSupport.featureId(a.getType());
+            String title = type.isBlank() ? "#" + i : "#" + i + " - " + type;
+            Runnable onDelete = editable
+                ? () -> ComponentDeletion.delete(
+                      () -> owner.deleteAnnotation(a),
+                      () -> owner.addAnnotation(a),
+                      this::rebuildAnnotations)
+                : null;
+            TitledPane tp = new TitledPane(title, EditorSupport.withDeleteButton(ae, onDelete));
             tp.setExpanded(false);
             tp.setAnimated(false);
             annotationsBox.getChildren().add(tp);
@@ -264,7 +261,7 @@ public final class MultiTextEditor extends VBox {
         private final Label langLabel = new Label();
         private final TextField textField = new TextField();
         private final Button removeButton = new Button("-");
-        private final Button editButton = new Button("edit");
+        private final Button editButton = new Button(I18n.get("multitext.edit"));
         private String boundLang = "";
         private final boolean fixedSlot;
 
@@ -279,16 +276,15 @@ public final class MultiTextEditor extends VBox {
             langLabel.setStyle("-fx-font-weight: bold;");
             langLabel.setText(safeTrim(lang));
 
-            textField.setPromptText("texte…");
+            textField.setPromptText(I18n.get("multitext.textPrompt"));
             HBox.setHgrow(textField, Priority.ALWAYS);
 
             removeButton.setPrefWidth(28);
-            removeButton.setTooltip(new Tooltip("Supprimer cette langue"));
+            removeButton.setTooltip(new Tooltip(I18n.get("multitext.removeLanguage")));
             removeButton.getStyleClass().add("page-button");
             removeButton.setOnAction(e -> removeRow());
 
-            editButton.setPrefWidth(40);
-            editButton.setTooltip(new Tooltip("Éditer le texte"));
+            editButton.setTooltip(new Tooltip(I18n.get("multitext.editTooltip")));
             editButton.getStyleClass().add("page-button");
             editButton.setOnAction(e -> openEditDialog());
 
@@ -298,7 +294,6 @@ public final class MultiTextEditor extends VBox {
             }
 
             getChildren().addAll(langLabel, textField, removeButton, editButton);
-
             bindToLang(safeTrim(lang));
         }
 
@@ -314,6 +309,7 @@ public final class MultiTextEditor extends VBox {
         private void removeRow() {
             if (fixedSlot) return;
             if (multiText != null && !boundLang.isBlank()) {
+                // An empty text removes the form from the multitext.
                 multiText.formTextProperty(boundLang).set("");
             }
             unbind();
@@ -323,11 +319,10 @@ public final class MultiTextEditor extends VBox {
 
         private void openEditDialog() {
             TextInputDialog dlg = new TextInputDialog(textField.getText());
-            dlg.setTitle("Éditer le champ [" + boundLang + "]");
-            dlg.setHeaderText("Contenu pour la langue « " + boundLang + " »");
-            dlg.setContentText("Texte :");
+            dlg.setTitle(I18n.get("multitext.editTitle", boundLang));
+            dlg.setHeaderText(I18n.get("multitext.editHeader", boundLang));
             dlg.getEditor().setPrefColumnCount(40);
-            dlg.showAndWait().ifPresent(val -> textField.setText(val));
+            dlg.showAndWait().ifPresent(textField::setText);
         }
 
         private void bindToLang(String lang) {
@@ -341,9 +336,7 @@ public final class MultiTextEditor extends VBox {
         private void unbind() {
             if (multiText == null) return;
             if (!boundLang.isBlank()) {
-                try {
-                    textField.textProperty().unbindBidirectional(multiText.formTextProperty(boundLang));
-                } catch (Exception ignored) {}
+                textField.textProperty().unbindBidirectional(multiText.formTextProperty(boundLang));
             }
             boundLang = "";
         }

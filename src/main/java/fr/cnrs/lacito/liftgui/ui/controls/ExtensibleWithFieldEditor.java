@@ -1,6 +1,5 @@
-
 /**
- 
+
 * @author Inès GBADAMASSI
 * @author Maryse GOEH-AKUE
 * @author Ermeline BRESSON
@@ -13,6 +12,8 @@ package fr.cnrs.lacito.liftgui.ui.controls;
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.AbstractExtensibleWithField;
 import fr.cnrs.lacito.liftapi.model.LiftField;
+import fr.cnrs.lacito.liftapi.model.LiftFieldAndTraitDefinition;
+import fr.cnrs.lacito.liftapi.model.LiftFieldAndTraitDefinitionTarget;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceDialog;
@@ -21,7 +22,6 @@ import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Programmatic editor for {@link AbstractExtensibleWithField}.
@@ -38,7 +38,7 @@ public class ExtensibleWithFieldEditor extends ExtensibleWithoutFieldEditor {
         this.dictionary = dictionary;
         super(dictionary);
 
-        TitledPane fieldsPane = new TitledPane("Champs (Field)", fieldsBox);
+        TitledPane fieldsPane = new TitledPane(I18n.get("editor.fields"), fieldsBox);
         fieldsPane.setExpanded(false);
         fieldsPane.setAnimated(false);
 
@@ -56,12 +56,12 @@ public class ExtensibleWithFieldEditor extends ExtensibleWithoutFieldEditor {
         if (model == null) return;
 
         if (addActions != null) {
-            FlowPane fieldAddRow = new FlowPane(6, 4);
+            LiftFieldAndTraitDefinitionTarget target = EditorSupport.targetOf(model);
             Button addFieldBtn = new Button(I18n.get("btn.addField"));
             addFieldBtn.getStyleClass().add("example-add-button");
             addFieldBtn.setOnAction(e -> {
-                // List<String> types = addActions.getKnownFieldTypes();
-                List<String> types = dictionary.getHeader().getFieldsDefinitions().stream().map(x -> x.getName()).toList();
+                List<String> types = EditorSupport.fieldDefinitions(dictionary.getHeader(), target).stream()
+                    .map(LiftFieldAndTraitDefinition::getName).sorted().toList();
                 ChoiceDialog<String> dlg = new ChoiceDialog<>(types.isEmpty() ? null : types.get(0), types);
                 dlg.setTitle(I18n.get("btn.addField"));
                 dlg.setHeaderText(I18n.get("col.type"));
@@ -70,17 +70,15 @@ public class ExtensibleWithFieldEditor extends ExtensibleWithoutFieldEditor {
                     addActions.refresh();
                 });
             });
-            fieldAddRow.getChildren().add(addFieldBtn);
-            fieldsBox.getChildren().add(fieldAddRow);
+            fieldsBox.getChildren().add(new FlowPane(6, 4, addFieldBtn));
         }
 
-        Map<String, LiftField> fields = model.getFields();
-        if (fields != null) {
-            for (LiftField f : fields.values()) {
-                FieldEditor fe = new FieldEditor(dictionary);
-                fe.setField(f);
-                fieldsBox.getChildren().add(fe);
-            }
+        for (LiftField f : model.getFields().values()) {
+            FieldEditor fe = new FieldEditor(dictionary);
+            fe.setField(f);
+            Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.deleteChecked(
+                () -> model.deleteField(f), () -> model.addField(f), addActions::refresh);
+            fieldsBox.getChildren().add(EditorSupport.withDeleteButton(fe, onDelete));
         }
     }
 }

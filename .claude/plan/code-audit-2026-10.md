@@ -101,43 +101,76 @@ is named.
 
 ### Phase 1 — stop losing and corrupting data
 
-- [ ] 1. Wire every editor widget to its model, or make it visibly read-only: trait values, annotation name/who/when, note/etymology/reversal types, etymology source. Replace non-editable combos that do nothing with labels. (A1–A4)
-- [ ] 2. Add `.build()` to the five builder calls that lack it. (B1–B3)
-- [ ] 3. Fix entry deletion and undo so `baseEntries` stays in sync — better, make the table read the dictionary's observable entry list directly. (D1)
-- [ ] 4. Add modified tracking (model listeners, or a flag set in every editor action). Prompt before New, Open, Recent, Quit, window close and language change. Keep the dictionary across `reloadScene` instead of reloading from disk. (A5, A6)
-- [ ] 5. Rewrite the "Manage types" views to read from and write to the header ranges, keep descriptions, never remove an element still in use. (A7)
-- [ ] 6. Make range-element rename also update trait values. (A8)
+- [x] 1. Wire every editor widget to its model, or make it visibly read-only: trait values, annotation name/who/when, note/etymology/reversal types, etymology source. Replace non-editable combos that do nothing with labels. (A1–A4)
+- [x] 2. Add `.build()` to the five builder calls that lack it. (B1–B3)
+- [x] 3. Fix entry deletion and undo so `baseEntries` stays in sync — better, make the table read the dictionary's observable entry list directly. (D1)
+- [x] 4. Add modified tracking (model listeners, or a flag set in every editor action). Prompt before New, Open, Recent, Quit, window close and language change. Keep the dictionary across `reloadScene` instead of reloading from disk. (A5, A6)
+- [x] 5. Rewrite the "Manage types" views to read from and write to the header ranges, keep descriptions, never remove an element still in use. (A7)
+- [x] 6. Make range-element rename also update trait values. (A8)
 
 ### Phase 2 — correct data sources
 
-- [ ] 7. Add a language-scope option (object or meta) to `MultiTextEditor` and set it at every call site. (C1)
-- [ ] 8. Fix type lists: relation types for `RelationEditor`, reversal range for `ReversalEditor`, definition name for `TraitEditor`; show ids in titles. (C2–C4, C11)
-- [ ] 9. Replace every `String` lookup into `getTranslations()` with a lookup by `Feature` id. (C5)
-- [ ] 10. Make `countRangeElementUsage` resolve usage from each definition's resolved range and cover every range type. (C6)
-- [ ] 11. Quick entry: one sense with several glosses; gram-info values from the header. Entry-table columns from the object languages. (C7, C8)
-- [ ] 12. Fix the field/trait definition dialog and editor, the annotation view, and the language manager (use `addLanguage`, stop inserting empty forms). (B5, B6, C9, C10)
+- [x] 7. Add a language-scope option (object or meta) to `MultiTextEditor` and set it at every call site. (C1)
+- [x] 8. Fix type lists: relation types for `RelationEditor`, reversal range for `ReversalEditor`, definition name for `TraitEditor`; show ids in titles. (C2–C4, C11)
+- [x] 9. Replace every `String` lookup into `getTranslations()` with a lookup by `Feature` id. (C5)
+- [x] 10. Make `countRangeElementUsage` resolve usage from each definition's resolved range and cover every range type. (C6)
+- [x] 11. Quick entry: one sense with several glosses; gram-info values from the header. Entry-table columns from the object languages. (C7, C8)
+- [x] 12. Fix the field/trait definition dialog and editor, the annotation view, and the language manager (use `addLanguage`, stop inserting empty forms). (B5, B6, C9, C10)
 
 ### Phase 3 — state, listeners and performance
 
-- [ ] 13. Create selection listeners once at setup; make `wrapTableWithFilters` remove its search listener when its view is replaced. (D2, D3)
-- [ ] 14. Make the undo refresh view-aware; use `KeyCombination.SHORTCUT_DOWN`. (D4, D5)
-- [ ] 15. Route startup loading through `DictionaryService` and report failures. Use the demo only when no file was ever opened, and label it clearly. (D6)
-- [ ] 16. Filter entries with a `Set` and cache the search text. (D7)
-- [ ] 17. Update `dateModified` on edit, in a shared editor hook or in lift-api. (A9)
+- [x] 13. Create selection listeners once at setup; make `wrapTableWithFilters` remove its search listener when its view is replaced. (D2, D3)
+- [x] 14. Make the undo refresh view-aware; use `KeyCombination.SHORTCUT_DOWN`. (D4, D5)
+- [x] 15. Route startup loading through `DictionaryService` and report failures. Use the demo only when no file was ever opened, and label it clearly. (D6)
+- [x] 16. Filter entries with a `Set` and cache the search text. (D7)
+- [x] 17. Update `dateModified` on edit, in a shared editor hook or in lift-api. (A9)
 
 ### Phase 4 — missing features
 
-- [ ] 18. Delete actions (with undo) for variants, pronunciations, relations, etymologies, notes, fields, traits, annotations and reversals.
-- [ ] 19. "+ Translation" in `ExampleEditor`, and a way to clear grammatical info.
-- [ ] 20. File → New creates an empty `LiftDictionary` with a default header, followed by Save As.
-- [ ] 21. Tools → Validate runs real checks (dangling references, undeclared types, empty forms), or is removed.
-- [ ] 22. Restrict Paste and Copy to the views where they make sense. Apply saved theme and font size at startup, or remove the dark theme.
+- [x] 18. Delete actions (with undo) for variants, pronunciations, relations, etymologies, notes, fields, traits, annotations and reversals.
+- [x] 19. "+ Translation" in `ExampleEditor`, and a way to clear grammatical info.
+- [x] 20. File → New creates an empty `LiftDictionary` with a default header, followed by Save As.
+- [x] 21. Tools → Validate runs real checks (dangling references, undeclared types, empty forms), or is removed.
+- [x] 22. Restrict Paste and Copy to the views where they make sense. Apply saved theme and font size at startup, or remove the dark theme.
 
 ### Phase 5 — consistency and cleanup
 
-- [ ] 23. Filter trait/field pickers by target. Read gram-info values from the header everywhere. Factor the "back to parent" button into one helper.
-- [ ] 24. Move every hard-coded string into the bundles; add `col.language`.
-- [ ] 25. Pass the variant types inside `LiftEntryEditor`.
-- [ ] 26. Delete the dead code in section G, the unused classes and the commented-out blocks. Remove the fake loading delay.
+- [x] 23. Filter trait/field pickers by target. Read gram-info values from the header everywhere. Factor the "back to parent" button into one helper.
+- [x] 24. Move every hard-coded string into the bundles; add `col.language`.
+- [x] 25. Pass the variant types inside `LiftEntryEditor`.
+- [x] 26. Delete the dead code in section G, the unused classes and the commented-out blocks. Remove the fake loading delay.
 
 Suggested order: Phase 1 first, as its own commit.
+
+---
+
+## Implementation notes (2026-10-13)
+
+All 26 steps are implemented (not yet committed). Differences from the plan, and extras:
+
+- **Order:** the delete-with-undo infrastructure (step 18: `ComponentDeletion`, `DeleteComponentCommand`,
+  `EditorSupport.withDeleteButton`) and the move of hard-coded strings to the bundles (step 24) were done
+  while rewriting each editor in Phase 1, to avoid editing the same files twice.
+- **Deletes:** besides the listed types, examples and sub-senses got inline delete buttons in `SenseEditor`,
+  and senses in `LiftEntryEditor`. Notes, variants, relations and etymologies also have a delete button in
+  their own view. Inline deletes are not confirmed (they can be undone); view-level deletes are.
+- **Referenced objects:** lift-api refuses to delete an object that others refer to; every delete now reports
+  it instead of failing silently, and records nothing for undo.
+- **Trait range picker:** now stores the feature **id** (it stored the abbreviation); values saved as
+  abbreviations are still preselected.
+- **Entry table:** emptying a form cell removes the form; emptying the morph-type cell removes the trait.
+- **Search field:** now also filters the Etymologies, category and field-type views (audit section E).
+- **Unsaved changes:** detected from user input in the editor panel and table views (typing, buttons, the
+  focused control's actions), plus undo/redo, paste, deletions; navigation and filter controls are tagged
+  `no-dirty`. The window title shows the file name, "demo" or "untitled", and `*` when modified.
+- **Modification date:** `dateModified` is updated on the **entry** owning the object being edited, not on
+  the sense/example themselves.
+- **File → New** asks for the object and meta language codes, then builds the dictionary with
+  `LiftDictionary.makeBuilder()`; Save on a new or demo dictionary goes through Save As.
+
+Not covered / still open:
+
+- Undo only covers deletions; other edits (text, types, values…) are not undoable.
+- Adding a range element or a field/trait definition still writes the "auto-added" text into its description.
+- The app was not run interactively; a headless harness built every editor for every object of the demo
+  dictionary and visited all 68 views without error.

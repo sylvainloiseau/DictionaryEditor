@@ -10,10 +10,10 @@
 package fr.cnrs.lacito.liftgui.ui.controls;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
-import fr.cnrs.lacito.liftapi.model.AbstractIdentifiable;
 import fr.cnrs.lacito.liftapi.model.Feature;
+import fr.cnrs.lacito.liftapi.model.HasRelations;
 import fr.cnrs.lacito.liftapi.model.LiftRelation;
-
+import fr.cnrs.lacito.liftgui.ui.I18n;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -26,20 +26,19 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 /**
- * Editor for a single {@link LiftRelation}.
- *
- * Displays: type, refID, order, usage MultiText + ExtensibleWithFieldEditor.
+ * Editor for a single {@link LiftRelation}: type (from the header relation types),
+ * target (read-only), order, usage, and the extensible properties.
  */
 public final class RelationEditor extends VBox {
 
     private final ComboBox<Feature> typeCombo = new ComboBox<>();
-    private final TextField refIdField = new TextField();
+    private final TextField targetField = EditorSupport.readOnlyField("");
     private final TextField orderField = new TextField();
-    private ChangeListener<String> refIdListener;
+    private ChangeListener<Feature> typeListener;
     private ChangeListener<String> orderListener;
     private final MultiTextEditor usageEditor;
     private final ExtensibleWithFieldEditor extensibleEditor;
-    private LiftDictionary dictionary;
+    private final LiftDictionary dictionary;
 
     public RelationEditor(LiftDictionary dictionary) {
         super(6);
@@ -52,110 +51,73 @@ public final class RelationEditor extends VBox {
         );
 
         typeCombo.setEditable(false);
-        typeCombo.setPromptText("type");
+        typeCombo.setPromptText(I18n.get("col.type"));
         typeCombo.setMaxWidth(Double.MAX_VALUE);
-        refIdField.setPromptText("ref ID");
-        refIdField.setVisible(false);
-        Label refIdLabel = new Label("Ref ID");
-        refIdLabel.setVisible(false);
-        orderField.setPromptText("ordre");
+        EditorSupport.showFeatureIds(typeCombo);
+        orderField.setPromptText(I18n.get("col.order"));
 
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(6);
         int r = 0;
-        grid.add(new Label("Type"), 0, r);
+        grid.add(new Label(I18n.get("col.type")), 0, r);
         grid.add(typeCombo, 1, r++);
-        grid.add(refIdLabel, 0, r);
-        grid.add(refIdField, 1, r++);
-        grid.add(new Label("Ordre"), 0, r);
+        grid.add(new Label(I18n.get("col.ref")), 0, r);
+        grid.add(targetField, 1, r++);
+        grid.add(new Label(I18n.get("col.order")), 0, r);
         grid.add(orderField, 1, r++);
         GridPane.setHgrow(typeCombo, Priority.ALWAYS);
-        GridPane.setHgrow(refIdField, Priority.ALWAYS);
+        GridPane.setHgrow(targetField, Priority.ALWAYS);
         GridPane.setHgrow(orderField, Priority.ALWAYS);
 
-        TitledPane usagePane = new TitledPane("Usage (MultiText)", usageEditor);
+        TitledPane usagePane = new TitledPane(I18n.get("col.usage"), usageEditor);
         usagePane.setExpanded(false);
         usagePane.setAnimated(false);
 
-        TitledPane extPane = new TitledPane(
-            "Propriétés (dates, traits, annotations, champs)",
-            extensibleEditor
-        );
+        TitledPane extPane = new TitledPane(I18n.get("editor.properties.withFields"), extensibleEditor);
         extPane.setExpanded(false);
         extPane.setAnimated(false);
 
         getChildren().addAll(grid, usagePane, extPane);
     }
 
-    private ChangeListener<Feature> typeListener;
+    public void setRelation(LiftRelation rel) {
+        if (typeListener != null) typeCombo.valueProperty().removeListener(typeListener);
+        if (orderListener != null) orderField.textProperty().removeListener(orderListener);
+        typeListener = null;
+        orderListener = null;
 
-    /**
-     * @param relationTypes allowed types from header range {@code lexical-relation} (non-editable combo only).
-     */
-    public void setRelation(
-        LiftRelation rel
-    ) {
-        if (typeListener != null) {
-            typeCombo.valueProperty().removeListener(typeListener);
-            typeListener = null;
-        }
         if (rel == null) {
-            typeCombo.setItems(FXCollections.observableArrayList());
-            typeCombo.setValue(null);
-            typeCombo.setEditable(false);
-            refIdField.setText("");
+            typeCombo.getItems().clear();
+            typeCombo.setDisable(true);
+            targetField.setText("");
             orderField.setText("");
-            if (refIdListener != null) refIdField
-                .textProperty()
-                .removeListener(refIdListener);
-            if (orderListener != null) orderField
-                .textProperty()
-                .removeListener(orderListener);
-            refIdListener = null;
-            orderListener = null;
             usageEditor.setMultiText(null);
             extensibleEditor.setModel(null);
             return;
         }
-        // TreeSet<String> items = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-        // if (relationTypes != null) items.addAll(relationTypes);
-        // LiftHeaderRangeElement current = rel.getType();
-        // //if (!current.isBlank()) items.add(current);
-        // typeCombo.setItems(FXCollections.observableArrayList(items));
-        typeCombo.setItems(FXCollections.observableArrayList(dictionary.getHeader().getNoteTypeManager().featuresProperty().get()));
-        typeCombo.getSelectionModel().select(rel.getType());
+
+        typeCombo.setItems(FXCollections.observableArrayList(
+            EditorSupport.sortedFeatures(dictionary.getHeader().getRelationTypeManager())));
+        if (rel.getType() != null && !typeCombo.getItems().contains(rel.getType())) {
+            typeCombo.getItems().add(0, rel.getType());
+        }
+        typeCombo.setValue(rel.getType());
+        HasRelations parent = rel.getParent();
+        typeCombo.setDisable(parent == null);
         typeListener = (obs, o, n) -> {
-            rel.setType(n);
+            if (n != null && n != rel.getType() && parent != null) parent.retypeRelation(rel, n);
         };
         typeCombo.valueProperty().addListener(typeListener);
-        refIdField.setText(rel.getRefID().orElse(""));
+
+        targetField.setText(rel.getRefID().orElse(""));
+
         orderField.setText(rel.getOrder().map(String::valueOf).orElse(""));
-        if (refIdListener != null) refIdField
-            .textProperty()
-            .removeListener(refIdListener);
-        if (orderListener != null) orderField
-            .textProperty()
-            .removeListener(orderListener);
-        LiftRelation relationRef = rel;
-        refIdListener = (obs, o, n) -> {
-            if (n == null) return;
-            AbstractIdentifiable target = dictionary.getLiftDictionaryRegistry().getEntryOrSenseByLiftId(n);
-            if (target == null) {
-                throw new IllegalArgumentException("No entry or sense found for liftId: " + n);
-            }
-            relationRef.setRefObject(target);
-        };
         orderListener = (obs, o, n) -> {
-            if (n != null && !n.isBlank()) {
-                try {
-                    relationRef.setOrder(Integer.parseInt(n.trim()));
-                } catch (NumberFormatException ignored) {}
-            }
+            if (n != null && n.trim().matches("\\d+")) rel.setOrder(Integer.parseInt(n.trim()));
         };
-        refIdField.textProperty().addListener(refIdListener);
         orderField.textProperty().addListener(orderListener);
-        // usageEditor.setAvailableLanguages(langs);
+
         usageEditor.setMultiText(rel.getUsage());
         extensibleEditor.setModel(rel);
     }

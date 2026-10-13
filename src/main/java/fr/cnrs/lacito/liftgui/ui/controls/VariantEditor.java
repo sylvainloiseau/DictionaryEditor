@@ -37,26 +37,25 @@ import java.util.Optional;
 /**
  * Editor for a single {@link LiftVariant}.
  *
- * Displays: refId, forms MultiText, pronunciations, relations + ExtensibleWithFieldEditor.
+ * Displays: the parent entry forms (read-only), ref, variant type (trait {@code variant-type},
+ * values from the header variant types), forms MultiText, pronunciations, relations
+ * + ExtensibleWithFieldEditor.
  */
 public final class VariantEditor extends VBox {
     private static final String VARIANT_TYPE_TRAIT = "variant-type";
     private static final String EMPTY_CHOICE = "";
 
-    private final TextField refIdField = new TextField();
+    private final TextField refField = EditorSupport.readOnlyField("");
     private final ComboBox<String> variantTypeCombo = new ComboBox<>();
     private final MultiTextEditor parentEntryFormsEditor;
     private final MultiTextEditor formsEditor;
     private final VBox pronunciationsBox = new VBox(6);
     private final VBox relationsBox = new VBox(6);
     private final ExtensibleWithFieldEditor extensibleEditor;
-    /** Types from header range {@code lexical-relation} for {@link RelationEditor}. */
-    private List<String> relationTypes = List.of();
-    private List<String> variantTypes = List.of();
     private LiftVariant currentVariant;
     private ExtensibleAddActions currentAddActions;
     private boolean updatingVariantType = false;
-    private LiftDictionary dictionary;
+    private final LiftDictionary dictionary;
 
     public VariantEditor(LiftDictionary dictionary) {
         super(6);
@@ -67,11 +66,6 @@ public final class VariantEditor extends VBox {
         setPadding(new Insets(4));
         setStyle("-fx-border-color: #bbc; -fx-border-radius: 4; -fx-background-color: #f6f6fa; -fx-background-radius: 4;");
 
-        refIdField.setPromptText("ref ID");
-        refIdField.setVisible(false);
-        Label refIdLabel = new Label("Ref ID");
-        refIdLabel.setVisible(false);
-        Label variantTypeLabel = new Label(I18n.get("editor.variantType"));
         variantTypeCombo.setEditable(false);
         variantTypeCombo.setMaxWidth(Double.MAX_VALUE);
         variantTypeCombo.setPromptText(I18n.get("editor.variantType"));
@@ -79,58 +73,53 @@ public final class VariantEditor extends VBox {
             if (!updatingVariantType) updateVariantType(newVal);
         });
 
-        TitledPane parentFormsPane = new TitledPane("Entrée parent (lexical-unit)", parentEntryFormsEditor);
+        parentEntryFormsEditor.useObjectLanguages();
+        parentEntryFormsEditor.setFixedLanguageRows(true);
+        formsEditor.useObjectLanguages();
+        formsEditor.setFixedLanguageRows(true);
+
+        TitledPane parentFormsPane = new TitledPane(I18n.get("editor.parentEntryForms"), parentEntryFormsEditor);
         parentFormsPane.setExpanded(true);
         parentFormsPane.setAnimated(false);
 
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(6);
-        grid.add(refIdLabel, 0, 0);
-        grid.add(refIdField, 1, 0);
-        grid.add(variantTypeLabel, 0, 1);
+        grid.add(new Label(I18n.get("col.ref")), 0, 0);
+        grid.add(refField, 1, 0);
+        grid.add(new Label(I18n.get("editor.variantType")), 0, 1);
         grid.add(variantTypeCombo, 1, 1);
-        GridPane.setHgrow(refIdField, Priority.ALWAYS);
+        GridPane.setHgrow(refField, Priority.ALWAYS);
         GridPane.setHgrow(variantTypeCombo, Priority.ALWAYS);
 
-        parentEntryFormsEditor.setFixedLanguageRows(true);
-        formsEditor.setFixedLanguageRows(true);
-
-        TitledPane formsPane = new TitledPane("Formes (MultiText)", formsEditor);
+        TitledPane formsPane = new TitledPane(I18n.get("col.forms"), formsEditor);
         formsPane.setExpanded(true);
         formsPane.setAnimated(false);
 
-        TitledPane pronPane = new TitledPane("Prononciations", pronunciationsBox);
+        TitledPane pronPane = new TitledPane(I18n.get("editor.pronunciations"), pronunciationsBox);
         pronPane.setExpanded(false);
         pronPane.setAnimated(false);
 
-        TitledPane relPane = new TitledPane("Relations", relationsBox);
+        TitledPane relPane = new TitledPane(I18n.get("editor.relations"), relationsBox);
         relPane.setExpanded(false);
         relPane.setAnimated(false);
 
-        TitledPane extPane = new TitledPane("Propriétés (dates, traits, annotations, champs)", extensibleEditor);
+        TitledPane extPane = new TitledPane(I18n.get("editor.properties.withFields"), extensibleEditor);
         extPane.setExpanded(false);
         extPane.setAnimated(false);
 
         getChildren().addAll(parentFormsPane, grid, formsPane, pronPane, relPane, extPane);
     }
 
-    public void setRelationTypes(List<String> relationTypes) {
-        this.relationTypes = relationTypes == null ? List.of() : List.copyOf(relationTypes);
-    }
-
-    public void setVariantTypes(List<String> variantTypes) {
-        this.variantTypes = variantTypes == null ? List.of() : List.copyOf(variantTypes);
-    }
-
-    /**
-     * @param v          the variant
-     * @param addActions optional callbacks for adding pronunciation, relation, trait, annotation, field
-     */
     public void setVariant(LiftVariant v) {
         setVariant(v, null);
     }
 
+    /**
+     * @param v          the variant
+     * @param addActions optional callbacks for adding pronunciation, relation, trait, annotation,
+     *                   field; when null the variant is shown read-only
+     */
     public void setVariant(LiftVariant v, ExtensibleAddActions addActions) {
         pronunciationsBox.getChildren().clear();
         relationsBox.getChildren().clear();
@@ -138,7 +127,7 @@ public final class VariantEditor extends VBox {
         currentAddActions = addActions;
 
         if (v == null) {
-            refIdField.setText("");
+            refField.setText("");
             updatingVariantType = true;
             try {
                 variantTypeCombo.getItems().clear();
@@ -153,16 +142,16 @@ public final class VariantEditor extends VBox {
             extensibleEditor.setModel(null, null);
             return;
         }
-        refIdField.setText(v.getRefId().orElse(""));
-        String currentVariantType = v.getTraits().stream()
-            .filter(t -> VARIANT_TYPE_TRAIT.equals(t.getSpecification().getName()))
+
+        refField.setText(v.getRefId().orElse(""));
+
+        String currentVariantType = findVariantTypeTrait(v)
             .map(LiftTrait::getValue)
-            .filter(value -> value != null && !value.isBlank())
-            .findFirst()
+            .filter(value -> !value.isBlank())
             .orElse(null);
         LinkedHashSet<String> comboItems = new LinkedHashSet<>();
         comboItems.add(EMPTY_CHOICE);
-        comboItems.addAll(variantTypes);
+        comboItems.addAll(EditorSupport.sortedFeatureIds(dictionary.getHeader().getVariantTypeManager()));
         if (currentVariantType != null) comboItems.add(currentVariantType);
         updatingVariantType = true;
         try {
@@ -172,42 +161,28 @@ public final class VariantEditor extends VBox {
         } finally {
             updatingVariantType = false;
         }
-        LiftVariant variant = v;
-        MultiText parentForms = variant.getParent() != null ? variant.getParent().getForms() : null;
-        // parentEntryFormsEditor.setAvailableLanguages(dictionary.getObjectLanguageManager().getLanguages());
+
+        MultiText parentForms = v.getParent() != null ? v.getParent().getForms() : null;
         parentEntryFormsEditor.setMultiText(parentForms);
         parentEntryFormsEditor.setReadOnly(true);
-        // Object langs from dictionary + langs already used on parent entry forms (avoids empty rows for new variants)
-        LinkedHashSet<String> variantFormLangs = new LinkedHashSet<>();
-        for (String l : dictionary.getObjectLanguageManager().getLanguages()) {
-            if (l != null && !l.isBlank()) variantFormLangs.add(l.trim());
-        }
-        if (variant.getParent() != null && variant.getParent().getForms() != null) {
-            for (String l : variant.getParent().getForms().getLangs()) {
-                if (l != null && !l.isBlank()) variantFormLangs.add(l.trim());
-            }
-        }
-        // formsEditor.setAvailableLanguages(variantFormLangs);
+
         formsEditor.setMultiText(v.getForms());
-        // Editable when dictionary is writable (addActions); parent lexical forms stay read-only above
+        // Editable when the host gives add actions; parent lexical forms stay read-only above
         formsEditor.setReadOnly(addActions == null);
 
         if (addActions != null) {
-            FlowPane pronAddRow = new FlowPane(6, 4);
             Button addPronBtn = new Button(I18n.get("btn.addPronunciation"));
             addPronBtn.getStyleClass().add("example-add-button");
             addPronBtn.setOnAction(e -> {
                 addActions.addPronunciation();
                 addActions.refresh();
             });
-            pronAddRow.getChildren().add(addPronBtn);
-            pronunciationsBox.getChildren().add(pronAddRow);
+            pronunciationsBox.getChildren().add(new FlowPane(6, 4, addPronBtn));
 
-            FlowPane relAddRow = new FlowPane(6, 4);
             Button addRelBtn = new Button(I18n.get("btn.addRelation"));
             addRelBtn.getStyleClass().add("example-add-button");
             addRelBtn.setOnAction(e -> {
-                List<String> types = dictionary.getHeader().getRelationTypeManager().getFeatures().values().stream().map(x -> x.getId()).toList();
+                List<String> types = EditorSupport.sortedFeatureIds(dictionary.getHeader().getRelationTypeManager());
                 Optional<String> typeOpt;
                 if (types.isEmpty()) {
                     TextInputDialog tid = new TextInputDialog();
@@ -225,33 +200,37 @@ public final class VariantEditor extends VBox {
                     addActions.refresh();
                 });
             });
-            relAddRow.getChildren().add(addRelBtn);
-            relationsBox.getChildren().add(relAddRow);
+            relationsBox.getChildren().add(new FlowPane(6, 4, addRelBtn));
         }
 
         for (LiftPronunciation p : v.getPronunciations()) {
             PronunciationEditor pe = new PronunciationEditor(dictionary);
             pe.setPronunciation(p);
-            pronunciationsBox.getChildren().add(pe);
+            Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.delete(
+                () -> v.deletePronunciation(p), () -> v.addPronunciation(p), addActions::refresh);
+            pronunciationsBox.getChildren().add(EditorSupport.withDeleteButton(pe, onDelete));
         }
-
         for (LiftRelation r : v.getRelations()) {
             RelationEditor re = new RelationEditor(dictionary);
             re.setRelation(r);
-            relationsBox.getChildren().add(re);
+            Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.delete(
+                () -> v.deleteRelation(r), () -> v.addRelation(r), addActions::refresh);
+            relationsBox.getChildren().add(EditorSupport.withDeleteButton(re, onDelete));
         }
-
         extensibleEditor.setModel(v, addActions);
+    }
+
+    private static Optional<LiftTrait> findVariantTypeTrait(LiftVariant v) {
+        return v.getTraits().stream()
+            .filter(t -> VARIANT_TYPE_TRAIT.equals(t.getSpecification().getName()))
+            .findFirst();
     }
 
     private void updateVariantType(String newValue) {
         if (currentVariant == null) return;
-        LiftTrait existingTrait = currentVariant.getTraits().stream()
-            .filter(t -> VARIANT_TYPE_TRAIT.equals(t.getSpecification().getName()))
-            .findFirst()
-            .orElse(null);
+        LiftTrait existingTrait = findVariantTypeTrait(currentVariant).orElse(null);
         if (newValue == null || newValue.isBlank()) {
-            if (existingTrait != null) currentVariant.getTraits().remove(existingTrait);
+            if (existingTrait != null) currentVariant.deleteTrait(existingTrait);
             return;
         }
         if (existingTrait != null) {

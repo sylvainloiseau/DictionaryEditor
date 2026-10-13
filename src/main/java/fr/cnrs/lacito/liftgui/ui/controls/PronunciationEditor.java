@@ -1,6 +1,5 @@
-
 /**
- 
+
 * @author Inès GBADAMASSI
 * @author Maryse GOEH-AKUE
 * @author Ermeline BRESSON
@@ -12,35 +11,34 @@ package fr.cnrs.lacito.liftgui.ui.controls;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftPronunciation;
+import fr.cnrs.lacito.liftgui.ui.I18n;
 import javafx.geometry.Insets;
 import javafx.scene.control.TitledPane;
 import javafx.scene.layout.VBox;
 
 /**
- * Editor for a single {@link LiftPronunciation}.
- *
- * Displays: pronunciation MultiText + ExtensibleWithFieldEditor
- * (since LiftPronunciation extends AbstractExtensibleWithField).
+ * Editor for a single {@link LiftPronunciation}: pronunciation text (object languages)
+ * and the extensible properties.
  */
 public final class PronunciationEditor extends VBox {
 
     private final MultiTextEditor pronTextEditor;
     private final ExtensibleWithFieldEditor extensibleEditor;
-    private final LiftDictionary dictionary;
 
     public PronunciationEditor(LiftDictionary dictionary) {
         super(6);
-        this.dictionary = dictionary;
         this.pronTextEditor = new MultiTextEditor(dictionary);
         this.extensibleEditor = new ExtensibleWithFieldEditor(dictionary);
         setPadding(new Insets(4));
         setStyle("-fx-border-color: #ccb; -fx-border-radius: 4; -fx-background-color: #fafaf0; -fx-background-radius: 4;");
 
-        TitledPane textPane = new TitledPane("Prononciation (MultiText)", pronTextEditor);
+        pronTextEditor.useObjectLanguages();
+
+        TitledPane textPane = new TitledPane(I18n.get("editor.pronunciation"), pronTextEditor);
         textPane.setExpanded(true);
         textPane.setAnimated(false);
 
-        TitledPane extPane = new TitledPane("Propriétés (dates, traits, annotations, champs)", extensibleEditor);
+        TitledPane extPane = new TitledPane(I18n.get("editor.properties.withFields"), extensibleEditor);
         extPane.setExpanded(false);
         extPane.setAnimated(false);
 
@@ -53,7 +51,6 @@ public final class PronunciationEditor extends VBox {
             extensibleEditor.setModel(null);
             return;
         }
-        //pronTextEditor.setAvailableLanguages(langs);
         pronTextEditor.setMultiText(p.getPronunciation());
         extensibleEditor.setModel(p);
     }
