@@ -76,7 +76,8 @@ public final class MainApp extends Application {
         double h = primaryStage.getScene() != null ? primaryStage.getScene().getHeight() : 720;
         Scene scene = new Scene(loader.load(), w, h);
         scene.getStylesheets().add(MainApp.class.getResource("/fr/cnrs/lacito/liftgui/ui/app.css").toExternalForm());
-        primaryStage.setTitle(I18n.get("app.title"));
+        // The controller of the new scene binds the title to its document.
+        primaryStage.titleProperty().unbind();
         primaryStage.setScene(scene);
     }
 

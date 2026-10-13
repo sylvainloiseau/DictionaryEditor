@@ -15,23 +15,11 @@ public final class Keys {
     public static final String NAV_CATEGORIES = "nav.categories";
     public static final String NAV_HEADER_CONFIG = "nav.headerConfig";
     public static final String NAV_CFG_RANGES = "nav.cfgRanges";
-    public static final String NAV_CFG_DESC = "nav.cfgDesc";
 
     // Buttons
     public static final String BTN_CREATE_OBJECT = "btn.createObject";
-    public static final String BTN_NEW = "btn.new";
     public static final String BTN_NEW_ENTRY = "btn.newEntry";
     public static final String BTN_DELETE = "btn.delete";
-    public static final String BTN_ADD_TRAIT = "btn.addTrait";
-    public static final String BTN_ADD_SENSE = "btn.addSense";
-    public static final String BTN_ADD_VARIANT = "btn.addVariant";
-    public static final String BTN_ADD_PRONUNCIATION = "btn.addPronunciation";
-    public static final String BTN_ADD_RELATION = "btn.addRelation";
-    public static final String BTN_ADD_ETYMOLOGY = "btn.addEtymology";
-    public static final String BTN_ADD_EXAMPLE = "btn.addExample";
-    public static final String BTN_ADD_ANNOTATION = "btn.addAnnotation";
-    public static final String BTN_ADD_NOTE = "btn.addNote";
-    public static final String BTN_ADD_FIELD = "btn.addField";
     public static final String BTN_CREATE_ENTRIES = "btn.createEntries";
 
     // Menu items
@@ -53,26 +41,13 @@ public final class Keys {
     public static final String INFO_QUICK_ENTRY_CREATED =
         "info.quickEntryCreated";
 
-    // Panel titles
-    public static final String PANEL_SELECT_ELEMENT = "panel.selectElement";
-
     // Editor sections
     public static final String EDITOR_FORMS = "editor.forms";
-    public static final String EDITOR_TRAITS = "editor.traits";
     public static final String EDITOR_PRONUNCIATIONS = "editor.pronunciations";
     public static final String EDITOR_SENSES = "editor.senses";
     public static final String EDITOR_VARIANTS = "editor.variants";
     public static final String EDITOR_RELATIONS = "editor.relations";
     public static final String EDITOR_ETYMOLOGIES = "editor.etymologies";
-    public static final String EDITOR_ANNOTATIONS = "editor.annotations";
-    public static final String EDITOR_NOTES = "editor.notes";
-    public static final String EDITOR_FIELDS = "editor.fields";
-    public static final String EDITOR_IDENTITY = "editor.identity";
-
-    // Fields
-    public static final String FIELD_ID = "field.id";
-    public static final String FIELD_DATE_CREATED = "field.dateCreated";
-    public static final String FIELD_DATE_MODIFIED = "field.dateModified";
 
     // Columns
     public static final String COL_FORM = "col.form";
@@ -98,17 +73,7 @@ public final class Keys {
     public static final String COL_WHEN = "col.when";
     public static final String COL_FREQUENCY = "col.frequency";
     public static final String COL_GRAM_CODE = "col.gramCode";
-    public static final String COL_LANGUAGE = "col.language";
     public static final String COL_PARENT = "col.parent";
-
-    // Filter
-    public static final String FILTER_CLEAR = "filter.clear";
-    public static final String FILTER_RESET_ALL = "filter.resetAll";
-    public static final String FILTER_PROMPT = "filter.prompt";
-
-    // Tooltips
-    public static final String TOOLTIP_NO_RELATION_TYPES =
-        "tooltip.noRelationTypes";
 
     // Quick entry
     public static final String NAV_QUICK_ENTRY = "nav.quickEntry";

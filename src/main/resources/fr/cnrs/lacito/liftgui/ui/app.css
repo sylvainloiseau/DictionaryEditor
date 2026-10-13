@@ -121,9 +121,17 @@
 }
 
 /* ─── Filtres de colonnes : ComboBox avec espace pour afficher "Filtrer" sans troncature ─── */
+.filter-row {
+  -fx-background-color: #eef2f3;
+}
+.filter-text {
+  -fx-font-size: 11px;
+  -fx-padding: 4 6 4 6;
+}
 .filter-combo {
   -fx-min-width: 85px;
   -fx-padding: 4 8 4 8;
+  -fx-font-size: 11px;
 }
 .filter-combo .list-cell {
   -fx-padding: 4 8 4 8;
@@ -189,11 +197,38 @@
   -fx-background-color: #43646a;
 }
 
+.delete-btn {
+  -fx-background-color: #e74c3c;
+  -fx-text-fill: white;
+  -fx-background-radius: 6;
+  -fx-padding: 7 12 7 12;
+}
+
 /* Boutons Supprimer et Retour - même longueur, taille réduite */
 .delete-btn,
 .back-btn {
   -fx-min-width: 175px;
   -fx-max-width: 175px;
+}
+
+/* ─── Configuration pages ─── */
+.page-title {
+  -fx-font-size: 15px;
+  -fx-font-weight: bold;
+  -fx-text-fill: #4c6f76;
+}
+.page-subtitle {
+  -fx-font-size: 13px;
+  -fx-font-weight: bold;
+  -fx-text-fill: #4c6f76;
+}
+.field-title {
+  -fx-font-size: 12px;
+  -fx-font-weight: bold;
+}
+.muted-label {
+  -fx-font-size: 12px;
+  -fx-text-fill: #66767a;
 }
 
 /* ─── Misc ─── */

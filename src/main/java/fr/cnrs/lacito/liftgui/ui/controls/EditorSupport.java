@@ -8,18 +8,21 @@ import fr.cnrs.lacito.liftapi.model.LiftFieldAndTraitDefinition;
 import fr.cnrs.lacito.liftapi.model.LiftFieldAndTraitDefinitionTarget;
 import fr.cnrs.lacito.liftapi.model.LiftHeader;
 import fr.cnrs.lacito.liftapi.model.MultiText;
+import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
+import javafx.scene.control.TreeItem;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.util.StringConverter;
@@ -98,6 +101,33 @@ public final class EditorSupport {
         return f == null ? "" : f.getId();
     }
 
+    /** The first form of a multitext, or "". */
+    public static String firstForm(MultiText mt) {
+        if (mt == null) return "";
+        return mt.getForms().stream().findFirst().map(Form::toPlainText).orElse("");
+    }
+
+    /**
+     * The features of a set as a tree following their superordinate feature; the root (with
+     * a null value) holds the features without a superordinate. Every item is expanded.
+     */
+    public static TreeItem<Feature> featureTree(FeatureSet set) {
+        TreeItem<Feature> root = new TreeItem<>(null);
+        root.setExpanded(true);
+        Map<String, TreeItem<Feature>> items = new LinkedHashMap<>();
+        for (Feature f : set.getFeatures().values()) {
+            TreeItem<Feature> item = new TreeItem<>(f);
+            item.setExpanded(true);
+            items.put(f.getId(), item);
+        }
+        for (Feature f : set.getFeatures().values()) {
+            Feature sup = f.getSuperOrdinateFeature().orElse(null);
+            TreeItem<Feature> parent = sup != null ? items.get(sup.getId()) : null;
+            (parent != null ? parent : root).getChildren().add(items.get(f.getId()));
+        }
+        return root;
+    }
+
     /** Plain text of all the forms of a multitext, joined by " / ". */
     public static String plainText(MultiText mt) {
         if (mt == null) return "";
@@ -133,11 +163,7 @@ public final class EditorSupport {
     }
 
     public static void showError(String title, String message) {
-        Alert a = new Alert(Alert.AlertType.ERROR);
-        a.setTitle(title);
-        a.setHeaderText(null);
-        a.setContentText(message);
-        a.showAndWait();
+        Dialogs.error(title, message);
     }
 
     /**

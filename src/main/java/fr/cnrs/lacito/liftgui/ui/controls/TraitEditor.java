@@ -212,25 +212,9 @@ public final class TraitEditor extends VBox {
         dlg.setResizable(true);
         dlg.getDialogPane().setPrefSize(360, 400);
 
-        TreeItem<Feature> root = new TreeItem<>(null);
-        root.setExpanded(true);
-        Map<String, TreeItem<Feature>> itemMap =
-            new LinkedHashMap<>();
-
-        for (Feature re : range.getFeatures().values()) {
-            TreeItem<Feature> item = new TreeItem<>(re);
-            item.setExpanded(true);
-            itemMap.put(re.getId(), item);
-        }
-        for (Feature re : range.getFeatures().values()) {
-            TreeItem<Feature> item = itemMap.get(re.getId());
-            Feature pid = re.getSuperOrdinateFeature().orElse(null);
-            if (pid != null && itemMap.containsKey(pid.getId())) itemMap
-                .get(pid.getId())
-                .getChildren()
-                .add(item);
-            else root.getChildren().add(item);
-        }
+        TreeItem<Feature> root = EditorSupport.featureTree(range);
+        List<TreeItem<Feature>> allItems = new ArrayList<>();
+        collectItems(root, allItems);
 
         TreeView<Feature> tree = new TreeView<>(root);
         tree.setShowRoot(false);
@@ -272,7 +256,7 @@ public final class TraitEditor extends VBox {
         String[] current =
             currentValue == null ? new String[0] : currentValue.split("\\s+");
         Set<String> currentSet = new HashSet<>(Arrays.asList(current));
-        for (TreeItem<Feature> ti : itemMap.values()) {
+        for (TreeItem<Feature> ti : allItems) {
             if (ti.getValue() != null) {
                 String abbrev = ti
                     .getValue()
@@ -311,5 +295,12 @@ public final class TraitEditor extends VBox {
         });
 
         return dlg.showAndWait().orElse(null);
+    }
+
+    private static void collectItems(TreeItem<Feature> item, List<TreeItem<Feature>> acc) {
+        for (TreeItem<Feature> child : item.getChildren()) {
+            acc.add(child);
+            collectItems(child, acc);
+        }
     }
 }

@@ -3,10 +3,11 @@ package fr.cnrs.lacito.liftgui.ui.controls;
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.builder.SenseBuilder;
 import fr.cnrs.lacito.liftapi.model.*;
+import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
 import java.util.List;
-import java.util.function.BiConsumer;
+import java.util.Optional;
 import java.util.function.Consumer;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -162,7 +163,7 @@ public final class LiftEntryEditor extends VBox {
 
         for (LiftVariant v : entry.getVariants()) {
             VariantEditor ve = new VariantEditor(dictionary);
-            ve.setVariant(v, variantAddActions(v));
+            ve.setVariant(v, addActions(v));
             variantsBox.getChildren().add(EditorSupport.withDeleteButton(ve, () -> ComponentDeletion.delete(
                 () -> entry.deleteVariant(v), () -> entry.addVariant(v), this::refresh)));
         }
@@ -189,7 +190,7 @@ public final class LiftEntryEditor extends VBox {
             entry.getEtymologies().size()
         );
 
-        notableEditor.setModel(entry, extensibleAddActions(entry));
+        notableEditor.setModel(entry, addActions(entry));
 
         // Identity block: ID, dates (read-only, grey)
         addReadOnlyRow(0, I18n.get("field.id"), entry.getId().orElse(""));
@@ -211,14 +212,12 @@ public final class LiftEntryEditor extends VBox {
         SenseEditor se = new SenseEditor(dictionary);
         se.setGrammaticalInfoValues(gramInfoValues());
         se.setOnGramInfoChanged(this::fireChanged);
-        BiConsumer<String, MultiText> onAddAnnotation =
-            (name, mt) -> dictionary.getComponentBuilder().annotation(mt, name).build();
         se.setSense(
             sense,
-            onAddAnnotation,
+            BuilderAddActions.multiTextAnnotator(dictionary),
             annotationNames(),
-            this::extensibleAddActions,
-            this::extensibleAddActions
+            this::addActions,
+            this::addActions
         );
         box.getChildren().add(EditorSupport.withDeleteButton(se, () -> ComponentDeletion.delete(
             () -> entry.deleteSense(sense),
@@ -242,7 +241,12 @@ public final class LiftEntryEditor extends VBox {
     private void buildAddButtons(LiftEntry entry, List<String> relationTypes) {
         Button addSenseBtn = new Button(I18n.get("btn.addSense"));
         addSenseBtn.setOnAction(e -> {
-            SenseBuilder sb = dictionary.getComponentBuilder().sense(entry);
+            // A sense needs a gloss (or a definition); the grammatical info is optional.
+            Optional<String> lang = Dialogs.firstLanguage(dictionary.getMetaLanguageManager().getLanguages());
+            if (lang.isEmpty()) return;
+            Optional<String> gloss = Dialogs.askText(I18n.get("btn.addSense"), I18n.get("col.gloss") + " (" + lang.get() + ")");
+            if (gloss.isEmpty()) return;
+            SenseBuilder sb = dictionary.getComponentBuilder().sense(entry).withGloss(lang.get(), gloss.get());
             List<String> giValues = gramInfoValues();
             if (!giValues.isEmpty()) {
                 ChoiceDialog<String> dlg = new ChoiceDialog<>(giValues.get(0), giValues);
@@ -337,69 +341,9 @@ public final class LiftEntryEditor extends VBox {
         });
     }
 
-    /* ─── Add actions: every addition rebuilds this editor ─── */
-
-    private <T extends AbstractNotable> ExtensibleAddActions extensibleAddActions(T model) {
-        return new ExtensibleAddActions() {
-            @Override
-            public void addTrait(String name, String value) {
-                dictionary.getComponentBuilder().trait(model, name, value).build();
-            }
-
-            @Override
-            public void addAnnotation(String name) {
-                dictionary.getComponentBuilder().annotation(model, name).build();
-            }
-
-            @Override
-            public void addField(String type) {
-                dictionary.getComponentBuilder().field(model, type).build();
-            }
-
-            @Override
-            public void addNote(String type) {
-                dictionary.getComponentBuilder().note(model, type).build();
-            }
-
-            @Override
-            public void refresh() {
-                LiftEntryEditor.this.refresh();
-            }
-        };
-    }
-
-    private ExtensibleAddActions variantAddActions(LiftVariant v) {
-        return new ExtensibleAddActions() {
-            @Override
-            public void addTrait(String name, String value) {
-                dictionary.getComponentBuilder().trait(v, name, value).build();
-            }
-
-            @Override
-            public void addAnnotation(String name) {
-                dictionary.getComponentBuilder().annotation(v, name).build();
-            }
-
-            @Override
-            public void addField(String type) {
-                dictionary.getComponentBuilder().field(v, type).build();
-            }
-
-            @Override
-            public void addPronunciation() {
-                dictionary.getComponentBuilder().pronunciation(v).build();
-            }
-
-            @Override
-            public void addRelation(String type) {
-                dictionary.getComponentBuilder().relation(type, v).build();
-            }
-
-            @Override
-            public void refresh() {
-                LiftEntryEditor.this.refresh();
-            }
-        };
+    /** Add actions on a component of the entry: every addition rebuilds this editor. */
+    private ExtensibleAddActions addActions(Object model) {
+        return BuilderAddActions.of(dictionary, model, this::refresh);
     }
 
     private void refresh() {
