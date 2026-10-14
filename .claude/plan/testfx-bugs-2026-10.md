@@ -48,6 +48,21 @@ tests anyway:
 
 ---
 
+## Status (2026-10-13): all fixed
+
+All the bug tests are enabled again; `mvn clean test` runs 81 tests, all passing.
+
+| Bug | Fix |
+|---|---|
+| B1 | `DirtyTracker` ignores plain buttons. Changes are reported where they happen: `markDirty` in the views, and a new `EditEvent` fired by the editors (`LiftEntryEditor.refresh`, `MultiTextEditor`, `TraitEditor`, `EditorPanel.notifyEdited` for the presenters). `FeatureSetView`'s add and delete now call `markDirty`. New test: `CreationTest.cancellingAnAdditionLeavesTheDictionaryUnmodified`; the creation tests now check the `*`. |
+| B2 | `CommitOnFocusLossCell`, and the gram info combo of `QuickEntryView`, select their row when they take the focus. |
+| B3 | Fixed in lift-api. |
+| B4 | `EntryView.showNew`: resets the filters when the new entry is hidden, and always shows it in the editor panel. |
+| B5 | `I18n.get(key, args)` formats in the interface's locale; choice formats for `table.count.*`. |
+| B6 | `NavigationTree`: a click on the highlighted item shows all the objects again when a subset is shown. |
+| B7 | `ObjectTableView.rows`: a live filter of the registry's list, sorted in the subset's order (so the order is kept). |
+| B8 | French texts translated; "reversal" is rendered as "index inversé", "option range" as "taxinomie d'options" (as `nav.cfgRanges`). |
+
 ## Bugs
 
 ### B1. A cancelled action still marks the dictionary as modified
@@ -60,20 +75,27 @@ the window then asks to save. The same happens for every button whose dialog is 
 **Cause:** `DirtyTracker` treats every button action in the editor and table panels as an
 edit, before knowing whether anything changes. This is bug 19 of the split plan.
 
-**Suggested fix (either):**
-1. **Mark the document modified where the change happens.**
-   - `DirtyTracker` would ignore buttons and only watch typing and focused combo boxes or
-     date pickers.
-   - Each change would call `markDirty`:
-     - `EditorContext.executeDeletion` and `recordExecuted` already do;
-     - `BuilderAddActions` would take a "changed" callback and call it after `build()`;
-     - `EditorPresenters` (the sense add buttons) and `LiftEntryEditor` (its add buttons,
-       through `setOnChanged`) need it too;
-     - the configuration views already call `ctx.markDirty()` on their changes.
-2. **Better, if lift-api can offer it:** a dictionary-wide change notification, for example a
-   modification counter or an event on the registry. `DictionaryDocument` would then derive
-   `dirty` from the model itself, and `DirtyTracker` could be removed. This also fixes edits
-   made by code paths that `DirtyTracker` cannot see.
+**Two separate jobs.** The "modified" flag only answers "has anything changed since the
+last save?". It drives the `*` in the title and the "Save changes?" prompt. The undo stack
+(`UndoManager`) has to know what changed and how to reverse it; today it only records
+deletions. This fix is about the flag only, and stays in the application: no change to
+lift-api is needed.
+
+**Suggested fix: mark the document modified where the change happens.**
+- `DirtyTracker` stops treating button actions as edits. It only watches typing in text
+  fields and value changes in focused combo boxes and date pickers.
+- Each change calls `markDirty`:
+  - `EditorContext.executeDeletion` and `recordExecuted` already do;
+  - `EntryView`, `QuickEntryView` and the configuration views already do;
+  - `BuilderAddActions` takes a "changed" callback and calls it after `build()`;
+  - `EditorPresenters` (the sense add buttons) and `LiftEntryEditor` (its add buttons,
+    through `setOnChanged`) do the same.
+- A cancelled dialog then changes nothing.
+
+**Later, separate work (not part of this fix):** if undo should cover more than deletions,
+every edit would go through the undo stack, which would also record the point matching the
+last save. The `*` would then disappear when the user undoes back to that point. This is a
+much larger change, and does not need lift-api either.
 
 ### B2. Quick entry: leaving a filled row does not create its entry
 *Test:* `QuickEntryTest.leavingAFilledRowCreatesItsEntryOnce`.
@@ -95,26 +117,74 @@ textField.focusedProperty().addListener((obs, was, is) -> {
 The previous field loses the focus first, so its text is already committed when the
 selection listener creates the entry of the row left.
 
-### B3. "+ Reversal" fails when the header declares no reversal type
+### B3. "+ Reversal" fails when the header declares no reversal type — fixed in lift-api
 *Test:* `CreationTest.theSenseEditorAddsAReversal`.
 
 **What happens:** with the demo dictionary, whose inverse types are empty, the dialog asks
 for a free type. Then `ReversalBuilder.withType` throws `No feature with id … in feature set
-'inverse-type'`, and nothing is created. This regression comes from commit 26208cd: the
-free-text fallback suits notes and relations, whose builders declare new types themselves,
-but not reversals.
+'inverse-type'`, and nothing is created. The free-text fallback added in 26208cd suits
+notes and relations, whose builders declare new types themselves, but not reversals.
 
-**Suggested fix (either):**
-- in `EditorPresenters.senseAddButtons`, declare the type before building it:
-  ```java
-  FeatureSet types = header.getInverseTypeManager();
-  if (!types.hasFeature(type)) types.addFeature(type);
-  ```
-- or disable "+ Reversal" with a tooltip when no type is declared, as `LiftEntryEditor` does
-  for relations.
+**Decision:** reversals should behave like notes and relations. This is fixed in lift-api
+first (see "lift-api: type managers" below); the application then needs no change, and the
+test can be enabled once the new lift-api is used.
 
-Also worth reporting to lift-api: the message of a reversal without a type says "Relation
-must have a type".
+**Status (2026-10-13):** fixed by the lift-api changes (`ReversalBuilder.withType` creates
+the type; `createReversal` uses the inverse-type manager). The test is enabled again and
+passes against a locally installed lift-api.
+
+### lift-api: type managers
+
+The header has eight type managers. Each is used by a builder (`withType` or the
+constructor) and by the XML reader (`LiftXMLFactory`). The usual rule is "create the type
+on demand" (`getOrCreateFeature`, or `hasFeature` then `addFeature`).
+
+| Manager (range id) | Builder | XML reader | Writer |
+|---|---|---|---|
+| `getNoteTypeManager` (note-type) | creates (constructor and `withType`) | creates | ✓ |
+| `getRelationTypeManager` (relation-type) | creates (constructor and `withType`) | creates | ✓ |
+| `getTranslationTypeManager` (translation-type) | creates (`TranslationBuilder`, `ExampleBuilder.addTranslation`) | creates | ✓ |
+| `getAnnotationTypeManager` (annotation-type) | creates | creates | ✓ |
+| `getGrammaticalInfoManager` (grammatical-info) | creates | creates | ✓ |
+| `getEtymologyTypeManager` (etymology-type) | constructor creates; **`withType` fails** | creates | ✓ |
+| `getInverseTypeManager` (inverse-type) | **`withType` fails** | **files the type under note-type** | ✓ |
+| `getVariantTypeManager` (variant-type) | creates | **not read** | **not written** |
+
+**Divergences to fix in lift-api:**
+
+1. **`ReversalBuilder.withType`** uses `getFeature`, which throws for an undeclared type.
+   The code that would create it is commented out (it also called `hasRangeElements`, not
+   `hasFeature`). Fix: `getOrCreateFeature(type)`, as `NoteBuilder` and `RelationBuilder`
+   do.
+2. **`LiftXMLFactory.createReversal`** declares and looks up a reversal's `type` in the
+   **note-type** manager, not the inverse-type manager. So the reversal types of a file
+   become note types, and the inverse types stay empty. Probably a copy and paste from
+   `createNote`. Fix: use `getInverseTypeManager()`.
+3. **`EtymologyBuilder.withType`** uses `getFeature` and throws, while the constructor of
+   the same builder creates the type. Fix: `getOrCreateFeature(type)`.
+4. **Variant types are never saved.** `VariantBuilder.withType` and `LiftVariant.setType`
+   set a type in memory, but `LiftWriterSession.writeVariant` doesn't write it, and the
+   reader doesn't read one (a variant's `type` attribute goes to `otherXmlAttributes`). A
+   variant's type is lost on save. To decide: LIFT 0.13 has no `type` attribute on
+   `<variant>`; FieldWorks stores the variant type as a trait. Either map the type to that
+   trait when reading and writing, or drop `setType` from `LiftVariant`.
+5. **Wrong messages in `ReversalBuilder`:** `withType` says "Annotation name cannot be null
+   or blank", and `build()` says "Relation must have a type".
+6. **A reversal without a type:** the reader accepts it (`reversal-content` declares
+   `type` as optional), but `ReversalBuilder.build()` refuses it. Worth aligning: allow a
+   reversal without a type in the builder.
+7. **Smaller:** several places still repeat `hasFeature` + `addFeature` + `getFeature`
+   (`NoteBuilder` and `EtymologyBuilder` constructors, `ExampleBuilder.addTranslation`,
+   most of `LiftXMLFactory`). These could all use `getOrCreateFeature`, so that one rule is
+   visible everywhere.
+
+**Range ids, to check against the LIFT standard.** The header's managers use the ids
+`relation-type`, `inverse-type` and `etymology-type`. The demo file (exported by FieldWorks)
+declares `lexical-relation`, `reversal-type` and `etymology` instead. Its comment marks only
+the ranges after these as "produced by FieldWorks … not part of the LIFT standard". So a
+FieldWorks file's reversal types land in a separate `reversal-type` feature set, never in
+the inverse-type manager. This is another reason the demo has no inverse types. If the LIFT
+standard confirms these names, the managers should use them (or accept both).
 
 ### B4. A new entry hidden by the search is not shown
 *Test:* `CreationTest.aNewEntryHiddenByTheSearchIsShownAnyway`.
@@ -216,8 +286,8 @@ About 15 French values are still the English text. Many identical values are rig
 
 ## Suggested order
 
-1. **B3, B4, B7:** they lose or misplace the user's work; each is a small change.
+0. **lift-api first:** the type manager divergences (fixes B3).
+1. **B4, B7:** they lose or misplace the user's work; each is a small change.
 2. **B2, B6:** behaviour the UI promises but doesn't deliver.
-3. **B1:** choose between explicit `markDirty` calls and a lift-api change event; the second
-   is the better long-term fix.
+3. **B1:** explicit `markDirty` calls; no lift-api change.
 4. **B5, B8:** wording and formatting.

@@ -110,7 +110,7 @@ public final class RelationEditor extends VBox {
         };
         typeCombo.valueProperty().addListener(typeListener);
 
-        targetField.setText(rel.getRefID().orElse(""));
+        targetField.setText(rel.getRefId().orElse(""));
 
         orderField.setText(rel.getOrder().map(String::valueOf).orElse(""));
         orderListener = (obs, o, n) -> {

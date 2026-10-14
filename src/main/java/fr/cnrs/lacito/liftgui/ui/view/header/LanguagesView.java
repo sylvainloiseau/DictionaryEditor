@@ -65,7 +65,6 @@ public final class LanguagesView implements DictionaryView {
             String code = addField.getText().trim();
             if (code.isEmpty() || manager.hasLanguage(code)) return;
             manager.addLanguage(code);
-            ctx.markDirty();
             addField.clear();
             reload.run();
         });
@@ -85,7 +84,6 @@ public final class LanguagesView implements DictionaryView {
             for (MultiText mt : List.copyOf(multiTexts)) {
                 if (mt.getForm(sel).isPresent()) mt.removeForm(sel);
             }
-            ctx.markDirty();
             try {
                 if (manager.hasLanguage(sel)) manager.removeLanguage(sel);
             } catch (IllegalArgumentException ex) {

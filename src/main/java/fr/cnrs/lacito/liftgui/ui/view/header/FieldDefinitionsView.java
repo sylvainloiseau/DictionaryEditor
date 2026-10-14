@@ -47,9 +47,8 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
                 Dialogs.error(I18n.get("btn.delete"), I18n.get("cfg.deleteNotAllowed", usage));
                 return;
             }
-            header.getFieldsAndTraitsDefinitions().remove(sel);
+            header.removeFieldOrTraitDefinition(sel);
             table.source().remove(sel);
-            ctx.markDirty();
         });
         HBox controls = new HBox(8, addBtn, deleteBtn);
         controls.setPadding(new Insets(6, 0, 0, 0));
@@ -137,7 +136,6 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
             return fd;
         });
         dlg.showAndWait().ifPresent(fd -> {
-            ctx.markDirty();
             table.source().add(fd);
             table.select(fd);
         });
@@ -157,12 +155,23 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
         typeCombo.getItems().addAll(FIELD_TYPES);
         typeCombo.getItems().addAll(TRAIT_TYPES);
         typeCombo.setValue(fd.getTypeStr().orElse(""));
+        boolean[] restoring = {false};
         typeCombo.valueProperty().addListener((obs, o, n) -> {
+            if (restoring[0]) return;
             try {
                 fd.setDataModel(n == null || n.isBlank() ? Optional.empty() : Optional.of(n.trim()));
-                ctx.markDirty();
             } catch (IllegalArgumentException ex) {
                 Dialogs.error(I18n.get("cfg.fieldDefType"), I18n.get("error.invalidValue", n));
+            } catch (IllegalStateException ex) {
+                // The values of the fields or traits that use it depend on the data model.
+                long usage = DictionaryQueries.countFieldOrTraitUsage(ctx.dictionary().getLiftDictionaryRegistry(), fd);
+                Dialogs.error(I18n.get("cfg.fieldDefType"), I18n.get("cfg.typeChangeNotAllowed", usage));
+                restoring[0] = true;
+                try {
+                    typeCombo.setValue(o);
+                } finally {
+                    restoring[0] = false;
+                }
             }
         });
         GridPane.setHgrow(typeCombo, Priority.ALWAYS);
@@ -182,7 +191,6 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
                 LiftFieldAndTraitDefinitionTarget.parseTargetString(n);
                 fd.setTargets(n);
                 targetsField.setStyle("");
-                ctx.markDirty();
             } catch (RuntimeException ex) {
                 targetsField.setStyle("-fx-border-color: #c0392b; -fx-border-width: 2;");
             }
@@ -217,7 +225,6 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
         rangeCombo.setValue(fd.getResolvedFeatureSet().orElse(null));
         rangeCombo.valueProperty().addListener((obs, o, n) -> {
             fd.setResolvedRange(Optional.ofNullable(n));
-            ctx.markDirty();
         });
         GridPane.setHgrow(rangeCombo, Priority.ALWAYS);
         g.addRow(4, new Label(I18n.get("cfg.optionRange")), rangeCombo);

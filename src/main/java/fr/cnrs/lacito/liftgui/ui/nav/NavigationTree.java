@@ -16,6 +16,7 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
+import javafx.scene.input.MouseButton;
 
 /**
  * The navigation tree on the left: objects, languages, categories, dictionary
@@ -28,6 +29,8 @@ public final class NavigationTree {
     private final Map<TreeItem<String>, ViewRequest> requests = new HashMap<>();
     private final TreeItem<String> rangesNode = new TreeItem<>(I18n.get(Keys.NAV_CFG_RANGES));
     private boolean ignoreSelection;
+    /** The request of the view shown, as last given to {@link #select(ViewRequest)}. */
+    private ViewRequest shown;
 
     /**
      * @param onSelect called when the user selects a view
@@ -62,6 +65,14 @@ public final class NavigationTree {
                     setText(empty ? null : item);
                 }
             };
+            // Clicking the highlighted item is not a selection change. When it shows a subset
+            // (a drill-down, "Open in Senses view"…), it goes back to all the objects.
+            cell.setOnMouseClicked(e -> {
+                if (e.getButton() != MouseButton.PRIMARY || cell.isEmpty()) return;
+                TreeItem<String> item = cell.getTreeItem();
+                ViewRequest r = item == null ? null : requests.get(item);
+                if (r != null && cell.isSelected() && shown != null && shown.subset() != null) onSelect.accept(r);
+            });
             MenuItem createItem = new MenuItem(I18n.get(Keys.BTN_CREATE_OBJECT));
             createItem.setOnAction(e -> onCreate.run());
             cell.setContextMenu(new ContextMenu(createItem));
@@ -97,6 +108,7 @@ public final class NavigationTree {
 
     /** Highlights the item of a view without triggering a view change. */
     public void select(ViewRequest request) {
+        shown = request;
         TreeItem<String> item = requests.entrySet().stream()
             .filter(e -> e.getValue().key() == request.key() && Objects.equals(e.getValue().rangeId(), request.rangeId()))
             .map(Map.Entry::getKey)

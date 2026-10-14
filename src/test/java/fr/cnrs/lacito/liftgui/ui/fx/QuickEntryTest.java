@@ -7,7 +7,6 @@ import java.util.Comparator;
 import java.util.List;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.TextField;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /** Quick entry: each filled row becomes an entry with a sense. */
@@ -63,7 +62,6 @@ class QuickEntryTest extends MainWindowTest {
     }
 
     @Test
-    @Disabled("Bug B2 of .claude/plan/testfx-bugs-2026-10.md: moving to another row by its fields does not create the entry")
     void leavingAFilledRowCreatesItsEntryOnce() {
         openView("nav.quickEntry");
         clickOn(rowFields().get(0)).write("auto");

@@ -36,8 +36,8 @@ public final class DictionaryValidator {
             }
         }
         for (LiftRelation r : reg.getRelations()) {
-            if (r.getRefID().filter(id -> !id.isBlank()).isPresent() && r.getRefObject() == null) {
-                issues.add(new Issue("validate.danglingReference", describe(r) + " → " + r.getRefID().get()));
+            if (r.getRefId().filter(id -> !id.isBlank()).isPresent() && r.getRefObject() == null) {
+                issues.add(new Issue("validate.danglingReference", describe(r) + " → " + r.getRefId().get()));
             }
         }
         for (LiftVariant v : reg.getVariants()) {

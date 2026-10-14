@@ -55,7 +55,6 @@ public final class QuickEntryView implements DictionaryView {
             int prev = oldIdx.intValue();
             if (prev < 0 || prev >= table.getItems().size()) return;
             if (createEntry(table.getItems().get(prev)) == null) return;
-            ctx.markDirty();
             int entries = d.getLiftDictionaryRegistry().getEntries().size();
             ctx.showCount(entries, entries);
             ensureEmptyLastRow();
@@ -96,6 +95,10 @@ public final class QuickEntryView implements DictionaryView {
                     }
                 }
             };
+            // As in CommitOnFocusLossCell: the combo takes the clicks, so select the row here.
+            combo.focusedProperty().addListener((obs, was, is) -> {
+                if (is && cell.getIndex() >= 0) table.getSelectionModel().select(cell.getIndex());
+            });
             combo.valueProperty().addListener((obs, o, n) -> {
                 if (cell.getTableRow() != null && cell.getTableRow().getItem() != null) {
                     cell.getTableRow().getItem().gramInfoProperty().set(n != null ? n : "");
@@ -133,7 +136,14 @@ public final class QuickEntryView implements DictionaryView {
         List<String> filledObjLangs = objLangs.stream().filter(l -> !row.formProperty(l).get().isBlank()).toList();
         if (filledObjLangs.isEmpty() || row.createdProperty().get()) return null;
         row.createdProperty().set(true);
+        LiftEntry[] created = new LiftEntry[1];
+        // One undo step per row (inside "Create entries", all the rows are one).
+        ctx.perform(I18n.get("undo.newEntry", row.formProperty(filledObjLangs.getFirst()).get()), null,
+            () -> created[0] = build(d, row, filledObjLangs));
+        return created[0];
+    }
 
+    private LiftEntry build(LiftDictionary d, QuickEntryRow row, List<String> filledObjLangs) {
         EntryBuilder eb = d.getComponentBuilder().entry();
         for (String l : filledObjLangs) eb.withForm(l, row.formProperty(l).get());
         LiftEntry e = eb.build();
@@ -162,13 +172,18 @@ public final class QuickEntryView implements DictionaryView {
     /** Creates the entries of all the filled rows. */
     @Override
     public void onAdd() {
-        int created = 0;
-        for (QuickEntryRow row : table.getItems()) {
-            if (createEntry(row) != null) created++;
-        }
-        if (created == 0) return;
-        ctx.markDirty();
-        Dialogs.info(I18n.get(Keys.NAV_QUICK_ENTRY), I18n.get(Keys.INFO_QUICK_ENTRY_CREATED, created));
+        long toCreate = table.getItems().stream()
+            .filter(row -> !row.createdProperty().get() && objLangs.stream().anyMatch(l -> !row.formProperty(l).get().isBlank()))
+            .count();
+        if (toCreate == 0) return;
+        int[] created = {0};
+        ctx.perform(I18n.get("undo.quickEntry", toCreate), null, () -> {
+            for (QuickEntryRow row : table.getItems()) {
+                if (createEntry(row) != null) created[0]++;
+            }
+        });
+        if (created[0] == 0) return;
+        Dialogs.info(I18n.get(Keys.NAV_QUICK_ENTRY), I18n.get(Keys.INFO_QUICK_ENTRY_CREATED, created[0]));
         resetRows();
     }
 }

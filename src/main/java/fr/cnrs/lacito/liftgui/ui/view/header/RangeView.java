@@ -122,7 +122,6 @@ public final class RangeView implements DictionaryView {
 
     /** Shows the view again after a change of the elements. */
     private void reload() {
-        ctx.markDirty();
         ctx.navigator().refresh();
     }
 

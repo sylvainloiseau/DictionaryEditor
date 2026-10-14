@@ -5,11 +5,15 @@ import fr.cnrs.lacito.liftgui.ui.editor.EditorContext;
 import fr.cnrs.lacito.liftgui.ui.table.ColumnLayout;
 import fr.cnrs.lacito.liftgui.ui.table.ColumnSpec;
 import fr.cnrs.lacito.liftgui.ui.table.FilterableTable;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
-import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
+import javafx.collections.transformation.SortedList;
 import javafx.scene.Node;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -49,10 +53,17 @@ public class ObjectTableView<T> implements DictionaryView {
         this.node = table.node();
     }
 
-    /** The rows of a view: a subset when one is given, else the given (live) list. */
+    /**
+     * The rows of a view: the given (live) list, or, when a subset is given, the objects of
+     * that list which belong to the subset, in the subset's order. The rows stay live: a
+     * deleted object disappears, and comes back when the deletion is undone.
+     */
     public static <T> ObservableList<T> rows(List<?> subset, Class<T> type, ObservableList<T> all) {
         if (subset == null) return all;
-        return FXCollections.observableArrayList(subset.stream().filter(type::isInstance).map(type::cast).toList());
+        Map<Object, Integer> position = new IdentityHashMap<>();
+        for (Object o : subset) if (type.isInstance(o)) position.putIfAbsent(o, position.size());
+        return new SortedList<>(new FilteredList<>(all, position::containsKey),
+            Comparator.comparingInt(position::get));
     }
 
     /** Puts controls (buttons…) under the table. */

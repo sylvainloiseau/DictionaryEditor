@@ -76,8 +76,8 @@ public class ExtensibleWithFieldEditor extends ExtensibleWithoutFieldEditor {
         for (LiftField f : model.getFields().values()) {
             FieldEditor fe = new FieldEditor(dictionary);
             fe.setField(f);
-            Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.deleteChecked(
-                () -> model.deleteField(f), () -> model.addField(f), addActions::refresh);
+            Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.delete(
+                () -> model.deleteField(f), addActions::refresh);
             fieldsBox.getChildren().add(EditorSupport.withDeleteButton(fe, onDelete));
         }
     }

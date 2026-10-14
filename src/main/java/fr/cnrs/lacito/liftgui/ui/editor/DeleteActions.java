@@ -8,17 +8,12 @@ import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
 import fr.cnrs.lacito.liftgui.ui.ObjectLabels;
-import fr.cnrs.lacito.liftgui.ui.controls.ComponentDeletion;
 import fr.cnrs.lacito.liftgui.ui.controls.LiftEntryEditor;
-import fr.cnrs.lacito.liftgui.undo.DeleteEntryCommand;
-import fr.cnrs.lacito.liftgui.undo.DeleteExampleCommand;
-import fr.cnrs.lacito.liftgui.undo.DeleteSenseCommand;
-import fr.cnrs.lacito.liftgui.undo.UndoableCommand;
 import javafx.scene.control.Button;
 
 /**
- * The "Delete" buttons of the editor panel. Each deletion is confirmed, can be undone, and
- * leaves the panel empty and the current view rebuilt.
+ * The "Delete" buttons of the editor panel. Each deletion is confirmed, is one undo step,
+ * and leaves the panel empty and the current view rebuilt.
  */
 public final class DeleteActions {
 
@@ -30,38 +25,37 @@ public final class DeleteActions {
 
     public Button entry(LiftEntry entry) {
         String label = ObjectLabels.entryLabel(entry);
-        return button(I18n.get(Keys.CONFIRM_DELETE_ENTRY, "?".equals(label) ? I18n.get("editor.noForm") : label), () -> {
-            int idx = ctx.dictionary().getLiftDictionaryRegistry().getEntries().indexOf(entry);
-            ctx.executeDeletion(new DeleteEntryCommand(entry, idx, ctx::dictionary, this::afterChange, this::afterChange));
+        String shown = "?".equals(label) ? I18n.get("editor.noForm") : label;
+        return button(I18n.get(Keys.CONFIRM_DELETE_ENTRY, shown), () -> {
+            if (ctx.delete(I18n.get("undo.deleteEntry", shown), entry, () -> ctx.dictionary().removeEntry(entry))) afterChange();
         });
     }
 
     public Button sense(LiftSense sense) {
-        return button(I18n.get(Keys.CONFIRM_DELETE_SENSE, LiftEntryEditor.senseDisplayText(sense)), () -> {
+        String shown = LiftEntryEditor.senseDisplayText(sense);
+        return button(I18n.get(Keys.CONFIRM_DELETE_SENSE, shown), () -> {
             HasSense parent = sense.getParent();
-            UndoableCommand cmd = new DeleteSenseCommand(sense, parent, parent.getSenses().indexOf(sense),
-                this::afterChange, this::afterChange);
-            ctx.executeDeletion(cmd);
+            if (ctx.delete(I18n.get("undo.deleteSense", shown), sense, () -> parent.deleteSense(sense))) afterChange();
         });
     }
 
     public Button example(LiftExample ex) {
         return button(I18n.get("confirm.delete.example"), () -> {
             LiftSense parent = ex.getParent();
-            ctx.executeDeletion(new DeleteExampleCommand(ex, parent, parent.getExamples().indexOf(ex),
-                this::afterChange, this::afterChange));
+            if (ctx.delete(I18n.get("undo.deleteExample"), ex, () -> parent.deleteExample(ex))) afterChange();
         });
     }
 
     /**
      * Deletes a component shown in its own view (note, variant, relation, etymology).
      *
-     * @param remove  removes the component (typically {@code parent.deleteX(x)})
-     * @param restore puts it back (typically {@code parent.addX(x)})
+     * @param component the component
+     * @param remove    removes it (typically {@code parent.deleteX(x)})
      */
-    public Button component(Runnable remove, ComponentDeletion.CheckedRunnable restore) {
-        return button(I18n.get("confirm.delete.component"),
-            () -> ComponentDeletion.deleteChecked(remove, restore, this::afterChange));
+    public Button component(Object component, Runnable remove) {
+        return button(I18n.get("confirm.delete.component"), () -> {
+            if (ctx.delete(null, component, remove)) afterChange();
+        });
     }
 
     private Button button(String confirmText, Runnable delete) {
@@ -72,7 +66,7 @@ public final class DeleteActions {
         return b;
     }
 
-    /** After a deletion, its undo or its redo: the object is gone or back, the view is rebuilt. */
+    /** After a deletion: the object is gone, the view is rebuilt. */
     private void afterChange() {
         ctx.panel().clear();
         ctx.navigator().refresh();

@@ -153,7 +153,7 @@ public final class LiftEntryEditor extends VBox {
             PronunciationEditor pe = new PronunciationEditor(dictionary);
             pe.setPronunciation(p);
             pronunciationsBox.getChildren().add(EditorSupport.withDeleteButton(pe, () -> ComponentDeletion.delete(
-                () -> entry.deletePronunciation(p), () -> entry.addPronunciation(p), this::refresh)));
+                () -> entry.deletePronunciation(p), this::refresh)));
         }
 
         List<LiftSense> senses = entry.getSenses();
@@ -165,21 +165,21 @@ public final class LiftEntryEditor extends VBox {
             VariantEditor ve = new VariantEditor(dictionary);
             ve.setVariant(v, addActions(v));
             variantsBox.getChildren().add(EditorSupport.withDeleteButton(ve, () -> ComponentDeletion.delete(
-                () -> entry.deleteVariant(v), () -> entry.addVariant(v), this::refresh)));
+                () -> entry.deleteVariant(v), this::refresh)));
         }
 
         for (LiftRelation r : entry.getRelations()) {
             RelationEditor re = new RelationEditor(dictionary);
             re.setRelation(r);
             relationsBox.getChildren().add(EditorSupport.withDeleteButton(re, () -> ComponentDeletion.delete(
-                () -> entry.deleteRelation(r), () -> entry.addRelation(r), this::refresh)));
+                () -> entry.deleteRelation(r), this::refresh)));
         }
 
         for (LiftEtymology et : entry.getEtymologies()) {
             EtymologyEditor ee = new EtymologyEditor(dictionary);
             ee.setEtymology(et);
             etymologiesBox.getChildren().add(EditorSupport.withDeleteButton(ee, () -> ComponentDeletion.delete(
-                () -> entry.deleteEtymology(et), () -> entry.addEtymology(et), this::refresh)));
+                () -> entry.deleteEtymology(et), this::refresh)));
         }
 
         updateCounts(
@@ -221,7 +221,6 @@ public final class LiftEntryEditor extends VBox {
         );
         box.getChildren().add(EditorSupport.withDeleteButton(se, () -> ComponentDeletion.delete(
             () -> entry.deleteSense(sense),
-            () -> entry.addSense(Math.min(index, entry.getSenses().size()), sense),
             this::refresh)));
         return titledPane("#" + (index + 1) + "  " + senseDisplayText(sense), box, index == 0);
     }
@@ -346,6 +345,7 @@ public final class LiftEntryEditor extends VBox {
         return BuilderAddActions.of(dictionary, model, this::refresh);
     }
 
+    /** After a change made in this editor: reports it, and rebuilds the editor. */
     private void refresh() {
         setEntry(currentEntry);
         fireChanged();

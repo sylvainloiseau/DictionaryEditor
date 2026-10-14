@@ -37,7 +37,7 @@ public final class EntryColumns {
             Columns.<LiftEntry>text("entry.morphType", I18n.get(Keys.COL_MORPH_TYPE),
                     e -> DictionaryQueries.traitValue(e, Keys.MORPH_TYPE))
                 .live((e, lang) -> Bindings.createStringBinding(
-                    () -> DictionaryQueries.traitValue(e, Keys.MORPH_TYPE), e.traitsProperty()))
+                    () -> DictionaryQueries.traitValue(e, Keys.MORPH_TYPE), e.getTraits()))
                 .editable((e, lang, text) -> setMorphType(d, e, text.trim()))
                 .facet()
                 .width(110),

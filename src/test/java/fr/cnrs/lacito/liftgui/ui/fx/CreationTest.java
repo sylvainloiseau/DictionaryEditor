@@ -6,7 +6,6 @@ import fr.cnrs.lacito.liftapi.model.LiftEntry;
 import fr.cnrs.lacito.liftapi.model.LiftSense;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import javafx.scene.control.ButtonType;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /** Creating entries, senses, examples… from the toolbar and the editors. */
@@ -29,7 +28,6 @@ class CreationTest extends MainWindowTest {
     }
 
     @Test
-    @Disabled("Bug B4 of .claude/plan/testfx-bugs-2026-10.md: a new entry hidden by the search is not shown")
     void aNewEntryHiddenByTheSearchIsShownAnyway() {
         interact(() -> searchField().setText("qqqqq"));
         fire(addButton());
@@ -44,6 +42,7 @@ class CreationTest extends MainWindowTest {
         fire(addButton());
         pressDialogButton(ButtonType.CANCEL);
         assertEquals(2101, entryCount());
+        assertFalse(isDirty());
     }
 
     @Test
@@ -56,6 +55,7 @@ class CreationTest extends MainWindowTest {
         if (dialogOpen()) pressDialogButton(ButtonType.OK);
         assertEquals(senses + 1, entry.getSenses().size());
         assertEquals("new meaning", entry.getSenses().getLast().getGlosses().getForms().iterator().next().toPlainText());
+        assertTrue(isDirty());
     }
 
     private LiftSense openFirstSense() {
@@ -71,6 +71,7 @@ class CreationTest extends MainWindowTest {
         fire(editorButton(I18n.get("btn.addExample")));
         answerTextDialog("an example");
         assertEquals(examples + 1, sense.getExamples().size());
+        assertTrue(isDirty());
         assertTrue(lookup("#editorContainer .hyperlink").queryAll().stream()
             .anyMatch(n -> I18n.get("sense.exampleN", examples + 1).equals(((javafx.scene.control.Hyperlink) n).getText())),
             "the editor links to the new example");
@@ -84,6 +85,7 @@ class CreationTest extends MainWindowTest {
         fire(editorButton(I18n.get("btn.addSubSense")));
         answerTextDialog("narrower meaning");
         assertEquals(subSenses + 1, sense.getSenses().size());
+        assertTrue(isDirty());
         assertEquals(tableRows + 1, table().getItems().size(), "the senses table lists the new sub-sense");
     }
 
@@ -94,10 +96,20 @@ class CreationTest extends MainWindowTest {
         fire(editorButton(I18n.get("btn.addNote")));
         pressDialogButton(ButtonType.OK);
         assertEquals(notes + 1, sense.getNotes().size());
+        assertTrue(isDirty());
     }
 
     @Test
-    @Disabled("Bug B3 of .claude/plan/testfx-bugs-2026-10.md: an undeclared reversal type is refused by lift-api")
+    void cancellingAnAdditionLeavesTheDictionaryUnmodified() {
+        LiftSense sense = openFirstSense();
+        int notes = sense.getNotes().size();
+        fire(editorButton(I18n.get("btn.addNote")));
+        pressDialogButton(ButtonType.CANCEL);
+        assertEquals(notes, sense.getNotes().size());
+        assertFalse(isDirty());
+    }
+
+    @Test
     void theSenseEditorAddsAReversal() {
         LiftSense sense = openFirstSense();
         int reversals = sense.getReversals().size();
@@ -109,6 +121,7 @@ class CreationTest extends MainWindowTest {
             pressDialogButton(ButtonType.OK);
         }
         assertEquals(reversals + 1, sense.getReversals().size());
+        assertTrue(isDirty());
     }
 
     @Test
@@ -123,5 +136,6 @@ class CreationTest extends MainWindowTest {
         assertEquals(2102, entryCount());
         LiftEntry selected = (LiftEntry) table().getSelectionModel().getSelectedItem();
         assertEquals("pastedform", selected.getForms().getForms().iterator().next().toPlainText());
+        assertTrue(isDirty());
     }
 }

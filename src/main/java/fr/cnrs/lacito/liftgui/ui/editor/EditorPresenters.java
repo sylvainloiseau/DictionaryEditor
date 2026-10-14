@@ -45,7 +45,9 @@ public final class EditorPresenters {
 
     /** Add actions for a component shown in the panel: an addition shows the object again. */
     private ExtensibleAddActions addActions(Object model) {
-        return BuilderAddActions.of(dictionary(), model, this::redisplay);
+        return BuilderAddActions.of(dictionary(), model, () -> {
+            redisplay();
+        });
     }
 
     /** Shows again the object currently shown (e.g. after a component was added to it). */
@@ -194,7 +196,7 @@ public final class EditorPresenters {
         redisplay = () -> showNote(note);
         panel().show(I18n.get("nav.notes") + " : " + EditorSupport.featureId(note.getType()), "", note);
         AbstractNotable parent = note.getParent();
-        if (parent != null) panel().add(delete.component(() -> parent.deleteNote(note), () -> parent.addNote(note)));
+        if (parent != null) panel().add(delete.component(note, () -> parent.deleteNote(note)));
         addBackToParentButton(parent);
         NoteEditor ne = new NoteEditor(dictionary());
         ne.setNote(note);
@@ -205,7 +207,7 @@ public final class EditorPresenters {
         redisplay = () -> showVariant(v);
         panel().show(I18n.get("nav.variants") + " : " + v.getRefId().orElse("?"), "", v);
         LiftEntry parent = v.getParent();
-        if (parent != null) panel().add(delete.component(() -> parent.deleteVariant(v), () -> parent.addVariant(v)));
+        if (parent != null) panel().add(delete.component(v, () -> parent.deleteVariant(v)));
         addBackToParentButton(parent);
         VariantEditor ve = new VariantEditor(dictionary());
         ve.setVariant(v, addActions(v));
@@ -216,12 +218,12 @@ public final class EditorPresenters {
         redisplay = () -> showRelation(relation);
         panel().show(
             I18n.get("nav.relations") + " : " + (relation.getType() != null ? relation.getType().getId() : "?"),
-            relation.getRefID().orElse(""),
+            relation.getRefId().orElse(""),
             relation
         );
         HasRelations parent = relation.getParent();
         if (parent != null) {
-            panel().add(delete.component(() -> parent.deleteRelation(relation), () -> parent.addRelation(relation)));
+            panel().add(delete.component(relation, () -> parent.deleteRelation(relation)));
         }
         addBackToParentButton(parent);
         RelationEditor re = new RelationEditor(dictionary());
@@ -237,7 +239,7 @@ public final class EditorPresenters {
             et
         );
         LiftEntry parent = et.getParent();
-        if (parent != null) panel().add(delete.component(() -> parent.deleteEtymology(et), () -> parent.addEtymology(et)));
+        if (parent != null) panel().add(delete.component(et, () -> parent.deleteEtymology(et)));
         EtymologyEditor ee = new EtymologyEditor(dictionary());
         ee.setEtymology(et);
         panel().add(ee);

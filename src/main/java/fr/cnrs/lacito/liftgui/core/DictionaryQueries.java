@@ -87,7 +87,7 @@ public final class DictionaryQueries {
 
     /**
      * Number of components that use a feature of the header: as their type (notes,
-     * translations, annotations, relations, etymologies, reversals, variants), as their
+     * translations, annotations, relations, etymologies, reversals), as their
      * grammatical info, or in the value of a trait whose definition points at the feature's set.
      */
     public static long countFeatureUsage(LiftDictionaryRegistry reg, Feature f) {
@@ -99,7 +99,6 @@ public final class DictionaryQueries {
         n += reg.getRelations().stream().filter(x -> x.getType() == f).count();
         n += reg.getEtymologies().stream().filter(x -> x.getType() == f).count();
         n += reg.getReversals().stream().filter(x -> x.getType() == f).count();
-        n += reg.getVariants().stream().filter(x -> x.getType() == f).count();
         n += reg.getGrammaticalInfos().stream().filter(g -> g.getGramInfoValue() == f).count();
         FeatureSet set = f.getParent();
         n += reg.getTraits().stream()

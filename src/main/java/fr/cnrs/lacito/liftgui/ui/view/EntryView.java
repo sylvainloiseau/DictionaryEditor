@@ -41,12 +41,8 @@ public final class EntryView extends ObjectTableView<LiftEntry> {
     public void onAdd() {
         Optional<String> lang = Dialogs.firstLanguage(ctx.dictionary().getObjectLanguageManager().getLanguages());
         if (lang.isEmpty()) return;
-        Dialogs.askText(I18n.get(Keys.BTN_NEW_ENTRY), I18n.get(Keys.COL_FORM) + " (" + lang.get() + ")").ifPresent(form -> {
-            LiftEntry entry = ctx.dictionary().getComponentBuilder().entry().withForm(lang.get(), form).build();
-            ctx.markDirty();
-            table.refresh();
-            table.select(entry);
-        });
+        Dialogs.askText(I18n.get(Keys.BTN_NEW_ENTRY), I18n.get(Keys.COL_FORM) + " (" + lang.get() + ")").ifPresent(form ->
+            showNew(create(I18n.get("undo.newEntry", form), lang.get(), form)));
     }
 
     /** Copies the selected entry (id and forms, tab-separated) to the clipboard. */
@@ -66,9 +62,27 @@ public final class EntryView extends ObjectTableView<LiftEntry> {
         if (text == null || text.isBlank()) return;
         Optional<String> lang = Dialogs.firstLanguage(ctx.dictionary().getObjectLanguageManager().getLanguages());
         if (lang.isEmpty()) return;
-        LiftEntry entry = ctx.dictionary().getComponentBuilder().entry().withForm(lang.get(), text.trim()).build();
-        ctx.markDirty();
+        showNew(create(I18n.get("undo.pasteEntry", text.trim()), lang.get(), text.trim()));
+    }
+
+    /** Creates an entry with one form, as one undo step. */
+    private LiftEntry create(String label, String lang, String form) {
+        LiftEntry[] created = new LiftEntry[1];
+        ctx.perform(label, null, () ->
+            created[0] = ctx.dictionary().getComponentBuilder().entry().withForm(lang, form).build());
+        return created[0];
+    }
+
+    /**
+     * Selects a new entry and shows it in the editor panel. When the filters hide it, they
+     * are reset first, so that the user never edits another entry by mistake.
+     */
+    private void showNew(LiftEntry entry) {
         table.refresh();
-        table.select(entry);
+        if (!table.select(entry)) {
+            table.resetFilters();
+            table.select(entry);
+        }
+        ctx.editors().showEntry(entry);
     }
 }

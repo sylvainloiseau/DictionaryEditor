@@ -62,6 +62,8 @@ public final class PreferencesDialog {
         });
         HBox pathBox = new HBox(8, pathField, browseBtn);
         HBox.setHgrow(pathField, Priority.ALWAYS);
+        Spinner<Integer> historySpinner = new Spinner<>(10, 100_000, prefs.historyLimit(), 100);
+        historySpinner.setEditable(true);
         HBox fontBox = new HBox(8, fontSlider, fontValueLabel);
         HBox.setHgrow(fontSlider, Priority.ALWAYS);
 
@@ -73,6 +75,7 @@ public final class PreferencesDialog {
         grid.addRow(1, new Label(I18n.get("prefs.fontSize")), fontBox);
         grid.addRow(2, new Label(I18n.get("prefs.theme")), new HBox(12, lightBtn, darkBtn));
         grid.addRow(3, new Label(I18n.get("prefs.defaultPath")), pathBox);
+        grid.addRow(4, new Label(I18n.get("prefs.historyLimit")), historySpinner);
         GridPane.setHgrow(langCombo, Priority.ALWAYS);
         GridPane.setHgrow(fontBox, Priority.ALWAYS);
         GridPane.setHgrow(pathBox, Priority.ALWAYS);
@@ -83,6 +86,7 @@ public final class PreferencesDialog {
             prefs.setFontSize((int) fontSlider.getValue());
             prefs.setDarkTheme(darkBtn.isSelected());
             prefs.setDefaultPath(pathField.getText().trim());
+            prefs.setHistoryLimit(historySpinner.getValue());
             prefs.applyAppearance(scene);
             Locale newLocale = "Français".equals(langCombo.getValue()) ? Locale.FRENCH : Locale.ENGLISH;
             if (!newLocale.getLanguage().equals(I18n.getLocale().getLanguage())) {

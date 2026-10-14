@@ -2,6 +2,7 @@ package fr.cnrs.lacito.liftgui.ui.app;
 
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import java.io.File;
+import fr.cnrs.lacito.liftgui.undo.History;
 import java.util.prefs.Preferences;
 import javafx.scene.Scene;
 
@@ -14,6 +15,7 @@ public final class AppPreferences {
     private static final String FONT_SIZE = "ui.fontSize";
     private static final String THEME = "ui.theme";
     private static final String DEFAULT_PATH = "ui.defaultPath";
+    private static final String HISTORY_LIMIT = "undo.historyLimit";
     private static final String DARK_STYLE =
         "-fx-base: #2b2b2b; -fx-background: #3c3f41; -fx-control-inner-background: #45494a;";
     private static final String DARK_CSS = "/fr/cnrs/lacito/liftgui/ui/dark.css";
@@ -43,6 +45,19 @@ public final class AppPreferences {
 
     public void setFontSize(int size) {
         prefs.put(FONT_SIZE, String.valueOf(size));
+    }
+
+    /** How many undo steps are kept (the oldest are dropped). */
+    public int historyLimit() {
+        try {
+            return Math.max(1, Integer.parseInt(prefs.get(HISTORY_LIMIT, String.valueOf(History.DEFAULT_LIMIT))));
+        } catch (NumberFormatException e) {
+            return History.DEFAULT_LIMIT;
+        }
+    }
+
+    public void setHistoryLimit(int limit) {
+        prefs.put(HISTORY_LIMIT, String.valueOf(Math.max(1, limit)));
     }
 
     public boolean darkTheme() {

@@ -5,21 +5,19 @@ import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.app.DictionaryDocument;
 import fr.cnrs.lacito.liftgui.ui.nav.Navigator;
-import fr.cnrs.lacito.liftgui.undo.UndoManager;
-import fr.cnrs.lacito.liftgui.undo.UndoableCommand;
+import fr.cnrs.lacito.liftgui.undo.History;
 import java.util.function.BiConsumer;
 import javafx.beans.property.StringProperty;
 
 /**
  * What the views and the editor panel share: the document, the editor panel, the navigator,
- * the undo history, the search text and the row-count label.
+ * the undo history (through the document), the search text and the row-count label.
  */
 public final class EditorContext {
 
     private final DictionaryDocument document;
     private final EditorPanel panel;
     private final Navigator navigator;
-    private final UndoManager undoManager;
     private final StringProperty searchText;
     private final BiConsumer<Integer, Integer> countLabel;
     private final EditorPresenters editors;
@@ -29,12 +27,11 @@ public final class EditorContext {
      * @param searchText the global search text, followed by the tables
      * @param countLabel shows (rows shown, rows in total) for the current view
      */
-    public EditorContext(DictionaryDocument document, EditorPanel panel, Navigator navigator, UndoManager undoManager,
+    public EditorContext(DictionaryDocument document, EditorPanel panel, Navigator navigator,
                          StringProperty searchText, BiConsumer<Integer, Integer> countLabel) {
         this.document = document;
         this.panel = panel;
         this.navigator = navigator;
-        this.undoManager = undoManager;
         this.searchText = searchText;
         this.countLabel = countLabel;
         this.editors = new EditorPresenters(this);
@@ -68,8 +65,18 @@ public final class EditorContext {
         countLabel.accept(shown, total);
     }
 
-    public void markDirty() {
-        document.markDirty();
+    /** The undo history of the document. */
+    public History history() {
+        return document.history();
+    }
+
+    /**
+     * Runs a user gesture as one undo step labelled {@code label} (see {@link History#perform}).
+     *
+     * @param subject what it is about, shown again after an undo; null for the first change's
+     */
+    public void perform(String label, Object subject, Runnable gesture) {
+        document.history().perform(label, subject, gesture);
     }
 
     /** Redraws the cells of the current table (after an edit made in the editor panel). */
@@ -82,23 +89,18 @@ public final class EditorContext {
     }
 
     /**
-     * Runs a deletion and records it for undo. lift-api refuses to delete an object that
-     * other objects refer to: the user is told, and nothing is recorded.
+     * Runs a deletion as one undo step. lift-api refuses to delete an object that other
+     * objects refer to: the user is told, and nothing is recorded.
+     *
+     * @return whether the object was deleted
      */
-    public void executeDeletion(UndoableCommand cmd) {
+    public boolean delete(String label, Object subject, Runnable remove) {
         try {
-            cmd.redo();
+            perform(label, subject, remove);
+            return true;
         } catch (IllegalStateException e) {
             Dialogs.error(I18n.get("btn.delete"), I18n.get("error.deleteReferenced", e.getMessage()));
-            return;
+            return false;
         }
-        undoManager.execute(cmd);
-        markDirty();
-    }
-
-    /** Records a command that has already been run (deletions made inside the editors). */
-    public void recordExecuted(UndoableCommand cmd) {
-        undoManager.execute(cmd);
-        markDirty();
     }
 }

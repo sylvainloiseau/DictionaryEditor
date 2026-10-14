@@ -227,7 +227,6 @@ public final class MultiTextEditor extends VBox {
             Runnable onDelete = editable
                 ? () -> ComponentDeletion.delete(
                       () -> owner.deleteAnnotation(a),
-                      () -> owner.addAnnotation(a),
                       this::rebuildAnnotations)
                 : null;
             TitledPane tp = new TitledPane(title, EditorSupport.withDeleteButton(ae, onDelete));
@@ -322,7 +321,11 @@ public final class MultiTextEditor extends VBox {
             dlg.setTitle(I18n.get("multitext.editTitle", boundLang));
             dlg.setHeaderText(I18n.get("multitext.editHeader", boundLang));
             dlg.getEditor().setPrefColumnCount(40);
-            dlg.showAndWait().ifPresent(textField::setText);
+            dlg.showAndWait()
+                .filter(text -> !text.equals(textField.getText()))
+                .ifPresent(text -> {
+                    textField.setText(text);
+                });
         }
 
         private void bindToLang(String lang) {

@@ -99,7 +99,7 @@ public class ExtensibleWithoutFieldEditor extends VBox {
             TraitEditor te = new TraitEditor(dictionary);
             te.setTrait(t, target);
             Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.delete(
-                () -> model.deleteTrait(t), () -> model.addTrait(t), addActions::refresh);
+                () -> model.deleteTrait(t), addActions::refresh);
             traitsBox.getChildren().add(EditorSupport.withDeleteButton(te, onDelete));
         }
 
@@ -107,7 +107,7 @@ public class ExtensibleWithoutFieldEditor extends VBox {
             AnnotationEditor ae = new AnnotationEditor(dictionary);
             ae.setAnnotation(a);
             Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.delete(
-                () -> model.deleteAnnotation(a), () -> model.addAnnotation(a), addActions::refresh);
+                () -> model.deleteAnnotation(a), addActions::refresh);
             annotationsBox.getChildren().add(EditorSupport.withDeleteButton(ae, onDelete));
         }
     }

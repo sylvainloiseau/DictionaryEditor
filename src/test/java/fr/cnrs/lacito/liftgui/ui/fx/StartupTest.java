@@ -3,7 +3,6 @@ package fr.cnrs.lacito.liftgui.ui.fx;
 import static org.junit.jupiter.api.Assertions.*;
 
 import fr.cnrs.lacito.liftgui.ui.I18n;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /** The application opens on the demo dictionary, in the Entries view. */
@@ -18,7 +17,6 @@ class StartupTest extends MainWindowTest {
     }
 
     @Test
-    @Disabled("Bug B5 of .claude/plan/testfx-bugs-2026-10.md: numbers follow the system locale, and \"1 rows\"")
     void countsFollowTheInterfaceLanguage() {
         java.util.Locale system = java.util.Locale.getDefault();
         try {

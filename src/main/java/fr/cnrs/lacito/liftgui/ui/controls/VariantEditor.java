@@ -13,6 +13,8 @@ package fr.cnrs.lacito.liftgui.ui.controls;
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftPronunciation;
 import fr.cnrs.lacito.liftapi.model.LiftRelation;
+import fr.cnrs.lacito.liftapi.model.FeatureSet;
+import fr.cnrs.lacito.liftapi.model.LiftHeader;
 import fr.cnrs.lacito.liftapi.model.LiftTrait;
 import fr.cnrs.lacito.liftapi.model.LiftVariant;
 import fr.cnrs.lacito.liftapi.model.MultiText;
@@ -38,7 +40,7 @@ import java.util.Optional;
  * Editor for a single {@link LiftVariant}.
  *
  * Displays: the parent entry forms (read-only), ref, variant type (trait {@code variant-type},
- * values from the header variant types), forms MultiText, pronunciations, relations
+ * values from the {@code variant-type} range), forms MultiText, pronunciations, relations
  * + ExtensibleWithFieldEditor.
  */
 public final class VariantEditor extends VBox {
@@ -151,7 +153,7 @@ public final class VariantEditor extends VBox {
             .orElse(null);
         LinkedHashSet<String> comboItems = new LinkedHashSet<>();
         comboItems.add(EMPTY_CHOICE);
-        comboItems.addAll(EditorSupport.sortedFeatureIds(dictionary.getHeader().getVariantTypeManager()));
+        variantTypeRange().ifPresent(range -> comboItems.addAll(EditorSupport.sortedFeatureIds(range)));
         if (currentVariantType != null) comboItems.add(currentVariantType);
         updatingVariantType = true;
         try {
@@ -207,17 +209,32 @@ public final class VariantEditor extends VBox {
             PronunciationEditor pe = new PronunciationEditor(dictionary);
             pe.setPronunciation(p);
             Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.delete(
-                () -> v.deletePronunciation(p), () -> v.addPronunciation(p), addActions::refresh);
+                () -> v.deletePronunciation(p), addActions::refresh);
             pronunciationsBox.getChildren().add(EditorSupport.withDeleteButton(pe, onDelete));
         }
         for (LiftRelation r : v.getRelations()) {
             RelationEditor re = new RelationEditor(dictionary);
             re.setRelation(r);
             Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.delete(
-                () -> v.deleteRelation(r), () -> v.addRelation(r), addActions::refresh);
+                () -> v.deleteRelation(r), addActions::refresh);
             relationsBox.getChildren().add(EditorSupport.withDeleteButton(re, onDelete));
         }
         extensibleEditor.setModel(v, addActions);
+    }
+
+    /**
+     * The values of the {@code variant-type} trait: the range of its definition when it
+     * declares one, otherwise the range of that name, if the file has one.
+     */
+    private Optional<FeatureSet> variantTypeRange() {
+        LiftHeader header = dictionary.getHeader();
+        if (header.containsFieldsAndTraitsDefinitions(VARIANT_TYPE_TRAIT)) {
+            Optional<FeatureSet> declared = header.getFieldsAndTraitsDefinitions(VARIANT_TYPE_TRAIT).getResolvedFeatureSet();
+            if (declared.isPresent()) return declared;
+        }
+        return header.hasFeatureSet(VARIANT_TYPE_TRAIT)
+            ? Optional.of(header.getFeatureSet(VARIANT_TYPE_TRAIT))
+            : Optional.empty();
     }
 
     private static Optional<LiftTrait> findVariantTypeTrait(LiftVariant v) {

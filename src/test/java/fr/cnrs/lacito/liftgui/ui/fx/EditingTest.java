@@ -60,6 +60,8 @@ class EditingTest extends MainWindowTest {
         LiftEntry entry = (LiftEntry) table().getSelectionModel().getSelectedItem();
         String before = entry.getDateModified().orElse("");
         clickOn(firstFormField()).write("x");
+        // The date is set when the typing session ends, in the same undo step.
+        press(KeyCode.TAB).release(KeyCode.TAB);
         String after = entry.getDateModified().orElse("");
         assertNotEquals(before, after);
         assertTrue(after.startsWith(String.valueOf(java.time.Year.now().getValue())), after);

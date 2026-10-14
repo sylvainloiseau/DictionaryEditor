@@ -63,7 +63,6 @@ public final class FeatureSetView implements DictionaryView {
                     Dialogs.error(title, I18n.get("cfg.idExists", newId));
                 } else {
                     DictionaryQueries.renameFeature(reg, set, oldId, newId);
-                    ctx.markDirty();
                 }
             }
             reload.run();
@@ -80,7 +79,6 @@ public final class FeatureSetView implements DictionaryView {
         descCol.setCellFactory(TextFieldTableCell.forTableColumn());
         descCol.setOnEditCommit(e -> {
             e.getRowValue().feature().getDescription().formTextProperty(descLang).set(e.getNewValue() == null ? "" : e.getNewValue());
-            ctx.markDirty();
             reload.run();
         });
         descCol.setPrefWidth(320);

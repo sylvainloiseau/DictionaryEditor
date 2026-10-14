@@ -39,7 +39,9 @@ public final class I18n {
     }
 
     public static String get(String key, Object... args) {
-        return MessageFormat.format(get(key), args);
+        // In the interface's locale, not the system's: numbers and dates follow the interface.
+        Locale locale = currentLocale != null ? currentLocale : Locale.getDefault();
+        return new MessageFormat(get(key), locale).format(args);
     }
 
     public static Locale getLocale() {

@@ -9,7 +9,6 @@ import fr.cnrs.lacito.liftapi.model.LiftNote;
 import fr.cnrs.lacito.liftapi.model.LiftSense;
 import javafx.scene.control.ButtonType;
 import javafx.scene.input.KeyCode;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /** Deleting objects from the editor panel, and undoing the deletions. */
@@ -64,7 +63,6 @@ class DeletionTest extends MainWindowTest {
     }
 
     @Test
-    @Disabled("Bug B1 of .claude/plan/testfx-bugs-2026-10.md: a cancelled button marks the dictionary modified")
     void cancellingTheConfirmationLeavesTheDictionaryUnmodified() {
         LiftEntry entry = selectUnreferencedEntry();
         fire(deleteButton());
@@ -101,7 +99,6 @@ class DeletionTest extends MainWindowTest {
     }
 
     @Test
-    @Disabled("Bug B7 of .claude/plan/testfx-bugs-2026-10.md: a deleted object stays listed in a subset")
     void deletingFromASubsetRemovesTheRow() {
         openView("nav.traits");
         selectRow(0);

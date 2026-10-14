@@ -145,8 +145,8 @@ public final class ExampleEditor extends VBox {
             if (onAddAnnotation != null) {
                 mte.setOnAddAnnotation(onAddAnnotation, knownAnnotationNames);
             }
-            Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.deleteChecked(
-                () -> ex.deleteTranslation(tr), () -> ex.addTranslation(tr), addActions::refresh);
+            Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.delete(
+                () -> ex.deleteTranslation(tr), addActions::refresh);
             TitledPane tp = new TitledPane(label, EditorSupport.withDeleteButton(mte, onDelete));
             tp.setExpanded(true);
             tp.setAnimated(false);

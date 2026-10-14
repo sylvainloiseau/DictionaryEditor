@@ -72,8 +72,8 @@ public class NotableEditor extends ExtensibleWithFieldEditor {
         for (LiftNote note : model.getNotes().values()) {
             NoteEditor ne = new NoteEditor(dictionary);
             ne.setNote(note);
-            Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.deleteChecked(
-                () -> model.deleteNote(note), () -> model.addNote(note), addActions::refresh);
+            Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.delete(
+                () -> model.deleteNote(note), addActions::refresh);
             notesBox.getChildren().add(EditorSupport.withDeleteButton(ne, onDelete));
         }
     }

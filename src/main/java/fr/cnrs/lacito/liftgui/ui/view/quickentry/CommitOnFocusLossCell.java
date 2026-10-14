@@ -20,6 +20,10 @@ final class CommitOnFocusLossCell<S> extends TableCell<S, String> {
         textField.setOnAction(e -> commitValue());
         textField.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
             if (!isFocused) commitValue();
+            // The text field takes the clicks, so the table's selection would never change:
+            // select the row here. The field left has already committed its text, so the
+            // row left is complete when the table's selection listener sees it.
+            else if (getTableView() != null && getIndex() >= 0) getTableView().getSelectionModel().select(getIndex());
         });
     }
 

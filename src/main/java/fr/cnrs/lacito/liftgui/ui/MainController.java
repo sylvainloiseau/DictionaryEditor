@@ -13,7 +13,6 @@ import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftgui.MainApp;
 import fr.cnrs.lacito.liftgui.core.CsvExporter;
 import fr.cnrs.lacito.liftgui.ui.app.*;
-import fr.cnrs.lacito.liftgui.ui.controls.ComponentDeletion;
 import fr.cnrs.lacito.liftgui.ui.editor.EditorContext;
 import fr.cnrs.lacito.liftgui.ui.editor.EditorPanel;
 import fr.cnrs.lacito.liftgui.ui.nav.NavigationTree;
@@ -24,7 +23,19 @@ import fr.cnrs.lacito.liftgui.ui.table.FilterableTable;
 import fr.cnrs.lacito.liftgui.ui.view.DictionaryView;
 import fr.cnrs.lacito.liftgui.ui.view.EntryView;
 import fr.cnrs.lacito.liftgui.ui.view.Views;
-import fr.cnrs.lacito.liftgui.undo.UndoManager;
+import fr.cnrs.lacito.liftgui.core.DictionaryQueries;
+import fr.cnrs.lacito.liftgui.ui.undo.ChangeLabels;
+import fr.cnrs.lacito.liftgui.ui.undo.Reveal;
+import fr.cnrs.lacito.liftgui.ui.undo.TypingSessions;
+import fr.cnrs.lacito.liftgui.ui.undo.UndoKeys;
+import fr.cnrs.lacito.liftgui.undo.History;
+import fr.cnrs.lacito.liftgui.undo.HistoryEntry;
+import fr.cnrs.lacito.liftgui.undo.ModificationDates;
+import java.util.Optional;
+import java.util.function.Supplier;
+import javafx.beans.binding.Bindings;
+import javafx.beans.binding.StringBinding;
+import javafx.beans.property.ReadOnlyStringProperty;
 import java.io.File;
 import java.util.List;
 import java.util.logging.Level;
@@ -84,7 +95,6 @@ public final class MainController {
     /* ─── State ─── */
     private final AppPreferences prefs = new AppPreferences();
     private final DictionaryDocument document = new DictionaryDocument();
-    private final UndoManager undoManager = new UndoManager();
     private final FileActions fileActions = new FileActions(document, prefs, this::window);
     private Navigator navigator;
     private NavigationTree navigation;
@@ -103,19 +113,19 @@ public final class MainController {
         navigator = new Navigator(this::show, () -> document.dictionary() == null
             ? List.of()
             : document.dictionary().getLiftDictionaryRegistry().getSenses());
-        ctx = new EditorContext(document, panel, navigator, undoManager, searchField.textProperty(), this::updateCountLabel);
+        ctx = new EditorContext(document, panel, navigator, searchField.textProperty(), this::updateCountLabel);
         navigation = new NavigationTree(navTree, navigator::go, this::onCreateNewObject);
 
-        ComponentDeletion.setUndoSink(ctx::recordExecuted);
-        DirtyTracker.install(() -> {
-            document.markDirty();
-            panel.touchEditedEntry();
-        }, editorContainer, tableContainer);
+        // The history records every change lift-api reports; an entry it closes dates the
+        // dictionary entries it touched, inside the same undo step.
+        History history = document.history();
+        history.setLabeler(ChangeLabels::label);
+        history.setFinisher(e -> ModificationDates.touch(e, ModificationDates::now));
+        history.setLimit(prefs.historyLimit());
 
-        // A new dictionary (opened, created, or handed over): fresh undo history, its ranges
-        // in the navigation tree, and the entries view.
+        // A new dictionary (opened, created, or handed over): its ranges in the navigation
+        // tree, and the entries view. The document gives it a fresh history.
         document.dictionaryProperty().addListener((obs, o, d) -> {
-            undoManager.clear();
             navigation.setRanges(d == null ? null : d.getHeader());
             navigator.go(ViewKey.ENTRIES);
         });
@@ -137,7 +147,8 @@ public final class MainController {
         menuBar.sceneProperty().addListener((obs, oldScene, scene) -> {
             if (scene == null) return;
             prefs.applyAppearance(scene);
-            installUndoRedoAccelerators(scene);
+            UndoKeys.install(scene, this::onUndo, this::onRedo);
+            TypingSessions.install(scene, document.history(), editorContainer, tableContainer);
             scene.windowProperty().addListener((o2, oldW, w) -> attachWindow(w));
             attachWindow(scene.getWindow());
         });
@@ -152,21 +163,32 @@ public final class MainController {
     }
 
     private void setupUndoRedo() {
+        History history = document.history();
         undoButton.setGraphic(Icons.undoIcon());
-        undoButton.setTooltip(new Tooltip(I18n.get(Keys.MENU_EDIT_UNDO) + " ("
-            + new KeyCodeCombination(KeyCode.Z, KeyCombination.SHORTCUT_DOWN).getDisplayText() + ")"));
         redoButton.setGraphic(Icons.redoIcon());
-        redoButton.setTooltip(new Tooltip(I18n.get(Keys.MENU_EDIT_REDO) + " ("
-            + new KeyCodeCombination(KeyCode.Y, KeyCombination.SHORTCUT_DOWN).getDisplayText() + ")"));
-        undoButton.disableProperty().bind(undoManager.canUndoProperty().not());
-        redoButton.disableProperty().bind(undoManager.canRedoProperty().not());
-        undoMenuItem.disableProperty().bind(undoManager.canUndoProperty().not());
-        redoMenuItem.disableProperty().bind(undoManager.canRedoProperty().not());
+        undoButton.setTooltip(tooltip(Keys.MENU_EDIT_UNDO, "menu.edit.undoLabel", history.undoLabelProperty(), UndoKeys.UNDO));
+        redoButton.setTooltip(tooltip(Keys.MENU_EDIT_REDO, "menu.edit.redoLabel", history.redoLabelProperty(), UndoKeys.REDO_ALT));
+        undoMenuItem.textProperty().bind(labelled(Keys.MENU_EDIT_UNDO, "menu.edit.undoLabel", history.undoLabelProperty()));
+        redoMenuItem.textProperty().bind(labelled(Keys.MENU_EDIT_REDO, "menu.edit.redoLabel", history.redoLabelProperty()));
+        // Shown in the menu; the keys themselves are handled by UndoKeys.
+        undoMenuItem.setAccelerator(UndoKeys.UNDO);
+        redoMenuItem.setAccelerator(UndoKeys.REDO_ALT);
+        undoButton.disableProperty().bind(history.canUndoProperty().not());
+        redoButton.disableProperty().bind(history.canRedoProperty().not());
+        undoMenuItem.disableProperty().bind(history.canUndoProperty().not());
+        redoMenuItem.disableProperty().bind(history.canRedoProperty().not());
     }
 
-    private void installUndoRedoAccelerators(Scene scene) {
-        scene.getAccelerators().put(new KeyCodeCombination(KeyCode.Z, KeyCombination.SHORTCUT_DOWN), this::onUndo);
-        scene.getAccelerators().put(new KeyCodeCombination(KeyCode.Y, KeyCombination.SHORTCUT_DOWN), this::onRedo);
+    /** "Undo typing in gloss (fr)", or "Undo" when there is nothing to undo. */
+    private static StringBinding labelled(String plainKey, String labelKey, ReadOnlyStringProperty label) {
+        return Bindings.createStringBinding(
+            () -> label.get() == null ? I18n.get(plainKey) : I18n.get(labelKey, label.get()), label);
+    }
+
+    private static Tooltip tooltip(String plainKey, String labelKey, ReadOnlyStringProperty label, KeyCombination keys) {
+        Tooltip t = new Tooltip();
+        t.textProperty().bind(Bindings.concat(labelled(plainKey, labelKey, label), " (" + keys.getDisplayText() + ")"));
+        return t;
     }
 
     /** Hovering a menu title while another menu is open opens it (as in native menu bars). */
@@ -291,24 +313,59 @@ public final class MainController {
     @FXML
     private void onPreferences() {
         PreferencesDialog.show(prefs, menuBar.getScene(), () -> {
-            // The reloaded scene takes over the open dictionary.
+            // The reloaded scene takes over the open dictionary, and its history.
             document.handOver();
             Platform.runLater(MainApp::reloadScene);
         });
+        document.history().setLimit(prefs.historyLimit());
     }
 
     @FXML
     private void onUndo() {
-        if (!undoManager.canUndo()) return;
-        undoManager.undo();
-        document.markDirty();
+        replay(() -> document.history().undo());
     }
 
     @FXML
     private void onRedo() {
-        if (!undoManager.canRedo()) return;
-        undoManager.redo();
-        document.markDirty();
+        replay(() -> document.history().redo());
+    }
+
+    /** Undoes or redoes, then shows what changed. A change lift-api refuses is reported. */
+    private void replay(Supplier<Optional<HistoryEntry>> step) {
+        if (document.dictionary() == null) return;
+        Optional<HistoryEntry> done;
+        try {
+            done = step.get();
+        } catch (RuntimeException e) {
+            LOGGER.log(Level.WARNING, "Undo/redo refused", e);
+            Dialogs.error(I18n.get(Keys.MENU_EDIT_UNDO), I18n.formatErrorMessage("error.undo", e));
+            return;
+        }
+        done.ifPresent(this::reveal);
+    }
+
+    /**
+     * Shows the object an undo or a redo changed. Typing undone in the field being edited
+     * only needs the tables redrawn: the fields are bound to the model, and keep the focus.
+     * Otherwise the current view is rebuilt and selects the object, or, when it does not
+     * list it, the Entries view shows its entry.
+     */
+    private void reveal(HistoryEntry entry) {
+        Object target = Reveal.target(entry);
+        boolean typingHere = entry.kind() == HistoryEntry.Kind.TYPING
+            && focusOwner() instanceof TextInputControl
+            && target != null
+            && DictionaryQueries.owningEntry(target) == DictionaryQueries.owningEntry(ctx.panel().shown());
+        if (typingHere) {
+            ctx.refreshTable();
+            return;
+        }
+        navigator.refresh();
+        if (target == null || Reveal.isHeader(target)) return;
+        if (!currentView.select(target)) {
+            if (DictionaryQueries.owningEntry(target) != null) navigator.goToEntryOf(target);
+            else ctx.editors().show(target);
+        }
     }
 
     /** Copies the selected text, or in the Entries view the selected entry (id and forms). */

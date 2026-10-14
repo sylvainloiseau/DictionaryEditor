@@ -229,7 +229,6 @@ public final class SenseEditor extends VBox {
             ee.setExample(ex, onAddAnnotation, exAddActions);
             Runnable onDelete = refresh == null ? null : () -> ComponentDeletion.delete(
                 () -> sense.deleteExample(ex),
-                () -> sense.addExample(Math.min(index, sense.getExamples().size()), ex),
                 refresh);
             examplesBox.getChildren().add(EditorSupport.withDeleteButton(ee, onDelete));
         }
@@ -238,7 +237,7 @@ public final class SenseEditor extends VBox {
             RelationEditor re = new RelationEditor(dictionary);
             re.setRelation(rel);
             Runnable onDelete = refresh == null ? null : () -> ComponentDeletion.delete(
-                () -> sense.deleteRelation(rel), () -> sense.addRelation(rel), refresh);
+                () -> sense.deleteRelation(rel), refresh);
             relationsBox.getChildren().add(EditorSupport.withDeleteButton(re, onDelete));
         }
 
@@ -246,7 +245,7 @@ public final class SenseEditor extends VBox {
             ReversalEditor rve = new ReversalEditor(dictionary);
             rve.setReversal(rev);
             Runnable onDelete = refresh == null ? null : () -> ComponentDeletion.delete(
-                () -> sense.deleteReversal(rev), () -> sense.addReversal(rev), refresh);
+                () -> sense.deleteReversal(rev), refresh);
             reversalsBox.getChildren().add(EditorSupport.withDeleteButton(rve, onDelete));
         }
 
@@ -262,7 +261,6 @@ public final class SenseEditor extends VBox {
             se.setSense(sub, onAddAnnotation, knownAnnotationNames, addActionsFactory, exampleAddActionsFactory);
             Runnable onDelete = refresh == null ? null : () -> ComponentDeletion.delete(
                 () -> sense.deleteSense(sub),
-                () -> sense.addSense(Math.min(index, sense.getSenses().size()), sub),
                 refresh);
             subSensesBox.getChildren().add(EditorSupport.withDeleteButton(se, onDelete));
         }

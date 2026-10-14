@@ -1,12 +1,8 @@
 package fr.cnrs.lacito.liftgui.ui.editor;
 
-import fr.cnrs.lacito.liftapi.model.LiftEntry;
-import fr.cnrs.lacito.liftgui.core.DictionaryQueries;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
 import fr.cnrs.lacito.liftgui.ui.controls.EditorSupport;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
@@ -18,16 +14,15 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 /**
- * The editor panel on the right: a title, a code, and the editor of the selected object.
- * It also remembers the entry owning the object shown, whose modification date is updated
- * when the user edits it ({@link #touchEditedEntry()}).
+ * The editor panel on the right: a title, a code, and the editor of the selected object,
+ * which it remembers ({@link #shown()}).
  */
 public final class EditorPanel {
 
     private final VBox container;
     private final Label title;
     private final Label code;
-    private LiftEntry editedEntry;
+    private Object shown;
 
     public EditorPanel(VBox container, Label title, Label code) {
         this.container = container;
@@ -38,14 +33,13 @@ public final class EditorPanel {
     /**
      * Clears the panel and sets its header.
      *
-     * @param edited the object about to be shown; its entry's modification date follows the
-     *               user's edits. Null for read-only content.
+     * @param edited the object about to be shown; null for read-only content
      */
     public EditorPanel show(String titleText, String codeText, Object edited) {
         container.getChildren().clear();
         title.setText(titleText == null ? "" : titleText);
         code.setText(codeText == null ? "" : codeText);
-        editedEntry = DictionaryQueries.owningEntry(edited);
+        shown = edited;
         return this;
     }
 
@@ -93,11 +87,9 @@ public final class EditorPanel {
         return add(tp);
     }
 
-    /** Sets the modification date of the entry being edited to now. */
-    public void touchEditedEntry() {
-        if (editedEntry != null) {
-            editedEntry.setDateModified(Instant.now().truncatedTo(ChronoUnit.SECONDS).toString());
-        }
+    /** The object the panel shows; null when it shows nothing editable. */
+    public Object shown() {
+        return shown;
     }
 
     /** The red "Delete" button shown at the top of an object's editor. */

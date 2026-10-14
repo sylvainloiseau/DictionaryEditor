@@ -9,7 +9,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TreeItem;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /** The navigation tree and the View menu show the views. */
@@ -31,7 +30,6 @@ class NavigationTest extends MainWindowTest {
     }
 
     @Test
-    @Disabled("Bug B6 of .claude/plan/testfx-bugs-2026-10.md: clicking the highlighted item does not leave a subset")
     void clickingTheHighlightedItemShowsAllObjectsAgain() {
         fr.cnrs.lacito.liftapi.model.LiftEntry entry = dictionary().getLiftDictionaryRegistry().getEntries().stream()
             .filter(x -> x.getSenses().size() > 1).findFirst().orElseThrow();
