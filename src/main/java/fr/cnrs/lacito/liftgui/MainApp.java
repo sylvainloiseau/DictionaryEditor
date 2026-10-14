@@ -30,6 +30,7 @@ public final class MainApp extends Application {
     public void start(Stage stage) throws Exception {
         primaryStage = stage;
         primaryStage.setTitle(I18n.get("app.title"));
+        addAppIcons(primaryStage);
 
         // Afficher l'écran de chargement
         Parent loadingRoot = (Parent) FXMLLoader.load(
@@ -50,6 +51,14 @@ public final class MainApp extends Application {
         ProgressBar progressBar = (ProgressBar) loadingRoot.lookup("#progressBar");
         if (progressBar != null) progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
         Platform.runLater(this::finishLoading);
+    }
+
+    /** The application icon, in the sizes the window systems pick from. */
+    private static void addAppIcons(Stage stage) {
+        for (int size : new int[] {16, 32, 48, 64, 128, 256, 512}) {
+            var url = MainApp.class.getResource("/fr/cnrs/lacito/liftgui/ui/icons/app/icon-" + size + ".png");
+            if (url != null) stage.getIcons().add(new javafx.scene.image.Image(url.toExternalForm()));
+        }
     }
 
     private void finishLoading() {

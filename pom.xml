@@ -21,6 +21,8 @@
     <jpackage.type>DEB</jpackage.type>
     <jpackage.destSuffix />
     <app.jpackage.name>DictionaryEditor</app.jpackage.name>
+    <!-- Installer icon; the os-mac and os-windows profiles switch to .icns and .ico. -->
+    <jpackage.icon>${project.basedir}/src/main/jpackage/DictionaryEditor.png</jpackage.icon>
     <!-- UI tests: headless (Monocle) by default; -Dheadless=false -Dglass.platform= shows the windows. -->
     <headless>true</headless>
     <glass.platform>Monocle</glass.platform>
@@ -151,6 +153,21 @@
     </plugins>
   </build>
   <profiles>
+    <!-- The installer icon in the format each system expects (see jpackage.icon). -->
+    <profile>
+      <id>os-mac</id>
+      <activation><os><family>mac</family></os></activation>
+      <properties>
+        <jpackage.icon>${project.basedir}/src/main/jpackage/DictionaryEditor.icns</jpackage.icon>
+      </properties>
+    </profile>
+    <profile>
+      <id>os-windows</id>
+      <activation><os><family>windows</family></os></activation>
+      <properties>
+        <jpackage.icon>${project.basedir}/src/main/jpackage/DictionaryEditor.ico</jpackage.icon>
+      </properties>
+    </profile>
     <profile>
       <id>dist</id>
       <build>
@@ -195,6 +212,7 @@
               <name>${app.jpackage.name}</name>
               <appVersion>1.0.0</appVersion>
               <vendor>CNRS LACITO</vendor>
+              <icon>${jpackage.icon}</icon>
               <destination
                             >${project.build.directory}/jpackage${jpackage.destSuffix}</destination>
               <removeDestination>true</removeDestination>
