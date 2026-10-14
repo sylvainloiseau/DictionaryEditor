@@ -140,7 +140,7 @@ The application icon is plate 1 of:
 
 The scan is from the Smithsonian Libraries copy, digitised by the [Biodiversity Heritage Library](https://www.biodiversitylibrary.org/page/40634945). The file used is [Histoire naturelle des oiseaux de paradis et des rolliers (No. 1) (8112348391).jpg](https://commons.wikimedia.org/wiki/File:Histoire_naturelle_des_oiseaux_de_paradis_et_des_rolliers_(No._1)_(8112348391).jpg) on Wikimedia Commons. The illustration is in the public domain.
 
-## Author
+## Authors
 
 - Sylvain Loiseau, Sorbonne Paris Nord University / Lacito-CNRS laboratory
 - Computer science students, Sorbonne Paris Nord University:
