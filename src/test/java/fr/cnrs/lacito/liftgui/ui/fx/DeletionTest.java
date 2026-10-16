@@ -100,7 +100,7 @@ class DeletionTest extends MainWindowTest {
 
     @Test
     void deletingFromASubsetRemovesTheRow() {
-        openView("nav.traits");
+        openView("nav.traitValues");
         selectRow(0);
         fire(editorButton(fr.cnrs.lacito.liftgui.ui.I18n.get("btn.accessObjects")));
         LiftEntry entry = table().getItems().stream().map(x -> (LiftEntry) x)

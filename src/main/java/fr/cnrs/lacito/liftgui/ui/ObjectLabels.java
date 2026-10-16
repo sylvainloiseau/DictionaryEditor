@@ -80,4 +80,49 @@ public final class ObjectLabels {
         AbstractIdentifiable owner = DictionaryQueries.owningSenseOrEntry(o);
         return owner == null ? "?" : owner.getId().orElse("?");
     }
+
+    /** The first non-empty form of a multitext, or "". */
+    public static String firstForm(MultiText mt) {
+        if (mt == null) return "";
+        return mt.getForms().stream().map(Form::toPlainText).filter(t -> t != null && !t.isBlank()).findFirst().orElse("");
+    }
+
+    /** The name of the kind of a component, capitalized ("Sense", "Pronunciation"). */
+    public static String kindName(Object component) {
+        String key = "kind." + (component == null ? "" : component.getClass().getSimpleName());
+        return I18n.getBundle().containsKey(key) ? I18n.get(key) : (component == null ? "" : component.getClass().getSimpleName());
+    }
+
+    /** A short text identifying a component for the user, for instance in a link to it. */
+    public static String shortLabel(Object component) {
+        String label = switch (component) {
+            case LiftEntry e -> entryLabel(e);
+            case LiftSense s -> fr.cnrs.lacito.liftgui.ui.controls.LiftEntryEditor.senseDisplayText(s);
+            case LiftExample x -> firstForm(x.getExample());
+            case LiftTranslation t -> firstForm(t.getTranslation());
+            case LiftNote n -> join(featureId(n.getType()), firstForm(n.getText()));
+            case LiftVariant v -> firstForm(v.getForms());
+            case LiftPronunciation p -> firstForm(p.getPronunciation());
+            case LiftMedia m -> m.getHref();
+            case LiftIllustration i -> i.getHref();
+            case LiftEtymology y -> join(featureId(y.getType()), firstForm(y.getForms()));
+            case LiftRelation r -> join(featureId(r.getType()), r.getRefId().orElse(""));
+            case LiftReversal r -> firstForm(r.getForms());
+            case LiftField f -> f.getSpecification().getName();
+            case LiftTrait t -> t.getSpecification().getName() + " = " + t.getValue();
+            case LiftAnnotation a -> join(featureId(a.getType()), a.getValue());
+            case null, default -> "";
+        };
+        return label == null || label.isBlank() ? "?" : label;
+    }
+
+    private static String featureId(Feature f) {
+        return f == null ? "" : f.getId();
+    }
+
+    private static String join(String a, String b) {
+        if (a == null || a.isBlank()) return b;
+        if (b == null || b.isBlank()) return a;
+        return a + " · " + b;
+    }
 }

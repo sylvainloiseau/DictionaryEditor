@@ -158,7 +158,7 @@ public final class CategoryViews {
 
     /** Traits, counted by kind of object, name and value; the objects are opened through their entries. */
     public static DictionaryView traits(EditorContext ctx) {
-        String title = I18n.get("nav.traits");
+        String title = I18n.get("nav.traitValues");
         List<CategoryRow> rows = count(reg(ctx).getTraits().stream(),
             t -> new CategoryRow(ObjectLabels.describeParentType(t.getParent()), t.getSpecification().getName(),
                 Objects.toString(t.getValue(), ""), 0));

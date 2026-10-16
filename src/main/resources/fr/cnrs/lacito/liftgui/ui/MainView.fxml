@@ -53,16 +53,8 @@
         </Menu>
         <Menu text="%menu.view">
           <items>
-            <Menu text="%menu.view.objects">
-              <items>
-                <MenuItem text="%nav.entries" onAction="#onViewEntries"/>
-                <MenuItem text="%nav.senses" onAction="#onViewSenses"/>
-                <MenuItem text="%nav.examples" onAction="#onViewExamples"/>
-                <MenuItem text="%nav.notes" onAction="#onViewNotes"/>
-                <MenuItem text="%nav.variants" onAction="#onViewVariants"/>
-                <MenuItem text="%nav.etymologies" onAction="#onViewEtymologies"/>
-              </items>
-            </Menu>
+            <!-- Filled from ComponentKinds by MainController, like the navigation tree. -->
+            <Menu fx:id="viewObjectsMenu" text="%menu.view.objects"/>
             <Menu text="%menu.view.languages">
               <items>
                 <MenuItem text="%nav.objectLangs" onAction="#onViewObjectLangs"/>
@@ -72,12 +64,10 @@
             <Menu text="%menu.view.categories">
               <items>
                 <MenuItem text="%nav.gramInfo" onAction="#onViewGramInfo"/>
-                <MenuItem text="%nav.traits" onAction="#onViewTraits"/>
-                <MenuItem text="%nav.annotations" onAction="#onViewAnnotations"/>
+                <MenuItem text="%nav.traitValues" onAction="#onViewTraitValues"/>
                 <MenuItem text="%nav.transTypes" onAction="#onViewTransTypes"/>
                 <MenuItem text="%nav.noteTypes" onAction="#onViewNoteTypes"/>
                 <MenuItem text="%nav.relationTypes" onAction="#onViewRelationTypes"/>
-                <MenuItem text="%nav.fields" onAction="#onViewFields"/>
               </items>
             </Menu>
           </items>

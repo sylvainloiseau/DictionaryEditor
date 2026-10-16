@@ -15,7 +15,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** The columns available for notes, variants, relations, etymologies, annotations and fields. */
+/**
+ * The columns available for the components shown in tables of their own: notes, variants,
+ * relations, etymologies, annotations, fields, translations, pronunciations, media,
+ * illustrations, reversals and traits.
+ */
 public final class ComponentColumns {
 
     private ComponentColumns() {}
@@ -98,6 +102,109 @@ public final class ComponentColumns {
                 f -> f.getText().getForms().stream().findFirst().map(Form::toPlainText).orElse("")),
             Columns.multiText("field.textByLanguage", I18n.get(Keys.COL_TEXT), d.getMetaLanguageManager().getLanguages(),
                 LiftField::getText).hidden()
+        );
+    }
+
+    /* ─── Components whose texts are edited in the cells ─── */
+
+    /** A multilingual column whose cells follow and edit the forms of a multitext. */
+    private static <T> ColumnSpec<T> editableTexts(String id, String title, Set<String> langs,
+                                                   java.util.function.Function<T, MultiText> text) {
+        return Columns.multiText(id, title, langs, text)
+            .live((row, lang) -> text.apply(row).formTextProperty(lang))
+            // An empty text removes the form, as in the editors.
+            .editable((row, lang, typed) -> text.apply(row).formTextProperty(lang).set(typed));
+    }
+
+    public static List<ColumnSpec<LiftTranslation>> translations(LiftDictionary d) {
+        Set<String> objLangs = d.getObjectLanguageManager().getLanguages();
+        Set<String> metaLangs = d.getMetaLanguageManager().getLanguages();
+        return List.of(
+            Columns.<LiftTranslation>multiText("translation.example", I18n.get("col.example"), objLangs,
+                t -> t.getParent() == null ? null : t.getParent().getExample()),
+            Columns.<LiftTranslation>text("translation.type", I18n.get(Keys.COL_TYPE), t -> EditorSupport.featureId(t.getType())).facet(),
+            ComponentColumns.<LiftTranslation>editableTexts("translation.text", I18n.get("col.translation"), metaLangs, LiftTranslation::getTranslation)
+                .textFilter(),
+            Columns.<LiftTranslation>multiText("translation.sense", I18n.get(Keys.COL_GLOSS), metaLangs,
+                t -> t.getParent() == null || t.getParent().getParent() == null ? null : t.getParent().getParent().getGlosses())
+                .hidden()
+        );
+    }
+
+    public static List<ColumnSpec<LiftPronunciation>> pronunciations(LiftDictionary d) {
+        Set<String> objLangs = d.getObjectLanguageManager().getLanguages();
+        return List.of(
+            Columns.<LiftPronunciation>text("pronunciation.parentType", I18n.get(Keys.COL_PARENT_TYPE),
+                p -> ObjectLabels.describeParentType(p.getParent())).facet(),
+            Columns.<LiftPronunciation>multiText("pronunciation.parentEntry", I18n.get(Keys.COL_PARENT_ENTRY), objLangs,
+                p -> formsOf(DictionaryQueries.owningEntry(p))),
+            ComponentColumns.<LiftPronunciation>editableTexts("pronunciation.forms", I18n.get(Keys.COL_FORMS), objLangs, LiftPronunciation::getPronunciation),
+            Columns.<LiftPronunciation>text("pronunciation.mediaCount", I18n.get("col.mediaCount"), p -> String.valueOf(p.getMedias().size())),
+            Columns.<LiftPronunciation>text("pronunciation.media", I18n.get("col.file"),
+                p -> String.join(", ", p.getMedias().stream().map(LiftMedia::getHref).filter(Objects::nonNull).toList()))
+                .hidden()
+        );
+    }
+
+    public static List<ColumnSpec<LiftMedia>> media(LiftDictionary d) {
+        Set<String> objLangs = d.getObjectLanguageManager().getLanguages();
+        return List.of(
+            Columns.<LiftMedia>multiText("media.parentEntry", I18n.get(Keys.COL_PARENT_ENTRY), objLangs,
+                m -> formsOf(DictionaryQueries.owningEntry(m))),
+            Columns.<LiftMedia>multiText("media.pronunciation", I18n.get("mtkind.pronunciation"), objLangs,
+                m -> m.getParent() == null ? null : m.getParent().getPronunciation()),
+            Columns.<LiftMedia>text("media.href", I18n.get("col.file"), m -> Objects.toString(m.getHref(), ""))
+                .live((m, lang) -> m.hrefProperty())
+                .textFilter(),
+            Columns.<LiftMedia>multiText("media.label", I18n.get("col.label"), d.getMetaLanguageManager().getLanguages(),
+                LiftMedia::getLabel).hidden()
+        );
+    }
+
+    public static List<ColumnSpec<LiftIllustration>> illustrations(LiftDictionary d) {
+        Set<String> metaLangs = d.getMetaLanguageManager().getLanguages();
+        return List.of(
+            Columns.<LiftIllustration>multiText("illustration.parentEntry", I18n.get(Keys.COL_PARENT_ENTRY),
+                d.getObjectLanguageManager().getLanguages(), i -> formsOf(DictionaryQueries.owningEntry(i))),
+            Columns.<LiftIllustration>multiText("illustration.sense", I18n.get(Keys.COL_GLOSS), metaLangs,
+                i -> i.getParent() == null ? null : i.getParent().getGlosses()),
+            Columns.<LiftIllustration>text("illustration.href", I18n.get("col.file"), i -> Objects.toString(i.getHref(), ""))
+                .live((i, lang) -> i.hrefProperty())
+                .textFilter(),
+            Columns.<LiftIllustration>multiText("illustration.label", I18n.get("col.label"), metaLangs, LiftIllustration::getLabel)
+        );
+    }
+
+    public static List<ColumnSpec<LiftReversal>> reversals(LiftDictionary d) {
+        // lift-api counts the forms of a reversal among the object-language texts.
+        Set<String> objLangs = d.getObjectLanguageManager().getLanguages();
+        return List.of(
+            Columns.<LiftReversal>text("reversal.parentType", I18n.get(Keys.COL_PARENT_TYPE),
+                r -> r.getParent() instanceof LiftReversal ? I18n.get("mtkind.reversalMain") : I18n.get("nav.senses")).facet(),
+            Columns.<LiftReversal>multiText("reversal.sense", I18n.get(Keys.COL_GLOSS), d.getMetaLanguageManager().getLanguages(),
+                r -> owningSense(r) == null ? null : owningSense(r).getGlosses()),
+            Columns.<LiftReversal>text("reversal.type", I18n.get(Keys.COL_TYPE), r -> EditorSupport.featureId(r.getType())).facet(),
+            ComponentColumns.<LiftReversal>editableTexts("reversal.forms", I18n.get(Keys.COL_FORMS), objLangs, LiftReversal::getForms).textFilter(),
+            Columns.<LiftReversal>multiText("reversal.main", I18n.get("mtkind.reversalMain"), objLangs,
+                r -> r.getMain() == null ? null : r.getMain().getForms()).hidden()
+        );
+    }
+
+    private static LiftSense owningSense(AbstractLiftRoot c) {
+        for (AbstractLiftRoot n = c; n != null; n = n.getParentNode()) {
+            if (n instanceof LiftSense s) return s;
+        }
+        return null;
+    }
+
+    public static List<ColumnSpec<LiftTrait>> traits(LiftDictionary d) {
+        return List.of(
+            Columns.<LiftTrait>text("trait.parentType", I18n.get(Keys.COL_PARENT_TYPE), t -> ObjectLabels.describeParentType(t.getParent())).facet(),
+            Columns.<LiftTrait>text("trait.parent", I18n.get(Keys.COL_PARENT), t -> ObjectLabels.describeParent(t.getParent())),
+            Columns.<LiftTrait>text("trait.name", I18n.get(Keys.COL_NAME), t -> t.getSpecification().getName()).facet(),
+            Columns.<LiftTrait>text("trait.value", I18n.get(Keys.COL_VALUE), t -> Objects.toString(t.getValue(), "")).facet(),
+            Columns.<LiftTrait>text("trait.dataModel", I18n.get("col.dataModel"),
+                t -> t.getSpecification().getTypeStr().orElse("")).hidden()
         );
     }
 }

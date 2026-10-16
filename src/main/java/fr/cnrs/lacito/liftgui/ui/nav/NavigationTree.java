@@ -9,6 +9,7 @@ import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
 import java.util.HashMap;
 import java.util.Map;
+import fr.cnrs.lacito.liftgui.ui.view.ComponentKinds;
 import java.util.Objects;
 import java.util.function.Consumer;
 import javafx.scene.control.ContextMenu;
@@ -41,9 +42,10 @@ public final class NavigationTree {
         TreeItem<String> root = new TreeItem<>(I18n.get(Keys.NAV_DICTIONARY));
         root.setExpanded(true);
         root.getChildren().addAll(
-            group(Keys.NAV_OBJECTS, ENTRIES, SENSES, EXAMPLES, NOTES, VARIANTS, ETYMOLOGIES, RELATIONS, FIELDS),
+            // One table per kind of component, in the order of the model (see ComponentKinds).
+            group(Keys.NAV_OBJECTS, ComponentKinds.keys()),
             group(Keys.NAV_LANGUAGES, OBJECT_LANGUAGES, META_LANGUAGES),
-            group(Keys.NAV_CATEGORIES, GRAM_INFO, TRAITS, ANNOTATIONS, TRANSLATION_TYPES, NOTE_TYPES, RELATION_TYPES, FIELD_TYPES),
+            group(Keys.NAV_CATEGORIES, GRAM_INFO, TRAIT_VALUES, TRANSLATION_TYPES, NOTE_TYPES, RELATION_TYPES, FIELD_TYPES),
             group(Keys.NAV_HEADER_CONFIG, CFG_DESCRIPTION, CFG_FIELD_DEFINITIONS, CFG_LANGUAGES, CFG_NOTE_TYPES,
                 CFG_TRANSLATION_TYPES, CFG_ANNOTATION_TYPES, CFG_RELATION_TYPES),
             item(QUICK_ENTRY)

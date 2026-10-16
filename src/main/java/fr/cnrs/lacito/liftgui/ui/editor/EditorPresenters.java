@@ -7,9 +7,13 @@ import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.ObjectLabels;
 import fr.cnrs.lacito.liftgui.ui.controls.*;
+import fr.cnrs.lacito.liftgui.ui.nav.ViewKey;
+import fr.cnrs.lacito.liftgui.ui.nav.ViewRequest;
+import fr.cnrs.lacito.liftgui.ui.view.ComponentKinds;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
@@ -20,8 +24,8 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 /**
- * Shows an object in the editor panel: a "Delete" button, a "Back to …" button leading to
- * its parent, and the editor of the object (or a read-only summary).
+ * Shows an object in the editor panel: a "Delete" button, a link to its parent (which opens
+ * the table of the parent's kind on the parent's row), and the editor of the object.
  */
 public final class EditorPresenters {
 
@@ -55,25 +59,22 @@ public final class EditorPresenters {
         redisplay.run();
     }
 
-    /** Shows any dictionary object with its editor; objects without one are shown with their entry. */
+    /**
+     * Shows any dictionary object with its editor: a component with its own table (see
+     * {@link ComponentKinds}); anything else with the nearest component above it that has one.
+     */
     public void show(Object o) {
-        switch (o) {
-            case LiftEntry e -> showEntry(e);
-            case LiftSense s -> showSense(s);
-            case LiftExample ex -> showExample(ex);
-            case LiftNote n -> showNote(n);
-            case LiftVariant v -> showVariant(v);
-            case LiftRelation r -> showRelation(r);
-            case LiftEtymology et -> showEtymology(et);
-            case LiftAnnotation a -> showAnnotation(a);
-            case LiftField f -> showField(f);
-            case null -> panel().clear();
-            default -> {
-                LiftEntry entry = DictionaryQueries.owningEntry(o);
-                if (entry != null) showEntry(entry);
-                else panel().clear();
-            }
+        Object shown = o;
+        while (shown != null && ComponentKinds.of(shown).isEmpty()) {
+            shown = shown instanceof MultiText mt ? mt.getParent()
+                : shown instanceof AbstractLiftRoot r ? r.getParentNode() : null;
         }
+        if (shown == null) {
+            panel().clear();
+            return;
+        }
+        Object target = shown;
+        ComponentKinds.of(target).orElseThrow().show(this, target);
     }
 
     /* ─── Objects with their own view ─── */
@@ -92,6 +93,13 @@ public final class EditorPresenters {
             entryEditor.setOnOpenSense(ctx.navigator()::goToSenseAmongEntrySenses);
             entryEditor.setOnChanged(ctx::refreshTable);
             entryEditor.setEntry(entry);
+            addChildrenLinks(entry,
+                new Children(ViewKey.PRONUNCIATIONS, entry.getPronunciations()),
+                new Children(ViewKey.VARIANTS, entry.getVariants()),
+                new Children(ViewKey.RELATIONS, entry.getRelations()),
+                new Children(ViewKey.ETYMOLOGIES, entry.getEtymologies()),
+                new Children(ViewKey.TRAITS, entry.getTraits()),
+                new Children(ViewKey.ANNOTATIONS, entry.getAnnotations()));
             panel().add(entryEditor);
         } catch (Exception ex) {
             Map<String, String> values = new LinkedHashMap<>();
@@ -109,7 +117,13 @@ public final class EditorPresenters {
             sense
         );
         panel().add(delete.sense(sense));
-        addBackToParentButton(sense.getParentEntry());
+        addParentLink(sense);
+        addChildrenLinks(sense,
+            new Children(ViewKey.REVERSALS, sense.getReversals()),
+            new Children(ViewKey.ILLUSTRATIONS, sense.getIllustrations()),
+            new Children(ViewKey.RELATIONS, sense.getRelations()),
+            new Children(ViewKey.TRAITS, sense.getTraits()),
+            new Children(ViewKey.ANNOTATIONS, sense.getAnnotations()));
 
         // Links to the examples, by number.
         List<LiftExample> examples = sense.getExamples();
@@ -186,7 +200,8 @@ public final class EditorPresenters {
         redisplay = () -> showExample(ex);
         panel().show(I18n.get("nav.examples"), ex.getSource().orElse(""), ex);
         panel().add(delete.example(ex));
-        addBackToParentButton(ex.getParent());
+        addParentLink(ex);
+        addChildrenLinks(ex, new Children(ViewKey.TRANSLATIONS, List.copyOf(ex.getTranslationComponents())));
         ExampleEditor ee = new ExampleEditor(dictionary());
         ee.setExample(ex, BuilderAddActions.multiTextAnnotator(dictionary()), addActions(ex));
         panel().add(ee);
@@ -197,7 +212,7 @@ public final class EditorPresenters {
         panel().show(I18n.get("nav.notes") + " : " + EditorSupport.featureId(note.getType()), "", note);
         AbstractNotable parent = note.getParent();
         if (parent != null) panel().add(delete.component(note, () -> parent.deleteNote(note)));
-        addBackToParentButton(parent);
+        addParentLink(note);
         NoteEditor ne = new NoteEditor(dictionary());
         ne.setNote(note);
         panel().add(ne);
@@ -208,7 +223,7 @@ public final class EditorPresenters {
         panel().show(I18n.get("nav.variants") + " : " + v.getRefId().orElse("?"), "", v);
         LiftEntry parent = v.getParent();
         if (parent != null) panel().add(delete.component(v, () -> parent.deleteVariant(v)));
-        addBackToParentButton(parent);
+        addParentLink(v);
         VariantEditor ve = new VariantEditor(dictionary());
         ve.setVariant(v, addActions(v));
         panel().add(ve);
@@ -225,7 +240,7 @@ public final class EditorPresenters {
         if (parent != null) {
             panel().add(delete.component(relation, () -> parent.deleteRelation(relation)));
         }
-        addBackToParentButton(parent);
+        addParentLink(relation);
         RelationEditor re = new RelationEditor(dictionary());
         re.setRelation(relation);
         panel().add(re);
@@ -240,34 +255,110 @@ public final class EditorPresenters {
         );
         LiftEntry parent = et.getParent();
         if (parent != null) panel().add(delete.component(et, () -> parent.deleteEtymology(et)));
+        addParentLink(et);
         EtymologyEditor ee = new EtymologyEditor(dictionary());
         ee.setEtymology(et);
         panel().add(ee);
     }
 
-    /* ─── Read-only summaries ─── */
-
     public void showAnnotation(LiftAnnotation annotation) {
         redisplay = () -> showAnnotation(annotation);
-        Map<String, String> values = new LinkedHashMap<>();
-        values.put(I18n.get("col.parentType"), ObjectLabels.describeParentType(annotation.getParent()));
-        values.put(I18n.get("col.name"), EditorSupport.featureId(annotation.getType()));
-        values.put(I18n.get("col.value"), annotation.getValue());
-        values.put(I18n.get("col.who"), annotation.getWho());
-        values.put(I18n.get("col.when"), annotation.getWhen());
-        panel().summary(I18n.get("nav.annotations"), values);
-        addGoToParentButton(annotation.getParent());
+        panel().show(I18n.get("nav.annotations") + " : " + EditorSupport.featureId(annotation.getType()),
+            ObjectLabels.describeParent(annotation.getParent()), annotation);
+        HasAnnotation parent = annotation.getParent();
+        if (parent != null) panel().add(delete.component(annotation, () -> parent.deleteAnnotation(annotation)));
+        addParentLink(annotation);
+        AnnotationEditor ae = new AnnotationEditor(dictionary());
+        ae.setAnnotation(annotation);
+        panel().add(ae);
     }
 
     public void showField(LiftField field) {
         redisplay = () -> showField(field);
-        Map<String, String> values = new LinkedHashMap<>();
-        values.put(I18n.get("col.parentType"), ObjectLabels.describeParentType(field.getParent()));
-        values.put(I18n.get("col.type"), field.getSpecification().getName());
-        values.put(I18n.get("col.text"), field.getText().getForms().stream().findFirst().map(Form::toPlainText).orElse(""));
-        panel().summary(I18n.get("nav.fields"), values);
-        addGoToParentButton(field.getParent());
+        panel().show(I18n.get("nav.fields") + " : " + field.getSpecification().getName(), "", field);
+        AbstractExtensibleWithField parent = field.getParent();
+        if (parent != null) panel().add(delete.component(field, () -> parent.deleteField(field)));
+        addParentLink(field);
+        FieldEditor fe = new FieldEditor(dictionary());
+        fe.setField(field);
+        panel().add(fe);
     }
+
+    public void showTranslation(LiftTranslation translation) {
+        redisplay = () -> showTranslation(translation);
+        panel().show(I18n.get("nav.translations") + " : " + EditorSupport.featureId(translation.getType()), "", translation);
+        LiftExample parent = translation.getParent();
+        if (parent != null) panel().add(delete.component(translation, () -> parent.deleteTranslation(translation)));
+        addParentLink(translation);
+        TranslationEditor te = new TranslationEditor(dictionary());
+        te.setTranslation(translation);
+        panel().add(te);
+    }
+
+    public void showPronunciation(LiftPronunciation pronunciation) {
+        redisplay = () -> showPronunciation(pronunciation);
+        panel().show(I18n.get("nav.pronunciations") + " : " + ObjectLabels.firstForm(pronunciation.getPronunciation()),
+            "", pronunciation);
+        HasPronunciation parent = pronunciation.getParent();
+        if (parent != null) panel().add(delete.component(pronunciation, () -> parent.deletePronunciation(pronunciation)));
+        addParentLink(pronunciation);
+        addChildrenLinks(pronunciation, new Children(ViewKey.MEDIA, pronunciation.getMedias()));
+        PronunciationEditor pe = new PronunciationEditor(dictionary());
+        pe.setPronunciation(pronunciation);
+        panel().add(pe);
+    }
+
+    public void showMedia(LiftMedia media) {
+        redisplay = () -> showMedia(media);
+        panel().show(I18n.get("nav.media"), Objects.toString(media.getHref(), ""), media);
+        LiftPronunciation parent = media.getParent();
+        if (parent != null) panel().add(delete.component(media, () -> parent.deleteMedia(media)));
+        addParentLink(media);
+        ExternalDocumentEditor ede = new ExternalDocumentEditor(dictionary(), () -> ctx.document().file());
+        ede.setDocument(media);
+        panel().add(ede);
+    }
+
+    public void showIllustration(LiftIllustration illustration) {
+        redisplay = () -> showIllustration(illustration);
+        panel().show(I18n.get("nav.illustrations"), Objects.toString(illustration.getHref(), ""), illustration);
+        LiftSense parent = illustration.getParent();
+        if (parent != null) panel().add(delete.component(illustration, () -> parent.deleteIllustration(illustration)));
+        addParentLink(illustration);
+        ExternalDocumentEditor ede = new ExternalDocumentEditor(dictionary(), () -> ctx.document().file());
+        ede.setDocument(illustration);
+        panel().add(ede);
+    }
+
+    public void showReversal(LiftReversal reversal) {
+        redisplay = () -> showReversal(reversal);
+        panel().show(I18n.get("nav.reversals") + " : " + ObjectLabels.firstForm(reversal.getForms()),
+            EditorSupport.featureId(reversal.getType()), reversal);
+        HasReversal parent = reversal.getParent();
+        if (parent instanceof LiftReversal main && main.getMain() == reversal) {
+            panel().add(delete.component(reversal, main::deleteMain));
+        } else if (parent != null) {
+            panel().add(delete.component(reversal, () -> parent.deleteReversal(reversal)));
+        }
+        addParentLink(reversal);
+        ReversalEditor re = new ReversalEditor(dictionary());
+        re.setReversal(reversal);
+        panel().add(re);
+    }
+
+    public void showTrait(LiftTrait trait) {
+        redisplay = () -> showTrait(trait);
+        panel().show(I18n.get("nav.traits") + " : " + trait.getSpecification().getName(),
+            Objects.toString(trait.getValue(), ""), trait);
+        HasTrait parent = trait.getParent();
+        if (parent != null) panel().add(delete.component(trait, () -> parent.deleteTrait(trait)));
+        addParentLink(trait);
+        TraitEditor te = new TraitEditor(dictionary());
+        te.setTrait(trait, EditorSupport.targetOf(parent));
+        panel().add(te);
+    }
+
+    /* ─── Other views ─── */
 
     /**
      * Shows one form of a multitext, with the editor of the whole multitext.
@@ -302,26 +393,57 @@ public final class EditorPresenters {
         if (access != null) panel().navButton(accessLabel, access);
     }
 
-    /* ─── Navigation buttons ─── */
+    /* ─── Navigation ─── */
 
     /**
-     * Adds a "Back to …" button leading to the parent of the object shown: the entry (or the
-     * entry of a variant), or the sense. Does nothing for other parents.
+     * Adds the link to the parent of a component: "↑ Sense: to walk". It opens the table of
+     * the parent's kind, with the parent's row selected (which shows the parent here). An
+     * annotation on a text leads to the component of the text; a parent without a table of
+     * its own (a grammatical info) to the nearest component above it that has one.
      */
-    private void addBackToParentButton(Object parent) {
-        if (parent instanceof LiftVariant v) parent = v.getParent();
-        if (parent instanceof LiftEntry entry) {
-            panel().backButton(I18n.get("sense.backToEntry", ObjectLabels.entryLabel(entry)),
-                () -> ctx.navigator().goToEntryOf(entry));
-        } else if (parent instanceof LiftSense sense) {
-            panel().backButton(I18n.get("sense.backToSense", LiftEntryEditor.senseDisplayText(sense)),
-                () -> ctx.navigator().goToSense(sense));
-        }
+    private void addParentLink(AbstractLiftRoot component) {
+        Object parent = parentWithTable(component);
+        if (parent == null) return;
+        ViewKey key = ComponentKinds.of(parent).orElseThrow().key();
+        panel().backButton(I18n.get("editor.parentLink", ObjectLabels.kindName(parent), ObjectLabels.shortLabel(parent)),
+            () -> ctx.navigator().go(ViewRequest.of(key).selecting(parent)));
     }
 
-    /** "Go to parent": shows the entry the parent belongs to. */
-    private void addGoToParentButton(Object parent) {
-        if (DictionaryQueries.owningEntry(parent) == null) return;
-        panel().navButton(I18n.get("btn.goToParent"), () -> ctx.navigator().goToEntryOf(parent));
+    /** The parent of a component that has a table, climbing over those that have none. */
+    static Object parentWithTable(AbstractLiftRoot component) {
+        Object p = component instanceof LiftAnnotation a ? a.getParent() : component.getParentNode();
+        while (p != null && ComponentKinds.of(p).isEmpty()) {
+            p = switch (p) {
+                case Form f -> f.getMultiText();
+                case MultiText m -> m.getParent();
+                case AbstractLiftRoot r -> r.getParentNode();
+                default -> null;
+            };
+        }
+        return p;
+    }
+
+    /** The children of a component, of one kind, for {@link #addChildrenLinks}. */
+    private record Children(ViewKey key, List<?> list) {}
+
+    /**
+     * "Pronunciations (2) · Relations (1)": links opening the table of each kind of children
+     * of the component shown, restricted to them ("Pronunciations of 'walk'"). Kinds without
+     * children are left out.
+     */
+    private void addChildrenLinks(Object owner, Children... children) {
+        FlowPane links = new FlowPane(8, 2);
+        String ownerLabel = ObjectLabels.shortLabel(owner);
+        for (Children c : children) {
+            if (c.list().isEmpty()) continue;
+            String kind = I18n.get(c.key().i18nKey());
+            Hyperlink link = new Hyperlink(I18n.get("editor.openChildren", kind, c.list().size()));
+            link.getStyleClass().add("no-dirty");
+            String title = I18n.get("editor.childrenOf", kind, ownerLabel);
+            List<?> list = List.copyOf(c.list());
+            link.setOnAction(e -> ctx.navigator().go(ViewRequest.subset(c.key(), list, title)));
+            links.getChildren().add(link);
+        }
+        if (!links.getChildren().isEmpty()) panel().add(links);
     }
 }

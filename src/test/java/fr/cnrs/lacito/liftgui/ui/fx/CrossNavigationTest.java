@@ -60,13 +60,13 @@ class CrossNavigationTest extends MainWindowTest {
     }
 
     @Test
-    void goToParentFromAField() {
+    void theParentLinkOfAFieldOpensTheTableOfItsParent() {
         openView("nav.fields");
         selectRow(0);
         LiftField field = (LiftField) table().getSelectionModel().getSelectedItem();
-        fire(editorButton(I18n.get("btn.goToParent")));
-        assertEquals(I18n.get("nav.entries"), viewTitle());
-        assertSame(DictionaryQueries.owningEntry(field), table().getSelectionModel().getSelectedItem());
+        fire(lookup("#editorContainer .back-btn").queryButton());
+        assertSame(field.getParent(), table().getSelectionModel().getSelectedItem(),
+            "the parent's table is shown, with the parent selected");
     }
 
     @Test
@@ -84,10 +84,10 @@ class CrossNavigationTest extends MainWindowTest {
 
     @Test
     void aTraitOpensTheEntriesCarryingIt() {
-        openView("nav.traits");
+        openView("nav.traitValues");
         selectRow(0);
         fire(editorButton(I18n.get("btn.accessObjects")));
-        assertTrue(viewTitle().startsWith(I18n.get("nav.traits")), viewTitle());
+        assertTrue(viewTitle().startsWith(I18n.get("nav.traitValues")), viewTitle());
         assertFalse(table().getItems().isEmpty());
         assertTrue(table().getItems().stream().allMatch(e -> e instanceof LiftEntry));
     }

@@ -20,6 +20,7 @@ import fr.cnrs.lacito.liftgui.ui.nav.Navigator;
 import fr.cnrs.lacito.liftgui.ui.nav.ViewKey;
 import fr.cnrs.lacito.liftgui.ui.nav.ViewRequest;
 import fr.cnrs.lacito.liftgui.ui.table.FilterableTable;
+import fr.cnrs.lacito.liftgui.ui.view.ComponentKinds;
 import fr.cnrs.lacito.liftgui.ui.view.DictionaryView;
 import fr.cnrs.lacito.liftgui.ui.view.EntryView;
 import fr.cnrs.lacito.liftgui.ui.view.Views;
@@ -84,6 +85,7 @@ public final class MainController {
     @FXML private VBox rightContent;
     @FXML private VBox editorContainer;
     @FXML private Menu recentMenu;
+    @FXML private Menu viewObjectsMenu;
     @FXML private MenuBar menuBar;
     @FXML private SplitPane mainSplit;
     @FXML private Button addButton;
@@ -129,6 +131,13 @@ public final class MainController {
             navigation.setRanges(d == null ? null : d.getHeader());
             navigator.go(ViewKey.ENTRIES);
         });
+
+        // View ▸ Objects lists the component tables, as the navigation tree does.
+        for (ViewKey key : ComponentKinds.keys()) {
+            MenuItem item = new MenuItem(I18n.get(key.i18nKey()));
+            item.setOnAction(e -> navigator.go(key));
+            viewObjectsMenu.getItems().add(item);
+        }
 
         setupSplitPane();
         setupMenuHover();
@@ -433,17 +442,9 @@ public final class MainController {
 
     /* ─── View menu ─── */
 
-    @FXML private void onViewEntries() { navigator.go(ViewKey.ENTRIES); }
-    @FXML private void onViewSenses() { navigator.go(ViewKey.SENSES); }
-    @FXML private void onViewExamples() { navigator.go(ViewKey.EXAMPLES); }
-    @FXML private void onViewNotes() { navigator.go(ViewKey.NOTES); }
-    @FXML private void onViewVariants() { navigator.go(ViewKey.VARIANTS); }
-    @FXML private void onViewEtymologies() { navigator.go(ViewKey.ETYMOLOGIES); }
     @FXML private void onViewObjectLangs() { navigator.go(ViewKey.OBJECT_LANGUAGES); }
     @FXML private void onViewMetaLangs() { navigator.go(ViewKey.META_LANGUAGES); }
-    @FXML private void onViewTraits() { navigator.go(ViewKey.TRAITS); }
-    @FXML private void onViewAnnotations() { navigator.go(ViewKey.ANNOTATIONS); }
-    @FXML private void onViewFields() { navigator.go(ViewKey.FIELDS); }
+    @FXML private void onViewTraitValues() { navigator.go(ViewKey.TRAIT_VALUES); }
     @FXML private void onViewGramInfo() { navigator.go(ViewKey.GRAM_INFO); }
     @FXML private void onViewTransTypes() { navigator.go(ViewKey.TRANSLATION_TYPES); }
     @FXML private void onViewNoteTypes() { navigator.go(ViewKey.NOTE_TYPES); }
