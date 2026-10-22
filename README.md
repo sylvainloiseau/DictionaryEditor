@@ -1,4 +1,6 @@
-# ![Listing entity](src/main/resources/fr/cnrs/lacito/liftgui/ui/icons/app/icon-256.png) Dictionary editor for descriptive linguistics
+# Dictionary editor for descriptive linguistics
+
+![Listing entity](src/main/resources/fr/cnrs/lacito/liftgui/ui/icons/app/icon-128.png) 
 
 Application for editing dictionary compatible with the LIFT data format (This format is used by SIL Fieldworks and ELAN).
 
