@@ -66,7 +66,7 @@ class ComponentTablesTest extends MainWindowTest {
             example.createTranslation(free).add(new Form(metaLang, "a translation"));
             translation = example.getTranslationComponents().stream()
                 .filter(t -> t.getType() == free).findFirst().orElseThrow();
-            trait = new LiftTrait(h.getOrCreateTraitsDefinitions("test-trait"), "a value");
+            trait = new LiftTrait(h.declareTraitDefinition("test-trait"), "a value");
             entry.addTrait(trait);
             annotation = new LiftAnnotation(h.getAnnotationTypeManager().getOrCreateFeature("test-annotation"));
             annotation.setValue("checked");

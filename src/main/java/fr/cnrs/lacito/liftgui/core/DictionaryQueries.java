@@ -2,6 +2,7 @@ package fr.cnrs.lacito.liftgui.core;
 
 import fr.cnrs.lacito.liftapi.LiftDictionaryRegistry;
 import fr.cnrs.lacito.liftapi.model.*;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -40,7 +41,7 @@ public final class DictionaryQueries {
     public static String traitValue(HasTrait o, String name) {
         if (o == null || o.getTraits() == null) return "";
         return o.getTraits().stream()
-            .filter(t -> name.equals(t.getSpecification().getName()))
+            .filter(t -> name.equals(t.getName()))
             .findFirst()
             .map(LiftTrait::getValue)
             .orElse("");
@@ -107,11 +108,15 @@ public final class DictionaryQueries {
         return n;
     }
 
-    /** Number of fields and traits named after a field/trait definition. */
+    /**
+     * Number of fields and traits whose name refers to a field/trait definition. A trait
+     * of that name that the definition does not fit (a definition for fields) refers to a
+     * range or to nothing, and is not counted.
+     */
     public static long countFieldOrTraitUsage(LiftDictionaryRegistry reg, LiftFieldAndTraitDefinition fd) {
         if (reg == null || fd == null) return 0;
-        long fields = reg.getFields().stream().filter(f -> fd.getName().equals(f.getSpecification().getName())).count();
-        long traits = reg.getTraits().stream().filter(t -> fd.getName().equals(t.getSpecification().getName())).count();
+        long fields = reg.getFields().stream().filter(f -> f.getSpecification() == fd).count();
+        long traits = reg.getTraits().stream().filter(t -> t.getSpecification() == fd).count();
         return fields + traits;
     }
 
@@ -121,35 +126,41 @@ public final class DictionaryQueries {
         return multiTexts.stream().filter(mt -> mt.getForm(lang).isPresent()).count();
     }
 
-    /** Whether the values of a trait are ids of the features of {@code set}. */
+    /**
+     * Whether the values of a trait are features of {@code set}: the range of its
+     * definition, or the range it is named after.
+     */
     public static boolean traitUsesFeatureSet(LiftTrait t, FeatureSet set) {
         if (set == null) return false;
-        LiftFieldAndTraitDefinition spec = t.getSpecification();
-        return spec.getResolvedFeatureSet()
-            .map(r -> r == set)
-            .orElse(spec.getName().equals(set.getId()));
-    }
-
-    /** The space-separated tokens of a trait value (several for option collections). */
-    public static List<String> traitValueTokens(LiftTrait t) {
-        String v = t.getValue();
-        if (v == null || v.isBlank()) return List.of();
-        return List.of(v.trim().split("\\s+"));
+        return t.getSpecification().getResolvedFeatureSet().map(r -> r == set).orElse(false);
     }
 
     /**
-     * Renames a feature of the header. Components referring to the feature object follow
-     * automatically; trait values, which hold the feature id as text, are updated here.
+     * The values of a trait: the ids of its features for an option trait (several for a
+     * collection or a sequence; an id may contain spaces, as FLEx semantic domains
+     * {@code "1.5 Plant"} do), the space-separated tokens of its value otherwise.
      */
-    public static void renameFeature(LiftDictionaryRegistry reg, FeatureSet set, String oldId, String newId) {
+    public static List<String> traitValueTokens(LiftTrait t) {
+        return switch (t.getSpecification().getDataModel()) {
+            case FEATURE -> t.getTypedValue() == null ? List.of() : List.of(((Feature) t.getTypedValue()).getId());
+            case FEATURE_SET, FEATURE_LIST -> ((Collection<?>) t.getTypedValue()).stream()
+                .map(f -> ((Feature) f).getId())
+                .toList();
+            default -> {
+                String v = t.getValue();
+                yield v == null || v.isBlank() ? List.of() : List.of(v.trim().split("\\s+"));
+            }
+        };
+    }
+
+    /**
+     * Renames a feature of the header. Everything referring to it holds the feature object
+     * and follows: the typed components, and the traits whose values are features of the
+     * set (those of a definition with that option-range, and those named after the set).
+     */
+    public static void renameFeature(FeatureSet set, String oldId, String newId) {
         Feature element = set.getFeature(oldId);
         if (element == null) return;
         set.changeFeatureId(element, newId);
-        for (LiftTrait t : reg.getTraits()) {
-            if (!traitUsesFeatureSet(t, set)) continue;
-            List<String> tokens = traitValueTokens(t);
-            if (!tokens.contains(oldId)) continue;
-            t.setValue(String.join(" ", tokens.stream().map(x -> x.equals(oldId) ? newId : x).toList()));
-        }
     }
 }

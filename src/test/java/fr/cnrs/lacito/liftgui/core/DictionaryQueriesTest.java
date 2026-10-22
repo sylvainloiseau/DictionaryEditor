@@ -90,15 +90,27 @@ class DictionaryQueriesTest {
         FeatureSet status = d.getHeader().addFeatureSet("status");
         status.addFeature("draft");
         status.addFeature("checked");
-        LiftTrait t = d.getComponentBuilder().trait(entry, "status", "draft checked").build();
+        // Named after the range: its value is the feature itself.
+        LiftTrait t = d.getComponentBuilder().trait(entry, "status", "draft").build();
+        LiftTrait checked = d.getComponentBuilder().trait(entry, "status", "checked").build();
+        // Undeclared: its value is a string.
         LiftTrait other = d.getComponentBuilder().trait(entry, "colour", "draft").build();
 
-        DictionaryQueries.renameFeature(d.getLiftDictionaryRegistry(), status, "draft", "provisional");
+        DictionaryQueries.renameFeature(status, "draft", "provisional");
 
         assertTrue(status.hasFeature("provisional"));
         assertFalse(status.hasFeature("draft"));
-        assertEquals("provisional checked", t.getValue());
+        assertEquals("provisional", t.getValue());
+        assertEquals("checked", checked.getValue());
         assertEquals("draft", other.getValue(), "a trait not using the set is left alone");
+    }
+
+    @Test
+    void traitValueTokensKeepTheSpacesOfAFeatureId() {
+        FeatureSet domains = d.getHeader().addFeatureSet("semantic-domain-ddp4");
+        LiftTrait t = d.getComponentBuilder().trait(entry, "semantic-domain-ddp4", "1.5 Plant").build();
+        assertEquals(List.of("1.5 Plant"), DictionaryQueries.traitValueTokens(t));
+        assertTrue(DictionaryQueries.traitUsesFeatureSet(t, domains));
     }
 
     @Test

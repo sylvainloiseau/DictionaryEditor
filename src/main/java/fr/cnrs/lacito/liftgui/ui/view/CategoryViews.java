@@ -126,10 +126,10 @@ public final class CategoryViews {
     public static DictionaryView fieldTypes(EditorContext ctx) {
         String title = I18n.get("nav.fieldTypes");
         List<CategoryRow> rows = count(reg(ctx).getFields().stream(),
-            f -> new CategoryRow("", "", f.getSpecification().getName(), 0));
+            f -> new CategoryRow("", "", f.getName(), 0));
         return view(ctx, rows, valueColumns(I18n.get("col.type")), "placeholder.noField", r -> {
             List<LiftField> fields = reg(ctx).getFields().stream()
-                .filter(f -> r.value().equals(f.getSpecification().getName()))
+                .filter(f -> r.value().equals(f.getName()))
                 .toList();
             summary(ctx, title, r, values(I18n.get("col.type"), r.value()),
                 ViewRequest.subset(ViewKey.FIELDS, fields, title + ": " + r.value()));
@@ -160,7 +160,7 @@ public final class CategoryViews {
     public static DictionaryView traits(EditorContext ctx) {
         String title = I18n.get("nav.traitValues");
         List<CategoryRow> rows = count(reg(ctx).getTraits().stream(),
-            t -> new CategoryRow(ObjectLabels.describeParentType(t.getParent()), t.getSpecification().getName(),
+            t -> new CategoryRow(ObjectLabels.describeParentType(t.getParent()), t.getName(),
                 Objects.toString(t.getValue(), ""), 0));
         List<ColumnSpec<CategoryRow>> columns = List.of(
             Columns.text("trait.parentType", I18n.get(Keys.COL_PARENT_TYPE), CategoryRow::parentType),
@@ -170,7 +170,7 @@ public final class CategoryViews {
         );
         return view(ctx, rows, columns, "placeholder.noTrait", r -> {
             List<LiftEntry> entries = reg(ctx).getTraits().stream()
-                .filter(t -> r.name().equals(t.getSpecification().getName())
+                .filter(t -> r.name().equals(t.getName())
                     && r.value().equals(Objects.toString(t.getValue(), ""))
                     && r.parentType().equals(ObjectLabels.describeParentType(t.getParent())))
                 .map(t -> DictionaryQueries.owningEntry(t))

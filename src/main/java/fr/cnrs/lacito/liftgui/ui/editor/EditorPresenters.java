@@ -275,7 +275,7 @@ public final class EditorPresenters {
 
     public void showField(LiftField field) {
         redisplay = () -> showField(field);
-        panel().show(I18n.get("nav.fields") + " : " + field.getSpecification().getName(), "", field);
+        panel().show(I18n.get("nav.fields") + " : " + field.getName(), "", field);
         AbstractExtensibleWithField parent = field.getParent();
         if (parent != null) panel().add(delete.component(field, () -> parent.deleteField(field)));
         addParentLink(field);
@@ -348,7 +348,7 @@ public final class EditorPresenters {
 
     public void showTrait(LiftTrait trait) {
         redisplay = () -> showTrait(trait);
-        panel().show(I18n.get("nav.traits") + " : " + trait.getSpecification().getName(),
+        panel().show(I18n.get("nav.traits") + " : " + trait.getName(),
             Objects.toString(trait.getValue(), ""), trait);
         HasTrait parent = trait.getParent();
         if (parent != null) panel().add(delete.component(trait, () -> parent.deleteTrait(trait)));

@@ -108,8 +108,8 @@ public final class ObjectLabels {
             case LiftEtymology y -> join(featureId(y.getType()), firstForm(y.getForms()));
             case LiftRelation r -> join(featureId(r.getType()), r.getRefId().orElse(""));
             case LiftReversal r -> firstForm(r.getForms());
-            case LiftField f -> f.getSpecification().getName();
-            case LiftTrait t -> t.getSpecification().getName() + " = " + t.getValue();
+            case LiftField f -> f.getName();
+            case LiftTrait t -> t.getName() + " = " + t.getValue();
             case LiftAnnotation a -> join(featureId(a.getType()), a.getValue());
             case null, default -> "";
         };

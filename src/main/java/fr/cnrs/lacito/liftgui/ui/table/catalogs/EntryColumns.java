@@ -53,7 +53,7 @@ public final class EntryColumns {
     /** Sets, replaces or (for an empty value) removes the morph-type trait. */
     private static void setMorphType(LiftDictionary d, LiftEntry e, String value) {
         Optional<LiftTrait> existing = e.getTraits().stream()
-            .filter(t -> Keys.MORPH_TYPE.equals(t.getSpecification().getName()))
+            .filter(t -> Keys.MORPH_TYPE.equals(t.getName()))
             .findFirst();
         if (value.isEmpty()) existing.ifPresent(e::deleteTrait);
         else if (existing.isPresent()) existing.get().setValue(value);

@@ -40,6 +40,26 @@ class DictionaryValidatorTest {
     }
 
     @Test
+    void undeclaredTraitsAndFieldsAreReportedButNotTraitsNamedAfterARange() {
+        LiftDictionary d = dictionary();
+        d.getHeader().addFeatureSet("status");
+        d.getHeader().createTraitDefinition("register");
+        LiftEntry e = d.getComponentBuilder().entry()
+            .withForm("xx", "kato")
+            .addTrait("status", "draft")
+            .addTrait("register", "formal")
+            .build();
+        d.getComponentBuilder().sense(e).withGloss("en", "cat").build();
+        assertEquals(List.of(), keys(d));
+
+        d.getComponentBuilder().trait(e, "colour", "red").build();
+        d.getComponentBuilder().field(e, "summary").addText("en", "A cat").build();
+        List<String> keys = keys(d);
+        assertTrue(keys.contains("validate.undeclaredTrait"), keys.toString());
+        assertTrue(keys.contains("validate.undeclaredField"), keys.toString());
+    }
+
+    @Test
     void describeNamesTheKindAndTheEntry() {
         LiftDictionary d = dictionary();
         LiftEntry e = d.getComponentBuilder().entry().withForm("xx", "kato").build();

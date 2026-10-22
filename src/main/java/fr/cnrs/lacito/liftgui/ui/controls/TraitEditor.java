@@ -29,7 +29,8 @@ import javafx.scene.layout.VBox;
  * Editor for a single {@link LiftTrait}.
  * <p>
  * The trait name is read-only (a trait cannot be renamed). The value widget adapts to the
- * {@link LiftFieldAndTraitDefinitionDataModel} of the trait's {@link LiftFieldAndTraitDefinition}:
+ * {@link LiftFieldAndTraitDefinitionDataModel} of the trait's {@link TraitSpecification}
+ * (its definition, the range it is named after, or a string for an undeclared name):
  * <ul>
  *   <li>{@code datetime} → {@link DatePicker}</li>
  *   <li>{@code integer} → integer-only {@link TextField}</li>
@@ -95,14 +96,16 @@ public final class TraitEditor extends VBox {
             return;
         }
 
-        String name = t.getSpecification().getName();
+        String name = t.getName();
         Set<String> documentedNames = new HashSet<>();
         (target == null
             ? dictionary.getHeader().getFieldsAndTraitsDefinitions()
             : dictionary.getHeader().getFieldsAndTraitsDefinitionsFor(target))
             .forEach(d -> documentedNames.add(d.getName()));
         nameField.setText(name);
-        EditorSupport.flagUndocumented(nameField, documentedNames.contains(name), "tooltip.undocumentedValue");
+        // A trait named after a range is documented by the range.
+        boolean documented = t.getSpecification() instanceof RangeReference || documentedNames.contains(name);
+        EditorSupport.flagUndocumented(nameField, documented, "tooltip.undocumentedValue");
 
         valueBox.getChildren().setAll(buildValueWidget(t));
 
@@ -114,21 +117,19 @@ public final class TraitEditor extends VBox {
     }
 
     private Node buildValueWidget(LiftTrait t) {
-        Optional<LiftFieldAndTraitDefinitionDataModel> typeOpt = t.getSpecification().getDataModel();
-        if (typeOpt.isPresent()) {
-            return switch (typeOpt.get()) {
-                case DATETIME -> buildDatePicker(t);
-                case INTEGER -> buildIntegerField(t);
-                case FEATURE, FEATURE_SET, FEATURE_LIST -> {
-                    Optional<FeatureSet> rangeOpt = t.getSpecification().getResolvedFeatureSet();
-                    yield rangeOpt.isPresent()
-                        ? buildRangePicker(t, rangeOpt.get(), typeOpt.get())
-                        : buildDefaultCombo(t);
-                }
-                default -> buildDefaultCombo(t);
-            };
-        }
-        return buildDefaultCombo(t);
+        LiftFieldAndTraitDefinitionDataModel type = t.getSpecification().getDataModel();
+        return switch (type) {
+            case DATETIME -> buildDatePicker(t);
+            case INTEGER -> buildIntegerField(t);
+            // A definition with an option-range, or a trait named after a range.
+            case FEATURE, FEATURE_SET, FEATURE_LIST -> {
+                Optional<FeatureSet> rangeOpt = t.getSpecification().getResolvedFeatureSet();
+                yield rangeOpt.isPresent()
+                    ? buildRangePicker(t, rangeOpt.get(), type)
+                    : buildDefaultCombo(t);
+            }
+            default -> buildDefaultCombo(t);
+        };
     }
 
     private DatePicker buildDatePicker(LiftTrait t) {
@@ -189,7 +190,7 @@ public final class TraitEditor extends VBox {
         ComboBox<String> combo = new ComboBox<>();
         combo.setEditable(true);
         combo.setMaxWidth(Double.MAX_VALUE);
-        Map<String, Long> known = dictionary.getValueCounterForTraitName(t.getSpecification().getName());
+        Map<String, Long> known = dictionary.getValueCounterForTraitName(t.getName());
         if (known != null) {
             combo.setItems(FXCollections.observableArrayList(new TreeSet<>(known.keySet())));
         }

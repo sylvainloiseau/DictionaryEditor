@@ -65,7 +65,7 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
         return List.of(
             Columns.text("fieldDef.name", I18n.get("cfg.fieldDefName"), LiftFieldAndTraitDefinition::getName),
             Columns.text("fieldDef.kind", I18n.get("cfg.kind"), FieldDefinitionsView::kindLabel),
-            Columns.text("fieldDef.type", I18n.get("cfg.fieldDefType"), fd -> fd.getTypeStr().orElse("")),
+            Columns.text("fieldDef.type", I18n.get("cfg.fieldDefType"), LiftFieldAndTraitDefinition::getTypeStr),
             Columns.text("fieldDef.targets", I18n.get("cfg.targets"), LiftFieldAndTraitDefinition::getTargetAsString),
             Columns.text("fieldDef.description", I18n.get("cfg.description"), fd -> EditorSupport.firstForm(fd.getDescription())),
             Columns.text("fieldDef.usage", I18n.get("cfg.usageCount"),
@@ -144,7 +144,7 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
     /** The editor of a definition: data type, targets, option range, label and description. */
     private static void showDefinition(EditorContext ctx, LiftFieldAndTraitDefinition fd) {
         String kindLabel = kindLabel(fd);
-        EditorPanel panel = ctx.panel().show(fd.getName(), kindLabel + " – " + fd.getTypeStr().orElse(""), null);
+        EditorPanel panel = ctx.panel().show(fd.getName(), kindLabel + " – " + fd.getTypeStr(), null);
 
         GridPane g = EditorPanel.grid();
         EditorPanel.addReadOnlyRow(g, 0, I18n.get("cfg.fieldDefName"), fd.getName());
@@ -154,7 +154,7 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
         typeCombo.setEditable(true);
         typeCombo.getItems().addAll(FIELD_TYPES);
         typeCombo.getItems().addAll(TRAIT_TYPES);
-        typeCombo.setValue(fd.getTypeStr().orElse(""));
+        typeCombo.setValue(fd.getTypeStr());
         boolean[] restoring = {false};
         typeCombo.valueProperty().addListener((obs, o, n) -> {
             if (restoring[0]) return;
@@ -223,8 +223,22 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
             }
         });
         rangeCombo.setValue(fd.getResolvedFeatureSet().orElse(null));
+        boolean[] restoringRange = {false};
         rangeCombo.valueProperty().addListener((obs, o, n) -> {
-            fd.setResolvedRange(Optional.ofNullable(n));
+            if (restoringRange[0]) return;
+            try {
+                fd.setResolvedRange(Optional.ofNullable(n));
+            } catch (IllegalStateException ex) {
+                // The traits that use it hold features of the current range.
+                long usage = DictionaryQueries.countFieldOrTraitUsage(ctx.dictionary().getLiftDictionaryRegistry(), fd);
+                Dialogs.error(I18n.get("cfg.optionRange"), I18n.get("cfg.rangeChangeNotAllowed", usage));
+                restoringRange[0] = true;
+                try {
+                    rangeCombo.setValue(o);
+                } finally {
+                    restoringRange[0] = false;
+                }
+            }
         });
         GridPane.setHgrow(rangeCombo, Priority.ALWAYS);
         g.addRow(4, new Label(I18n.get("cfg.optionRange")), rangeCombo);

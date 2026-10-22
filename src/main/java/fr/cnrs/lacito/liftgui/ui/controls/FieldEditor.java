@@ -70,7 +70,7 @@ public final class FieldEditor extends VBox {
             extensibleEditor.setModel(null);
             return;
         }
-        String name = f.getSpecification().getName();
+        String name = f.getName();
         Set<String> documented = EditorSupport
             .fieldDefinitions(dictionary.getHeader(), EditorSupport.targetOf(f.getParent()))
             .stream()

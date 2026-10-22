@@ -97,7 +97,7 @@ public final class ComponentColumns {
     public static List<ColumnSpec<LiftField>> fields(LiftDictionary d) {
         return List.of(
             Columns.text("field.parentType", I18n.get(Keys.COL_PARENT_TYPE), f -> ObjectLabels.describeParentType(f.getParent())),
-            Columns.text("field.type", I18n.get(Keys.COL_TYPE), f -> f.getSpecification().getName()),
+            Columns.text("field.type", I18n.get(Keys.COL_TYPE), f -> f.getName()),
             Columns.text("field.text", I18n.get(Keys.COL_TEXT),
                 f -> f.getText().getForms().stream().findFirst().map(Form::toPlainText).orElse("")),
             Columns.multiText("field.textByLanguage", I18n.get(Keys.COL_TEXT), d.getMetaLanguageManager().getLanguages(),
@@ -201,10 +201,10 @@ public final class ComponentColumns {
         return List.of(
             Columns.<LiftTrait>text("trait.parentType", I18n.get(Keys.COL_PARENT_TYPE), t -> ObjectLabels.describeParentType(t.getParent())).facet(),
             Columns.<LiftTrait>text("trait.parent", I18n.get(Keys.COL_PARENT), t -> ObjectLabels.describeParent(t.getParent())),
-            Columns.<LiftTrait>text("trait.name", I18n.get(Keys.COL_NAME), t -> t.getSpecification().getName()).facet(),
+            Columns.<LiftTrait>text("trait.name", I18n.get(Keys.COL_NAME), t -> t.getName()).facet(),
             Columns.<LiftTrait>text("trait.value", I18n.get(Keys.COL_VALUE), t -> Objects.toString(t.getValue(), "")).facet(),
             Columns.<LiftTrait>text("trait.dataModel", I18n.get("col.dataModel"),
-                t -> t.getSpecification().getTypeStr().orElse("")).hidden()
+                t -> t.getSpecification().getDataModel().toStringValue()).hidden()
         );
     }
 }

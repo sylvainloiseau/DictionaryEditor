@@ -14,7 +14,6 @@ import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftPronunciation;
 import fr.cnrs.lacito.liftapi.model.LiftRelation;
 import fr.cnrs.lacito.liftapi.model.FeatureSet;
-import fr.cnrs.lacito.liftapi.model.LiftHeader;
 import fr.cnrs.lacito.liftapi.model.LiftTrait;
 import fr.cnrs.lacito.liftapi.model.LiftVariant;
 import fr.cnrs.lacito.liftapi.model.MultiText;
@@ -224,22 +223,16 @@ public final class VariantEditor extends VBox {
 
     /**
      * The values of the {@code variant-type} trait: the range of its definition when it
-     * declares one, otherwise the range of that name, if the file has one.
+     * declares one, otherwise the range of that name, if the file has one - what the
+     * header resolves the name to.
      */
     private Optional<FeatureSet> variantTypeRange() {
-        LiftHeader header = dictionary.getHeader();
-        if (header.containsFieldsAndTraitsDefinitions(VARIANT_TYPE_TRAIT)) {
-            Optional<FeatureSet> declared = header.getFieldsAndTraitsDefinitions(VARIANT_TYPE_TRAIT).getResolvedFeatureSet();
-            if (declared.isPresent()) return declared;
-        }
-        return header.hasFeatureSet(VARIANT_TYPE_TRAIT)
-            ? Optional.of(header.getFeatureSet(VARIANT_TYPE_TRAIT))
-            : Optional.empty();
+        return dictionary.getHeader().resolveTraitSpecification(VARIANT_TYPE_TRAIT).getResolvedFeatureSet();
     }
 
     private static Optional<LiftTrait> findVariantTypeTrait(LiftVariant v) {
         return v.getTraits().stream()
-            .filter(t -> VARIANT_TYPE_TRAIT.equals(t.getSpecification().getName()))
+            .filter(t -> VARIANT_TYPE_TRAIT.equals(t.getName()))
             .findFirst();
     }
 

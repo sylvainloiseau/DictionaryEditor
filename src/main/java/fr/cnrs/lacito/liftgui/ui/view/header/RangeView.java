@@ -98,7 +98,7 @@ public final class RangeView implements DictionaryView {
                     Dialogs.error(I18n.get("cfg.rename"), I18n.get("cfg.idExists", newId));
                     return;
                 }
-                DictionaryQueries.renameFeature(d.getLiftDictionaryRegistry(), range, oldId, newId);
+                DictionaryQueries.renameFeature(range, oldId, newId);
                 reload();
             });
         });

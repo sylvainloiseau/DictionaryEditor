@@ -62,7 +62,7 @@ public final class FeatureSetView implements DictionaryView {
                 if (set.hasFeature(newId)) {
                     Dialogs.error(title, I18n.get("cfg.idExists", newId));
                 } else {
-                    DictionaryQueries.renameFeature(reg, set, oldId, newId);
+                    DictionaryQueries.renameFeature(set, oldId, newId);
                 }
             }
             reload.run();

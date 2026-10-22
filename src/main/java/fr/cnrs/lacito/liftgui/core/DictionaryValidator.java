@@ -45,14 +45,15 @@ public final class DictionaryValidator {
                 issues.add(new Issue("validate.danglingReference", describe(v) + " → " + v.getRefId().get()));
             }
         }
+        // A name declared nowhere: neither a definition nor, for a trait, a range.
         for (LiftField f : reg.getFields()) {
-            if (f.getSpecification().getKind() == LiftFieldAndTraitDefinitionKind.UNKNOWN) {
-                issues.add(new Issue("validate.undeclaredField", describe(f) + " : " + f.getSpecification().getName()));
+            if (f.getSpecification() instanceof UndeclaredName) {
+                issues.add(new Issue("validate.undeclaredField", describe(f) + " : " + f.getName()));
             }
         }
         for (LiftTrait t : reg.getTraits()) {
-            LiftFieldAndTraitDefinition spec = t.getSpecification();
-            if (spec.getKind() == LiftFieldAndTraitDefinitionKind.UNKNOWN) {
+            TraitSpecification spec = t.getSpecification();
+            if (spec instanceof UndeclaredName) {
                 issues.add(new Issue("validate.undeclaredTrait", describe(t) + " : " + spec.getName()));
             }
             spec.getResolvedFeatureSet().ifPresent(set -> {
