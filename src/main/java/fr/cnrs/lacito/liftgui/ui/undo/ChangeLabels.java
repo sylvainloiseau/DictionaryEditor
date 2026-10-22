@@ -16,6 +16,7 @@ import fr.cnrs.lacito.liftapi.change.ModelChange;
 import fr.cnrs.lacito.liftapi.change.ModelProperty;
 import fr.cnrs.lacito.liftapi.change.ValueChanged;
 import fr.cnrs.lacito.liftapi.model.AbstractLiftRoot;
+import fr.cnrs.lacito.liftapi.model.FeatureSet;
 import fr.cnrs.lacito.liftapi.model.Form;
 import fr.cnrs.lacito.liftapi.model.LiftEntry;
 import fr.cnrs.lacito.liftapi.model.LiftEtymology;
@@ -65,6 +66,8 @@ public final class ChangeLabels {
         return switch (c) {
             case ComponentAdded a -> I18n.get("undo.add", kind(a.component()));
             case ComponentRemoved r -> I18n.get(r.unregistered() ? "undo.delete" : "undo.move", kind(r.component()));
+            case ValueChanged<?> v when v.property() == ModelProperty.HREF && v.owner() instanceof FeatureSet s ->
+                I18n.get("undo.makeRangeInternal", s.getId());
             case ValueChanged<?> v -> I18n.get("undo.change", orElse("undo.prop." + v.property().name(), v.property().name()));
             case FeatureAdded f -> I18n.get("undo.add", I18n.get("undo.kind.Feature"));
             case FeatureRemoved f -> I18n.get("undo.delete", I18n.get("undo.kind.Feature"));

@@ -24,6 +24,9 @@ import javafx.scene.layout.VBox;
  * Edits a header feature set (note types, translation types…) in place: ids can be renamed,
  * descriptions edited, features added, and features that nothing uses deleted. Every change
  * is applied to the header immediately.
+ *
+ * A set defined in a shared {@code .lift-ranges} file is shown read-only, with a button
+ * that makes it editable in this dictionary.
  */
 public final class FeatureSetView implements DictionaryView {
 
@@ -40,9 +43,10 @@ public final class FeatureSetView implements DictionaryView {
         }
         LiftDictionaryRegistry reg = ctx.dictionary().getLiftDictionaryRegistry();
         String descLang = HeaderViews.firstMetaLanguage(ctx.dictionary());
+        boolean readOnly = set.isExternallyDefined();
 
         TableView<FeatureRow> table = new TableView<>();
-        table.setEditable(true);
+        table.setEditable(!readOnly);
         Runnable reload = () -> {
             table.getItems().setAll(EditorSupport.sortedFeatures(set).stream()
                 .map(f -> new FeatureRow(f, f.getId(),
@@ -84,6 +88,14 @@ public final class FeatureSetView implements DictionaryView {
         descCol.setPrefWidth(320);
 
         table.getColumns().addAll(List.of(idCol, usageCol, descCol));
+        if (readOnly) {
+            // Which values the .lift file itself declares, overriding the shared file.
+            TableColumn<FeatureRow, String> inlineCol = new TableColumn<>();
+            inlineCol.setCellValueFactory(cd -> new ReadOnlyStringWrapper(
+                cd.getValue().feature().isDeclaredInline() ? I18n.get("cfg.declaredInline") : ""));
+            inlineCol.setPrefWidth(140);
+            table.getColumns().add(inlineCol);
+        }
         reload.run();
 
         TextField addIdField = new TextField();
@@ -118,11 +130,17 @@ public final class FeatureSetView implements DictionaryView {
             reload.run();
         });
 
+        for (Node control : List.of(addIdField, addDescField, addBtn, removeBtn)) {
+            control.setDisable(readOnly);
+        }
         HBox controls = new HBox(8, addIdField, addDescField, addBtn, removeBtn);
         controls.setPadding(new Insets(6, 0, 0, 0));
         HBox.setHgrow(addIdField, Priority.ALWAYS);
         HBox.setHgrow(addDescField, Priority.ALWAYS);
-        VBox box = new VBox(10, HeaderViews.pageTitle(title), table, controls);
+        VBox box = new VBox(10, HeaderViews.pageTitle(title));
+        Node banner = HeaderViews.externalRangeBanner(ctx, set);
+        if (banner != null) box.getChildren().add(banner);
+        box.getChildren().addAll(table, controls);
         box.setPadding(new Insets(12));
         VBox.setVgrow(table, Priority.ALWAYS);
         node = box;

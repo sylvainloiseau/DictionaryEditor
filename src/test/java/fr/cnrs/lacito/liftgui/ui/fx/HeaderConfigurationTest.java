@@ -2,9 +2,13 @@ package fr.cnrs.lacito.liftgui.ui.fx;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.FeatureSet;
 import fr.cnrs.lacito.liftapi.model.LiftFieldAndTraitDefinition;
 import fr.cnrs.lacito.liftgui.ui.I18n;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
@@ -15,6 +19,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /** The dictionary configuration pages. */
 class HeaderConfigurationTest extends MainWindowTest {
@@ -28,10 +33,18 @@ class HeaderConfigurationTest extends MainWindowTest {
             .match((Node n) -> n instanceof TextField t && prompt.equals(t.getPromptText())).queryAs(TextField.class);
     }
 
+    /** The demo dictionary defines its ranges in a shared file: read-only until made internal. */
+    private void makeInternal(FeatureSet set) {
+        interact(() -> {
+            if (set.isExternallyDefined()) dictionary().getHeader().makeFeatureSetInternal(set);
+        });
+    }
+
     @Test
     void noteTypesCanBeAddedAndUnusedOnesDeleted() {
-        openView("nav.cfgManageNoteTypes");
         FeatureSet types = dictionary().getHeader().getNoteTypeManager();
+        makeInternal(types);
+        openView("nav.cfgManageNoteTypes");
         clickOn(centerField(I18n.get("config.addAbbr"))).write("new-type");
         fire(centerButton(I18n.get("btn.add")));
         assertTrue(types.hasFeature("new-type"));
@@ -47,8 +60,9 @@ class HeaderConfigurationTest extends MainWindowTest {
 
     @Test
     void aUsedNoteTypeIsNotDeleted() {
-        openView("nav.cfgManageNoteTypes");
         FeatureSet types = dictionary().getHeader().getNoteTypeManager();
+        makeInternal(types);
+        openView("nav.cfgManageNoteTypes");
         String used = types.getFeatures().keySet().stream()
             .filter(id -> dictionary().getLiftDictionaryRegistry().getNotes().stream()
                 .anyMatch(n -> n.getType() != null && id.equals(n.getType().getId())))
@@ -90,6 +104,7 @@ class HeaderConfigurationTest extends MainWindowTest {
         TreeItem<String> rangeItem = navLeaves().stream()
             .filter(i -> i.getParent() != null && I18n.get("nav.cfgRanges").equals(i.getParent().getValue()))
             .findFirst().orElseThrow();
+        makeInternal(dictionary().getHeader().getFeatureSet(rangeItem.getValue()));
         openNavItem(rangeItem.getValue());
         String rangeId = viewTitle();
         FeatureSet range = dictionary().getHeader().getFeatureSet(rangeId);
@@ -99,6 +114,36 @@ class HeaderConfigurationTest extends MainWindowTest {
         assertEquals(before + 1, range.getFeatures().size());
         TreeView<?> tree = lookup("#tableContainer .tree-view").queryAs(TreeView.class);
         assertEquals(before + 1, countItems(tree.getRoot()), "the tree shows the new element");
+    }
+
+    @Test
+    void aRangeOfASharedFileIsReadOnlyUntilItIsMadeEditable(@TempDir Path dir) throws Exception {
+        Files.writeString(dir.resolve("shared.lift-ranges"), """
+            <lift-ranges><range id="dialects"><range-element id="north"/></range></lift-ranges>
+            """);
+        File file = dir.resolve("test.lift").toFile();
+        Files.writeString(file.toPath(), """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <lift version="0.15" producer="test">
+            <header><ranges><range id="dialects" href="shared.lift-ranges"/></ranges></header>
+            <entry id="e1"><lexical-unit><form lang="xx"><text>kato</text></form></lexical-unit></entry>
+            </lift>
+            """);
+        LiftDictionary d = LiftDictionary.loadDictionaryFromFile(file);
+        interact(() -> document().load(d, file, false));
+        openView("nav.cfgManageNoteTypes"); // any view, to reach the ranges node
+        openNavItem("dialects");
+        FeatureSet dialects = d.getHeader().getFeatureSet("dialects");
+        assertTrue(centerButton(I18n.get("cfg.addElement")).isDisabled());
+        assertTrue(centerButton(I18n.get("cfg.rename")).isDisabled());
+
+        fire(centerButton(I18n.get("cfg.makeInternal")));
+        pressDialogButton(ButtonType.OK);
+        assertFalse(dialects.isExternallyDefined());
+        assertFalse(centerButton(I18n.get("cfg.addElement")).isDisabled());
+        clickOn(centerField(I18n.get("cfg.newElementLabel"))).write("south");
+        fire(centerButton(I18n.get("cfg.addElement")));
+        assertTrue(dialects.hasFeature("south"));
     }
 
     private static int countItems(TreeItem<?> item) {

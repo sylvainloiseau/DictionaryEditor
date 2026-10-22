@@ -5,8 +5,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.LiftEntry;
 import fr.cnrs.lacito.liftapi.model.LiftSense;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class DictionaryValidatorTest {
 
@@ -16,6 +19,35 @@ class DictionaryValidatorTest {
 
     private static List<String> keys(LiftDictionary d) {
         return DictionaryValidator.validate(d).stream().map(DictionaryValidator.Issue::key).toList();
+    }
+
+    @Test
+    void aRangeMissingFromItsSharedFileAndTheValuesItDoesNotDeclareAreReported(@TempDir Path dir) throws Exception {
+        Files.writeString(dir.resolve("shared.lift-ranges"), """
+            <lift-ranges><range id="note-type"><range-element id="grammar"/></range></lift-ranges>
+            """);
+        Path lift = dir.resolve("test.lift");
+        Files.writeString(lift, """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <lift version="0.15" producer="test">
+            <header><ranges>
+            <range id="note-type" href="shared.lift-ranges"/>
+            <range id="dialect" href="shared.lift-ranges"/>
+            </ranges></header>
+            <entry id="e1"><lexical-unit><form lang="xx"><text>kato</text></form></lexical-unit>
+            <sense><gloss lang="en"><text>cat</text></gloss></sense>
+            <note type="grammar"><form lang="en"><text>n.</text></form></note>
+            <note type="reference"><form lang="en"><text>p. 3</text></form></note>
+            </entry>
+            </lift>
+            """);
+        LiftDictionary d = LiftDictionary.loadDictionaryFromFile(lift.toFile());
+        List<DictionaryValidator.Issue> issues = DictionaryValidator.validate(d);
+        assertTrue(issues.contains(new DictionaryValidator.Issue("validate.externalRangeMissing",
+            "dialect : shared.lift-ranges")), issues.toString());
+        assertTrue(issues.contains(new DictionaryValidator.Issue("validate.valueNotInExternalRange",
+            "note-type = reference")), issues.toString());
+        assertFalse(issues.stream().anyMatch(i -> i.where().contains("grammar")), issues.toString());
     }
 
     @Test

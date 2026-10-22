@@ -34,6 +34,10 @@ class ComponentTablesTest extends MainWindowTest {
     private LiftAnnotation annotation;
     private LiftAnnotation glossAnnotation;
 
+    private static void internal(LiftHeader header, FeatureSet set) {
+        if (set.isExternallyDefined()) header.makeFeatureSetInternal(set);
+    }
+
     /** One component of each new kind, on an entry of the demo dictionary. */
     @BeforeEach
     void addComponents() {
@@ -59,6 +63,9 @@ class ComponentTablesTest extends MainWindowTest {
             pronunciation.addMedia(media);
             illustration = new LiftIllustration("pictures/word.png");
             sense.addIllustration(illustration);
+            // The demo dictionary defines its ranges in a shared file: read-only until made internal.
+            internal(h, h.getInverseTypeManager());
+            internal(h, h.getTranslationTypeManager());
             reversal = new LiftReversal(h.getInverseTypeManager().getOrCreateFeature("test-reversal"));
             reversal.getForms().add(new Form(objLang, "reversed"));
             sense.addReversal(reversal);
