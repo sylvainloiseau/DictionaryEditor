@@ -1,7 +1,7 @@
 # Dictionary editor for descriptive linguistics
 
 <p align="center">
-  <img src="https://github.com/sylvainloiseau/DictionaryEditor/src/main/resources/fr/cnrs/lacito/liftgui/ui/icons/app/icon-128.png" />
+  <img src="https://github.com/sylvainloiseau/DictionaryEditor/tree/main/src/main/resources/fr/cnrs/lacito/liftgui/ui/icons/icon-128.png" />
 </p>
 
 Application for editing dictionary compatible with the LIFT data format (This format is used by SIL Fieldworks and ELAN).
