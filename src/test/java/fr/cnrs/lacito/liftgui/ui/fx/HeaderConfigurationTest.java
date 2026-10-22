@@ -3,6 +3,7 @@ package fr.cnrs.lacito.liftgui.ui.fx;
 import static org.junit.jupiter.api.Assertions.*;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
+import fr.cnrs.lacito.liftapi.model.Feature;
 import fr.cnrs.lacito.liftapi.model.FeatureSet;
 import fr.cnrs.lacito.liftapi.model.LiftFieldAndTraitDefinition;
 import fr.cnrs.lacito.liftapi.model.LiftTrait;
@@ -37,10 +38,14 @@ class HeaderConfigurationTest extends MainWindowTest {
             .match((Node n) -> n instanceof TextField t && prompt.equals(t.getPromptText())).queryAs(TextField.class);
     }
 
-    /** The demo dictionary defines its ranges in a shared file: read-only until made internal. */
+    /**
+     * The demo dictionary defines its ranges in a shared file, or not at all: read-only
+     * until made internal, or declared.
+     */
     private void makeInternal(FeatureSet set) {
         interact(() -> {
             if (set.isExternallyDefined()) dictionary().getHeader().makeFeatureSetInternal(set);
+            if (!set.isDeclared()) dictionary().getHeader().declareFeatureSet(set);
         });
     }
 
@@ -266,6 +271,58 @@ class HeaderConfigurationTest extends MainWindowTest {
         assertEquals(I18n.get("cfg.deleteNotAllowed", 1L), dialog().getContentText());
         pressDialogButton(ButtonType.OK);
         assertTrue(d.getHeader().getFieldsAndTraitsDefinitions().contains(tags));
+    }
+
+    @Test
+    void anUndeclaredValueIsGreyAndCanBeDeclared(@TempDir Path dir) throws Exception {
+        File file = dir.resolve("test.lift").toFile();
+        Files.writeString(file.toPath(), """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <lift version="0.15" producer="test">
+            <header><ranges><range id="note-type"><range-element id="grammar"/></range></ranges></header>
+            <entry id="e1"><lexical-unit><form lang="xx"><text>kato</text></form></lexical-unit>
+            <note type="reference"><form lang="en"><text>p. 3</text></form></note></entry>
+            </lift>
+            """);
+        LiftDictionary d = LiftDictionary.loadDictionaryFromFile(file);
+        interact(() -> document().load(d, file, false));
+        openView("nav.cfgManageNoteTypes");
+        Feature reference = d.getHeader().getNoteTypeManager().getFeature("reference");
+        assertFalse(reference.isDeclared());
+        TableView<?> t = lookup("#tableContainer .table-view").queryAs(TableView.class);
+        assertTrue(lookup(".table-row-cell.undeclared").tryQuery().isPresent(), "the undeclared value is in grey");
+        Button declare = centerButton(I18n.get("cfg.declareValue"));
+        assertTrue(declare.isDisabled());
+        interact(() -> t.getItems().stream()
+            .filter(r -> r.toString().contains("id=reference,"))
+            .findFirst().ifPresent(r -> ((TableView<Object>) (TableView<?>) t).getSelectionModel().select(r)));
+        assertFalse(declare.isDisabled());
+        fire(declare);
+        assertTrue(reference.isDeclared());
+        assertFalse(lookup(".table-row-cell.undeclared").tryQuery().isPresent());
+    }
+
+    @Test
+    void anUndeclaredRangeCanBeDeclared(@TempDir Path dir) throws Exception {
+        File file = dir.resolve("test.lift").toFile();
+        Files.writeString(file.toPath(), """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <lift version="0.15" producer="test">
+            <entry id="e1"><lexical-unit><form lang="xx"><text>kato</text></form></lexical-unit>
+            <note type="reference"><form lang="en"><text>p. 3</text></form></note></entry>
+            </lift>
+            """);
+        LiftDictionary d = LiftDictionary.loadDictionaryFromFile(file);
+        interact(() -> document().load(d, file, false));
+        openView("nav.cfgManageNoteTypes");
+        FeatureSet types = d.getHeader().getNoteTypeManager();
+        assertFalse(types.isDeclared());
+        assertTrue(centerButton(I18n.get("btn.add")).isDisabled());
+
+        fire(centerButton(I18n.get("cfg.declareRange")));
+        assertTrue(types.isDeclared());
+        assertFalse(types.getFeature("reference").isDeclared(), "its values stay undeclared");
+        assertFalse(centerButton(I18n.get("btn.add")).isDisabled());
     }
 
     private static int countItems(TreeItem<?> item) {

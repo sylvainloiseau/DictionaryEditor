@@ -34,8 +34,10 @@ class ComponentTablesTest extends MainWindowTest {
     private LiftAnnotation annotation;
     private LiftAnnotation glossAnnotation;
 
-    private static void internal(LiftHeader header, FeatureSet set) {
+    /** A built-in set made writable: internal if it was external, declared if it was not. */
+    private static void writable(LiftHeader header, FeatureSet set) {
         if (set.isExternallyDefined()) header.makeFeatureSetInternal(set);
+        if (!set.isDeclared()) header.declareFeatureSet(set);
     }
 
     /** One component of each new kind, on an entry of the demo dictionary. */
@@ -63,9 +65,11 @@ class ComponentTablesTest extends MainWindowTest {
             pronunciation.addMedia(media);
             illustration = new LiftIllustration("pictures/word.png");
             sense.addIllustration(illustration);
-            // The demo dictionary defines its ranges in a shared file: read-only until made internal.
-            internal(h, h.getInverseTypeManager());
-            internal(h, h.getTranslationTypeManager());
+            // The demo dictionary defines its ranges in a shared file, or not at all: read-only
+            // until made internal, or declared.
+            writable(h, h.getInverseTypeManager());
+            writable(h, h.getTranslationTypeManager());
+            writable(h, h.getAnnotationTypeManager());
             reversal = new LiftReversal(h.getInverseTypeManager().getOrCreateFeature("test-reversal"));
             reversal.getForms().add(new Form(objLang, "reversed"));
             sense.addReversal(reversal);

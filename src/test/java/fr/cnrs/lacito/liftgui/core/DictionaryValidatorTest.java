@@ -45,9 +45,31 @@ class DictionaryValidatorTest {
         List<DictionaryValidator.Issue> issues = DictionaryValidator.validate(d);
         assertTrue(issues.contains(new DictionaryValidator.Issue("validate.externalRangeMissing",
             "dialect : shared.lift-ranges")), issues.toString());
-        assertTrue(issues.contains(new DictionaryValidator.Issue("validate.valueNotInExternalRange",
+        assertTrue(issues.contains(new DictionaryValidator.Issue("validate.undeclaredValue",
             "note-type = reference")), issues.toString());
         assertFalse(issues.stream().anyMatch(i -> i.where().contains("grammar")), issues.toString());
+    }
+
+    @Test
+    void undeclaredValuesAndRangesAreReported(@TempDir Path dir) throws Exception {
+        Path lift = dir.resolve("test.lift");
+        Files.writeString(lift, """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <lift version="0.15" producer="test">
+            <header><ranges><range id="colours"><range-element id="red"/></range></ranges>
+            <fields><field-definition name="colours" type="option" option-range="colours"/></fields></header>
+            <entry id="e1"><lexical-unit><form lang="xx"><text>kato</text></form></lexical-unit>
+            <trait name="colours" value="blue"/>
+            <sense><gloss lang="en"><text>cat</text></gloss><grammatical-info value="Noun"/></sense>
+            </entry>
+            </lift>
+            """);
+        List<DictionaryValidator.Issue> issues = DictionaryValidator.validate(LiftDictionary.loadDictionaryFromFile(lift.toFile()));
+        assertTrue(issues.contains(new DictionaryValidator.Issue("validate.undeclaredValue", "colours = blue")), issues.toString());
+        assertTrue(issues.contains(new DictionaryValidator.Issue("validate.undeclaredRange", "grammatical-info")), issues.toString());
+        assertTrue(issues.contains(new DictionaryValidator.Issue("validate.undeclaredValue", "grammatical-info = Noun")), issues.toString());
+        // An undeclared built-in range nothing uses is not reported.
+        assertFalse(issues.stream().anyMatch(i -> i.where().contains("annotation-type")), issues.toString());
     }
 
     @Test
@@ -74,7 +96,7 @@ class DictionaryValidatorTest {
     @Test
     void undeclaredTraitsAndFieldsAreReportedButNotTraitsNamedAfterARange() {
         LiftDictionary d = dictionary();
-        d.getHeader().addFeatureSet("status");
+        d.getHeader().addFeatureSet("status").addFeature("draft");
         d.getHeader().createTraitDefinition("register");
         LiftEntry e = d.getComponentBuilder().entry()
             .withForm("xx", "kato")

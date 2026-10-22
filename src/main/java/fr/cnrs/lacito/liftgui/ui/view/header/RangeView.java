@@ -43,7 +43,7 @@ public final class RangeView implements DictionaryView {
             return;
         }
         FeatureSet range = header.getFeatureSet(rangeId);
-        boolean readOnly = range.isExternallyDefined();
+        boolean readOnly = HeaderViews.isReadOnly(range);
 
         VBox props = new VBox(8);
         props.setPadding(new Insets(6));
@@ -97,7 +97,13 @@ public final class RangeView implements DictionaryView {
                     Dialogs.error(I18n.get("cfg.rename"), I18n.get("cfg.idExists", newId));
                     return;
                 }
-                range.changeFeatureId(sel.getValue(), newId);
+                try {
+                    range.changeFeatureId(sel.getValue(), newId);
+                } catch (IllegalStateException ex) {
+                    // A value the range does not declare: declare it first.
+                    Dialogs.error(I18n.get("cfg.rename"), I18n.get("cfg.valueReadOnly"));
+                    return;
+                }
                 reload();
             });
         });
@@ -108,7 +114,15 @@ public final class RangeView implements DictionaryView {
         HBox.setHgrow(newIdField, Priority.ALWAYS);
         HBox spacer = new HBox();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox actionRow = new HBox(8, deleteBtn, renameBtn, spacer, countLbl);
+        Button declareBtn = new Button(I18n.get("cfg.declareValue"));
+        declareBtn.setDisable(true);
+        tree.getSelectionModel().selectedItemProperty().addListener((obs, o, n) ->
+            declareBtn.setDisable(n == null || n.getValue() == null || n.getValue().isDeclared()));
+        declareBtn.setOnAction(e -> {
+            TreeItem<Feature> sel = tree.getSelectionModel().getSelectedItem();
+            if (sel != null && sel.getValue() != null) HeaderViews.declareValue(ctx, sel.getValue());
+        });
+        HBox actionRow = new HBox(8, deleteBtn, renameBtn, declareBtn, spacer, countLbl);
         for (Node control : List.of(newIdField, parentCombo, addBtn, deleteBtn, renameBtn)) {
             control.setDisable(readOnly);
         }
@@ -116,7 +130,7 @@ public final class RangeView implements DictionaryView {
         Label elemTitle = new Label(I18n.get("cfg.rangeElements2"));
         elemTitle.getStyleClass().add("page-subtitle");
         VBox box = new VBox(8);
-        Node banner = HeaderViews.externalRangeBanner(ctx, range);
+        Node banner = HeaderViews.readOnlyRangeBanner(ctx, range);
         if (banner != null) box.getChildren().add(banner);
         box.getChildren().addAll(propsPane, elemTitle, tree, addRow, actionRow);
         box.setPadding(new Insets(8));
@@ -138,9 +152,16 @@ public final class RangeView implements DictionaryView {
             @Override
             protected void updateItem(Feature item, boolean empty) {
                 super.updateItem(item, empty);
+                getStyleClass().remove(HeaderViews.UNDECLARED_STYLE);
+                setTooltip(null);
                 if (empty || item == null) {
                     setText(null);
                     return;
+                }
+                if (!item.isDeclared()) {
+                    // A value the range does not declare: in grey.
+                    getStyleClass().add(HeaderViews.UNDECLARED_STYLE);
+                    setTooltip(new Tooltip(I18n.get("cfg.undeclaredValue")));
                 }
                 String abbrev = EditorSupport.firstForm(item.getAbbrev());
                 String label = EditorSupport.firstForm(item.getLabel());
@@ -162,7 +183,7 @@ public final class RangeView implements DictionaryView {
         String abbrev = EditorSupport.firstForm(elem.getAbbrev());
         String title = !label.isBlank() ? label : !abbrev.isBlank() ? abbrev : I18n.get("cfg.rangeElement");
         LiftDictionary d = ctx.dictionary();
-        boolean readOnly = range.isExternallyDefined();
+        boolean readOnly = HeaderViews.isReadOnly(range) || !elem.isDeclared();
         ctx.panel().show(title, range.getId(), null)
             .section(I18n.get("cfg.label"), HeaderViews.multiTextEditor(d, elem.getLabel(), readOnly), true)
             .section(I18n.get("cfg.abbrev"), HeaderViews.multiTextEditor(d, elem.getAbbrev(), readOnly), true)

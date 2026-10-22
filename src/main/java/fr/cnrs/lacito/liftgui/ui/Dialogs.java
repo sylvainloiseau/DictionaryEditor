@@ -32,6 +32,24 @@ public final class Dialogs {
         a.showAndWait();
     }
 
+    /**
+     * A warning with a list of details (one per line), shown in an expandable, read-only
+     * text area.
+     */
+    public static void warnings(String title, String header, java.util.List<String> details) {
+        Alert a = new Alert(Alert.AlertType.WARNING);
+        a.setTitle(title);
+        a.setHeaderText(null);
+        a.setContentText(header);
+        javafx.scene.control.TextArea area = new javafx.scene.control.TextArea(String.join("\n", details));
+        area.setEditable(false);
+        area.setWrapText(true);
+        area.setPrefRowCount(12);
+        a.getDialogPane().setExpandableContent(area);
+        a.getDialogPane().setExpanded(true);
+        a.showAndWait();
+    }
+
     /** Asks for confirmation; true when the user chose OK. */
     public static boolean confirm(String title, String message) {
         Alert a = new Alert(Alert.AlertType.CONFIRMATION);

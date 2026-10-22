@@ -14,6 +14,8 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
+import javafx.beans.InvalidationListener;
+import javafx.beans.WeakInvalidationListener;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
@@ -29,6 +31,10 @@ public final class NavigationTree {
     /** The request of each leaf item. */
     private final Map<TreeItem<String>, ViewRequest> requests = new HashMap<>();
     private final TreeItem<String> rangesNode = new TreeItem<>(I18n.get(Keys.NAV_CFG_RANGES));
+    /** The range each item of the ranges node shows: an undeclared one is in grey. */
+    private final Map<TreeItem<String>, FeatureSet> rangeOfItem = new HashMap<>();
+    /** Redraws the items when a range is declared; held here, as the ranges hold it weakly. */
+    private final InvalidationListener redrawOnDeclaration = o -> redraw();
     private boolean ignoreSelection;
     /** The request of the view shown, as last given to {@link #select(ViewRequest)}. */
     private ViewRequest shown;
@@ -65,6 +71,9 @@ public final class NavigationTree {
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
                     setText(empty ? null : item);
+                    FeatureSet range = empty ? null : rangeOfItem.get(getTreeItem());
+                    getStyleClass().remove("undeclared");
+                    if (range != null && !range.isDeclared()) getStyleClass().add("undeclared");
                 }
             };
             // Clicking the highlighted item is not a selection change. When it shows a subset
@@ -99,13 +108,20 @@ public final class NavigationTree {
     public void setRanges(LiftHeader header) {
         rangesNode.getChildren().forEach(requests::remove);
         rangesNode.getChildren().clear();
+        rangeOfItem.clear();
         if (header == null) return;
         for (FeatureSet range : header.getFeatureSets()) {
             String label = range.getLabel().getForms().stream().findFirst().map(Form::toPlainText).orElse(range.getId());
             TreeItem<String> item = new TreeItem<>(label);
             requests.put(item, ViewRequest.range(range.getId()));
+            rangeOfItem.put(item, range);
+            range.declaredProperty().addListener(new WeakInvalidationListener(redrawOnDeclaration));
             rangesNode.getChildren().add(item);
         }
+    }
+
+    private void redraw() {
+        tree.refresh();
     }
 
     /** Highlights the item of a view without triggering a view change. */

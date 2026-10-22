@@ -2,7 +2,9 @@ package fr.cnrs.lacito.liftgui.ui.view.header;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.Feature;
+import fr.cnrs.lacito.liftapi.model.Feature;
 import fr.cnrs.lacito.liftapi.model.FeatureSet;
+import fr.cnrs.lacito.liftapi.model.LiftHeader;
 import fr.cnrs.lacito.liftapi.model.MultiText;
 import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
@@ -56,33 +58,84 @@ final class HeaderViews {
     }
 
     /**
-     * For a feature set defined in a shared {@code .lift-ranges} file, which is read-only:
-     * where it is defined, and a button that makes it editable in this dictionary (it is
-     * then saved in the {@code .lift} file, and no longer follows the shared file). The view
-     * is shown again once it is done. {@code null} for a set defined in the header.
+     * Whether a feature set is read-only: defined in a shared {@code .lift-ranges} file, or
+     * a built-in set the file does not declare.
      */
-    static Node externalRangeBanner(EditorContext ctx, FeatureSet set) {
-        if (!set.isExternallyDefined()) {
+    static boolean isReadOnly(FeatureSet set) {
+        return set.isExternallyDefined() || !set.isDeclared();
+    }
+
+    /**
+     * For a read-only feature set, why it is read-only and a button that makes it
+     * editable; the view is shown again once it is done. {@code null} for a set that can
+     * be edited.
+     *
+     * <ul>
+     * <li>defined in a shared {@code .lift-ranges} file: the button makes it editable in
+     * this dictionary (it is then saved in the {@code .lift} file, and no longer follows the
+     * shared file), after a confirmation;</li>
+     * <li>a built-in set the file does not declare: the button declares it (it is then
+     * saved, with the values declared in it).</li>
+     * </ul>
+     */
+    static Node readOnlyRangeBanner(EditorContext ctx, FeatureSet set) {
+        LiftHeader header = ctx.dictionary().getHeader();
+        Label why;
+        Button makeEditable;
+        if (set.isExternallyDefined()) {
+            String href = set.getHref().orElse("");
+            why = new Label(I18n.get(
+                set.isExternalDefinitionMissing() ? "cfg.externalRangeMissing" : "cfg.externalRange", href));
+            makeEditable = new Button(I18n.get("cfg.makeInternal"));
+            makeEditable.setOnAction(e -> {
+                if (Dialogs.confirm(I18n.get("cfg.makeInternal"), I18n.get("cfg.makeInternalConfirm", set.getId(), href))) {
+                    ctx.perform(I18n.get("undo.makeRangeInternal", set.getId()), set,
+                        () -> header.makeFeatureSetInternal(set));
+                    ctx.navigator().refresh();
+                }
+            });
+        } else if (!set.isDeclared()) {
+            why = new Label(I18n.get("cfg.undeclaredRange"));
+            makeEditable = new Button(I18n.get("cfg.declareRange"));
+            makeEditable.setOnAction(e -> {
+                ctx.perform(I18n.get("undo.declareRange", set.getId()), set, () -> header.declareFeatureSet(set));
+                ctx.navigator().refresh();
+            });
+        } else {
             return null;
         }
-        String href = set.getHref().orElse("");
-        Label where = new Label(I18n.get(
-            set.isExternalDefinitionMissing() ? "cfg.externalRangeMissing" : "cfg.externalRange", href));
-        where.setWrapText(true);
-        where.getStyleClass().add("muted-label");
-        Button makeInternal = new Button(I18n.get("cfg.makeInternal"));
-        makeInternal.setOnAction(e -> {
-            if (Dialogs.confirm(I18n.get("cfg.makeInternal"), I18n.get("cfg.makeInternalConfirm", set.getId(), href))) {
-                ctx.dictionary().getHeader().makeFeatureSetInternal(set);
-                ctx.navigator().refresh();
-            }
-        });
-        HBox banner = new HBox(8, where, makeInternal);
+        why.setWrapText(true);
+        why.getStyleClass().add("muted-label");
+        HBox banner = new HBox(8, why, makeEditable);
         banner.setAlignment(Pos.CENTER_LEFT);
         banner.setPadding(new Insets(4, 0, 4, 0));
-        HBox.setHgrow(where, Priority.ALWAYS);
+        HBox.setHgrow(why, Priority.ALWAYS);
         return banner;
     }
+
+    /**
+     * Declares a value its range does not declare, so that it can be edited and is saved.
+     * In a set defined in a shared file, the set is made editable in this dictionary first,
+     * after a confirmation; in a set the file does not declare, the set is declared with
+     * it. The view is shown again once it is done.
+     */
+    static void declareValue(EditorContext ctx, Feature value) {
+        LiftHeader header = ctx.dictionary().getHeader();
+        FeatureSet set = value.getParentFeatureSet();
+        boolean external = set.isExternallyDefined();
+        if (external && !Dialogs.confirm(I18n.get("cfg.declareValue"),
+            I18n.get("cfg.declareValueExternalConfirm", value.getId(), set.getId(), set.getHref().orElse("")))) {
+            return;
+        }
+        ctx.perform(I18n.get("undo.declareValue", value.getId()), value, () -> {
+            if (external) header.makeFeatureSetInternal(set);
+            header.declareFeature(value);
+        });
+        ctx.navigator().refresh();
+    }
+
+    /** The style of what its range or the file does not declare: grey. */
+    static final String UNDECLARED_STYLE = "undeclared";
 
     /**
      * Deletes a feature of a set, as one undo step. lift-api refuses a feature in use; the

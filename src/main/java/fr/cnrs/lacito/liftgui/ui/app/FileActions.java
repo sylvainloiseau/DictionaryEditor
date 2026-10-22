@@ -113,6 +113,11 @@ public final class FileActions {
         try {
             document.load(service.loadFromFile(f), f, false);
             if (recentFiles != null) recentFiles.add(f);
+            // What the file uses but does not declare: kept, read-only, not saved.
+            java.util.List<String> warnings = document.dictionary().getLoadWarnings();
+            if (!warnings.isEmpty()) {
+                Dialogs.warnings(I18n.get("loadWarnings.title"), I18n.get("loadWarnings.header", warnings.size()), warnings);
+            }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Ouverture du fichier LIFT", e);
             Dialogs.error(I18n.get(Keys.ERROR_OPEN), I18n.formatErrorMessage("error.open.detail", e));

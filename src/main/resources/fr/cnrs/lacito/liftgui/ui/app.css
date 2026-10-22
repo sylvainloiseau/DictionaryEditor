@@ -275,3 +275,13 @@
 .button:focused {
   -fx-cursor: hand;
 }
+
+/* What its range or the file does not declare (read-only, not saved): in grey. */
+.tree-cell.undeclared,
+.table-row-cell.undeclared .table-cell {
+  -fx-text-fill: #9aa5a8;
+}
+.tree-cell.undeclared:selected,
+.table-row-cell.undeclared:selected .table-cell {
+  -fx-text-fill: #d9dfe0;
+}

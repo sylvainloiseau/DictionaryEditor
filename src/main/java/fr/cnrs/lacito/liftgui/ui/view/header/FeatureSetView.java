@@ -3,6 +3,7 @@ package fr.cnrs.lacito.liftgui.ui.view.header;
 import fr.cnrs.lacito.liftapi.model.Feature;
 import fr.cnrs.lacito.liftapi.model.FeatureSet;
 import fr.cnrs.lacito.liftapi.model.Form;
+import fr.cnrs.lacito.liftapi.model.MultiText;
 import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.controls.EditorSupport;
@@ -40,10 +41,21 @@ public final class FeatureSetView implements DictionaryView {
             return;
         }
         String descLang = HeaderViews.firstMetaLanguage(ctx.dictionary());
-        boolean readOnly = set.isExternallyDefined();
+        boolean readOnly = HeaderViews.isReadOnly(set);
 
         TableView<FeatureRow> table = new TableView<>();
         table.setEditable(!readOnly);
+        // The values the range does not declare are in grey (and cannot be edited).
+        table.setRowFactory(tv -> new TableRow<>() {
+            @Override
+            protected void updateItem(FeatureRow row, boolean empty) {
+                super.updateItem(row, empty);
+                boolean undeclared = !empty && row != null && !row.feature().isDeclared();
+                getStyleClass().remove(HeaderViews.UNDECLARED_STYLE);
+                if (undeclared) getStyleClass().add(HeaderViews.UNDECLARED_STYLE);
+                setTooltip(undeclared ? new Tooltip(I18n.get("cfg.undeclaredValue")) : null);
+            }
+        });
         Runnable reload = () -> {
             table.getItems().setAll(EditorSupport.sortedFeatures(set).stream()
                 .map(f -> new FeatureRow(f, f.getId(),
@@ -63,7 +75,7 @@ public final class FeatureSetView implements DictionaryView {
                 if (set.hasFeature(newId)) {
                     Dialogs.error(title, I18n.get("cfg.idExists", newId));
                 } else {
-                    set.changeFeatureId(e.getRowValue().feature(), newId);
+                    editValue(title, () -> set.changeFeatureId(e.getRowValue().feature(), newId));
                 }
             }
             reload.run();
@@ -79,7 +91,8 @@ public final class FeatureSetView implements DictionaryView {
         descCol.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().description()));
         descCol.setCellFactory(TextFieldTableCell.forTableColumn());
         descCol.setOnEditCommit(e -> {
-            e.getRowValue().feature().getDescription().formTextProperty(descLang).set(e.getNewValue() == null ? "" : e.getNewValue());
+            // Through the model rather than formTextProperty, whose listener would swallow a refusal.
+            editValue(title, () -> setText(e.getRowValue().feature().getDescription(), descLang, e.getNewValue()));
             reload.run();
         });
         descCol.setPrefWidth(320);
@@ -124,17 +137,50 @@ public final class FeatureSetView implements DictionaryView {
         for (Node control : List.of(addIdField, addDescField, addBtn, removeBtn)) {
             control.setDisable(readOnly);
         }
-        HBox controls = new HBox(8, addIdField, addDescField, addBtn, removeBtn);
+        Button declareBtn = new Button(I18n.get("cfg.declareValue"));
+        declareBtn.setDisable(true);
+        table.getSelectionModel().selectedItemProperty().addListener((obs, o, n) ->
+            declareBtn.setDisable(n == null || n.feature().isDeclared()));
+        declareBtn.setOnAction(e -> {
+            FeatureRow sel = table.getSelectionModel().getSelectedItem();
+            if (sel != null) HeaderViews.declareValue(ctx, sel.feature());
+        });
+        HBox controls = new HBox(8, addIdField, addDescField, addBtn, removeBtn, declareBtn);
         controls.setPadding(new Insets(6, 0, 0, 0));
         HBox.setHgrow(addIdField, Priority.ALWAYS);
         HBox.setHgrow(addDescField, Priority.ALWAYS);
         VBox box = new VBox(10, HeaderViews.pageTitle(title));
-        Node banner = HeaderViews.externalRangeBanner(ctx, set);
+        Node banner = HeaderViews.readOnlyRangeBanner(ctx, set);
         if (banner != null) box.getChildren().add(banner);
         box.getChildren().addAll(table, controls);
         box.setPadding(new Insets(12));
         VBox.setVgrow(table, Priority.ALWAYS);
         node = box;
+    }
+
+    /** Sets the text of a language, removing the form when the text is blank. */
+    private static void setText(MultiText text, String lang, String value) {
+        String v = value == null ? "" : value;
+        var form = text.getForm(lang);
+        if (v.isBlank()) {
+            if (form.isPresent()) text.removeForm(lang);
+        } else if (form.isPresent()) {
+            form.get().changeText(v);
+        } else {
+            text.add(new Form(lang, v));
+        }
+    }
+
+    /**
+     * An edit of a value: refused by lift-api for a value its range does not declare - the
+     * user is told to declare it first.
+     */
+    private static void editValue(String title, Runnable edit) {
+        try {
+            edit.run();
+        } catch (IllegalStateException e) {
+            Dialogs.error(title, I18n.get("cfg.valueReadOnly"));
+        }
     }
 
     @Override

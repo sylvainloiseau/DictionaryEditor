@@ -10,8 +10,8 @@ import java.util.List;
  * Checks a dictionary for common problems: entries without form, senses without gloss or
  * definition, references to unknown entries or senses, fields and traits whose name is not
  * declared in the header, trait values outside their range, types not declared in the
- * header, ranges missing from the shared file their header refers to, values a shared
- * range does not declare, and empty forms.
+ * header, ranges missing from the shared file their header refers to, values their range
+ * does not declare, built-in ranges used but not declared, and empty forms.
  */
 public final class DictionaryValidator {
 
@@ -58,18 +58,21 @@ public final class DictionaryValidator {
                 issues.add(new Issue("validate.undeclaredTrait", describe(t) + " : " + spec.getName()));
             }
         }
-        // The ranges defined in a shared .lift-ranges file: a range the file lacks, and the
-        // values used that it does not declare (the dictionary holds them as bare features).
+        // What the file does not declare (kept, read-only, not saved): a range a shared
+        // .lift-ranges file lacks, a built-in range the file has no <range> for, and the
+        // values used that their range does not declare.
         for (FeatureSet set : dictionary.getHeader().getFeatureSets()) {
-            if (!set.isExternallyDefined()) continue;
-            if (set.isExternalDefinitionMissing()) {
+            if (set.isExternallyDefined() && set.isExternalDefinitionMissing()) {
                 issues.add(new Issue("validate.externalRangeMissing", set.getId() + " : " + set.getHref().orElse("")));
             }
+            if (!set.isDeclared() && !set.getFeatures().isEmpty()) {
+                issues.add(new Issue("validate.undeclaredRange", set.getId()));
+            }
             set.getFeatures().values().stream()
-                .filter(Feature::isUndeclaredInTheExternalFile)
+                .filter(f -> !f.isDeclared())
                 .map(Feature::getId)
                 .sorted()
-                .forEach(id -> issues.add(new Issue("validate.valueNotInExternalRange", set.getId() + " = " + id)));
+                .forEach(id -> issues.add(new Issue("validate.undeclaredValue", set.getId() + " = " + id)));
         }
         List<HasType> typed = new ArrayList<>();
         typed.addAll(reg.getNotes());
