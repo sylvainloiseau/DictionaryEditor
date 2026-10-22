@@ -14,11 +14,11 @@ Pick an installer for your plateform from the [github release page](https://gith
 
 ### Listing entries:
 
-![Listing entity](Doc/img/Entries.png)
+![Listing entity](Doc/img/entries.png)
 
 ### Listing Senses
 
-![Listing entity](Doc/img/Senses.png)
+![Listing entity](Doc/img/Sense.png)
 
 ### Browse note type
 
