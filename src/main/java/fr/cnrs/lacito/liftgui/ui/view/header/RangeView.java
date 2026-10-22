@@ -5,7 +5,6 @@ import fr.cnrs.lacito.liftapi.model.Feature;
 import fr.cnrs.lacito.liftapi.model.FeatureSet;
 import fr.cnrs.lacito.liftapi.model.Form;
 import fr.cnrs.lacito.liftapi.model.LiftHeader;
-import fr.cnrs.lacito.liftgui.core.DictionaryQueries;
 import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
@@ -82,13 +81,7 @@ public final class RangeView implements DictionaryView {
         deleteBtn.setOnAction(e -> {
             TreeItem<Feature> sel = tree.getSelectionModel().getSelectedItem();
             if (sel == null || sel.getValue() == null) return;
-            long usage = DictionaryQueries.countFeatureUsage(d.getLiftDictionaryRegistry(), sel.getValue());
-            if (usage > 0) {
-                Dialogs.error(I18n.get("btn.delete"), I18n.get("cfg.deleteNotAllowed", usage));
-                return;
-            }
-            range.removeFeature(sel.getValue().getId());
-            reload();
+            if (HeaderViews.deleteFeature(ctx, range, sel.getValue())) reload();
         });
 
         Button renameBtn = new Button(I18n.get("cfg.rename"));
@@ -104,7 +97,7 @@ public final class RangeView implements DictionaryView {
                     Dialogs.error(I18n.get("cfg.rename"), I18n.get("cfg.idExists", newId));
                     return;
                 }
-                DictionaryQueries.renameFeature(range, oldId, newId);
+                range.changeFeatureId(sel.getValue(), newId);
                 reload();
             });
         });

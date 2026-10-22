@@ -5,15 +5,19 @@ import static org.junit.jupiter.api.Assertions.*;
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.FeatureSet;
 import fr.cnrs.lacito.liftapi.model.LiftFieldAndTraitDefinition;
+import fr.cnrs.lacito.liftapi.model.LiftTrait;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import javafx.event.Event;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.DialogPane;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TablePosition;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TreeItem;
@@ -144,6 +148,124 @@ class HeaderConfigurationTest extends MainWindowTest {
         clickOn(centerField(I18n.get("cfg.newElementLabel"))).write("south");
         fire(centerButton(I18n.get("cfg.addElement")));
         assertTrue(dialects.hasFeature("south"));
+    }
+
+    /**
+     * An inline (so editable) note-type range whose values are used in every way lift-api
+     * counts: {@code general} is a parent, {@code flagged} the value of a range element's
+     * trait, {@code picked} part of a collection, {@code named} the value of a trait named
+     * after the range; {@code free} is unused.
+     */
+    private LiftDictionary loadUsageDictionary(Path dir) throws Exception {
+        File file = dir.resolve("usage.lift").toFile();
+        Files.writeString(file.toPath(), """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <lift version="0.15" producer="test">
+            <header>
+            <ranges>
+            <range id="note-type">
+              <range-element id="general"/>
+              <range-element id="sub" parent="general"/>
+              <range-element id="flagged"/>
+              <range-element id="carrier"><trait name="note-type" value="flagged"/></range-element>
+              <range-element id="picked"/>
+              <range-element id="named"/>
+              <range-element id="free"/>
+            </range>
+            </ranges>
+            <fields>
+            <field-definition name="tags" type="option-collection" option-range="note-type"/>
+            </fields>
+            </header>
+            <entry id="e1">
+            <lexical-unit><form lang="xx"><text>kato</text></form></lexical-unit>
+            <trait name="tags" value="picked, sub"/>
+            <trait name="note-type" value="named"/>
+            </entry>
+            </lift>
+            """);
+        LiftDictionary d = LiftDictionary.loadDictionaryFromFile(file);
+        interact(() -> document().load(d, file, false));
+        return d;
+    }
+
+    /** The row of the feature {@code id} in the center table (rows are records). */
+    private Object featureRow(String id) {
+        return table().getItems().stream()
+            .filter(r -> r.toString().contains(", id=" + id + ","))
+            .findFirst().orElseThrow();
+    }
+
+    private static String usageOf(Object row) {
+        String s = row.toString();
+        return s.substring(s.lastIndexOf("usage=") + "usage=".length(), s.length() - 1);
+    }
+
+    private void selectFeatureRow(String id) {
+        Object row = featureRow(id);
+        interact(() -> ((TableView<Object>) table()).getSelectionModel().select(row));
+    }
+
+    @Test
+    void theUsesColumnCountsWhatLiftApiCounts(@TempDir Path dir) throws Exception {
+        loadUsageDictionary(dir);
+        openView("nav.cfgManageNoteTypes");
+        assertEquals("1", usageOf(featureRow("general")), "a parent of another value");
+        assertEquals("1", usageOf(featureRow("flagged")), "the trait of a range element");
+        assertEquals("1", usageOf(featureRow("picked")), "a value of a collection");
+        assertEquals("1", usageOf(featureRow("named")), "a trait named after the range");
+        assertEquals("0", usageOf(featureRow("free")));
+    }
+
+    @Test
+    void deletingAValueUsedOnlyAsAParentIsRefusedWithTheNumber(@TempDir Path dir) throws Exception {
+        LiftDictionary d = loadUsageDictionary(dir);
+        FeatureSet types = d.getHeader().getNoteTypeManager();
+        openView("nav.cfgManageNoteTypes");
+        selectFeatureRow("general");
+        fire(centerButton(I18n.get("btn.delete")));
+        assertTrue(dialogOpen(), "an error explains why");
+        assertEquals(I18n.get("cfg.featureInUse", 1L), dialog().getContentText());
+        pressDialogButton(ButtonType.OK);
+        assertTrue(types.hasFeature("general"));
+        assertSame(types.getFeature("general"), types.getFeature("sub").superordinateFeatureProperty().get());
+        assertFalse(isDirty());
+    }
+
+    @Test
+    void renamingAValueRenamesItsTraitsAndOneUndoRestoresBoth(@TempDir Path dir) throws Exception {
+        LiftDictionary d = loadUsageDictionary(dir);
+        FeatureSet types = d.getHeader().getNoteTypeManager();
+        LiftTrait trait = d.getLiftDictionaryRegistry().getTraits().stream()
+            .filter(t -> "note-type".equals(t.getName()) && "named".equals(t.getValue()))
+            .findFirst().orElseThrow();
+        openView("nav.cfgManageNoteTypes");
+        TableView<Object> t = (TableView<Object>) table();
+        TableColumn<Object, String> idCol = (TableColumn<Object, String>) t.getColumns().get(0);
+        int index = t.getItems().indexOf(featureRow("named"));
+        interact(() -> Event.fireEvent(idCol, new TableColumn.CellEditEvent<>(t,
+            new TablePosition<>(t, index, idCol), TableColumn.editCommitEvent(), "renamed")));
+        assertTrue(types.hasFeature("renamed"));
+        assertEquals("renamed", trait.getValue());
+
+        fire(lookup("#undoButton").queryButton());
+        assertTrue(types.hasFeature("named"));
+        assertFalse(types.hasFeature("renamed"));
+        assertEquals("named", trait.getValue());
+    }
+
+    @Test
+    void deletingAUsedDefinitionIsRefusedWithTheNumber(@TempDir Path dir) throws Exception {
+        LiftDictionary d = loadUsageDictionary(dir);
+        LiftFieldAndTraitDefinition tags = d.getHeader().getFieldsAndTraitsDefinitions().stream()
+            .filter(fd -> "tags".equals(fd.getName())).findFirst().orElseThrow();
+        openView("nav.cfgFieldDefs");
+        interact(() -> ((TableView<Object>) table()).getSelectionModel().select(tags));
+        fire(centerButton(I18n.get("btn.delete")));
+        assertTrue(dialogOpen(), "an error explains why");
+        assertEquals(I18n.get("cfg.deleteNotAllowed", 1L), dialog().getContentText());
+        pressDialogButton(ButtonType.OK);
+        assertTrue(d.getHeader().getFieldsAndTraitsDefinitions().contains(tags));
     }
 
     private static int countItems(TreeItem<?> item) {

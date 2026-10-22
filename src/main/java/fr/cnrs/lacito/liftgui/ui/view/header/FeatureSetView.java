@@ -1,10 +1,8 @@
 package fr.cnrs.lacito.liftgui.ui.view.header;
 
-import fr.cnrs.lacito.liftapi.LiftDictionaryRegistry;
 import fr.cnrs.lacito.liftapi.model.Feature;
 import fr.cnrs.lacito.liftapi.model.FeatureSet;
 import fr.cnrs.lacito.liftapi.model.Form;
-import fr.cnrs.lacito.liftgui.core.DictionaryQueries;
 import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.controls.EditorSupport;
@@ -41,7 +39,6 @@ public final class FeatureSetView implements DictionaryView {
             node = new Label(I18n.get("cfg.noHeader"));
             return;
         }
-        LiftDictionaryRegistry reg = ctx.dictionary().getLiftDictionaryRegistry();
         String descLang = HeaderViews.firstMetaLanguage(ctx.dictionary());
         boolean readOnly = set.isExternallyDefined();
 
@@ -51,7 +48,7 @@ public final class FeatureSetView implements DictionaryView {
             table.getItems().setAll(EditorSupport.sortedFeatures(set).stream()
                 .map(f -> new FeatureRow(f, f.getId(),
                     f.getDescription().getForm(descLang).map(Form::toPlainText).orElse(""),
-                    DictionaryQueries.countFeatureUsage(reg, f)))
+                    ctx.dictionary().getHeader().countUses(f)))
                 .toList());
             ctx.showCount(table.getItems().size(), table.getItems().size());
         };
@@ -66,7 +63,7 @@ public final class FeatureSetView implements DictionaryView {
                 if (set.hasFeature(newId)) {
                     Dialogs.error(title, I18n.get("cfg.idExists", newId));
                 } else {
-                    DictionaryQueries.renameFeature(set, oldId, newId);
+                    set.changeFeatureId(e.getRowValue().feature(), newId);
                 }
             }
             reload.run();
@@ -121,13 +118,7 @@ public final class FeatureSetView implements DictionaryView {
         removeBtn.setOnAction(e -> {
             FeatureRow sel = table.getSelectionModel().getSelectedItem();
             if (sel == null) return;
-            long usage = DictionaryQueries.countFeatureUsage(reg, sel.feature());
-            if (usage > 0) {
-                Dialogs.error(I18n.get("btn.delete"), I18n.get("cfg.deleteNotAllowed", usage));
-                return;
-            }
-            set.removeFeature(sel.id());
-            reload.run();
+            if (HeaderViews.deleteFeature(ctx, set, sel.feature())) reload.run();
         });
 
         for (Node control : List.of(addIdField, addDescField, addBtn, removeBtn)) {

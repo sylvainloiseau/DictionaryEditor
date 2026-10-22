@@ -1,6 +1,7 @@
 package fr.cnrs.lacito.liftgui.ui.view.header;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
+import fr.cnrs.lacito.liftapi.model.Feature;
 import fr.cnrs.lacito.liftapi.model.FeatureSet;
 import fr.cnrs.lacito.liftapi.model.MultiText;
 import fr.cnrs.lacito.liftgui.ui.Dialogs;
@@ -81,6 +82,27 @@ final class HeaderViews {
         banner.setPadding(new Insets(4, 0, 4, 0));
         HBox.setHgrow(where, Priority.ALWAYS);
         return banner;
+    }
+
+    /**
+     * Deletes a feature of a set, as one undo step. lift-api refuses a feature in use; the
+     * user is told how many uses it has, parent links included (they do not show in the
+     * entries).
+     *
+     * @return whether the feature was deleted
+     */
+    static boolean deleteFeature(EditorContext ctx, FeatureSet set, Feature f) {
+        try {
+            ctx.perform(I18n.get("undo.delete", I18n.get("undo.kind.Feature") + " " + f.getId()), set,
+                () -> set.removeFeature(f.getId()));
+            return true;
+        } catch (IllegalStateException e) {
+            long uses = ctx.dictionary().getHeader().countUses(f);
+            Dialogs.error(I18n.get("btn.delete"), uses > 0
+                ? I18n.get("cfg.featureInUse", uses)
+                : e.getMessage());
+            return false;
+        }
     }
 
     /** The first meta language (sorted), used for descriptions edited in tables. */

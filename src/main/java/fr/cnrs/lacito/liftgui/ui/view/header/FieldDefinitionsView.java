@@ -1,9 +1,7 @@
 package fr.cnrs.lacito.liftgui.ui.view.header;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
-import fr.cnrs.lacito.liftapi.LiftDictionaryRegistry;
 import fr.cnrs.lacito.liftapi.model.*;
-import fr.cnrs.lacito.liftgui.core.DictionaryQueries;
 import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
@@ -42,12 +40,15 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
         deleteBtn.setOnAction(e -> {
             LiftFieldAndTraitDefinition sel = table.table().getSelectionModel().getSelectedItem();
             if (sel == null) return;
-            long usage = DictionaryQueries.countFieldOrTraitUsage(ctx.dictionary().getLiftDictionaryRegistry(), sel);
-            if (usage > 0) {
-                Dialogs.error(I18n.get("btn.delete"), I18n.get("cfg.deleteNotAllowed", usage));
+            // lift-api refuses a definition in use; the user is told how many uses it has.
+            try {
+                ctx.perform(I18n.get("undo.delete", I18n.get("undo.kind.LiftFieldAndTraitDefinition") + " " + sel.getName()),
+                    null, () -> header.removeFieldOrTraitDefinition(sel));
+            } catch (IllegalStateException ex) {
+                long uses = header.countUses(sel);
+                Dialogs.error(I18n.get("btn.delete"), uses > 0 ? I18n.get("cfg.deleteNotAllowed", uses) : ex.getMessage());
                 return;
             }
-            header.removeFieldOrTraitDefinition(sel);
             table.source().remove(sel);
         });
         HBox controls = new HBox(8, addBtn, deleteBtn);
@@ -56,11 +57,12 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
     }
 
     private static List<ColumnSpec<LiftFieldAndTraitDefinition>> columns(LiftDictionary d) {
-        // Usage counts, computed once.
-        LiftDictionaryRegistry reg = d.getLiftDictionaryRegistry();
+        // Usage counts (the fields and traits holding each definition, the header's included),
+        // computed once.
+        LiftHeader header = d.getHeader();
         Map<LiftFieldAndTraitDefinition, Long> usage = new HashMap<>();
-        for (LiftFieldAndTraitDefinition fd : d.getHeader().getFieldsAndTraitsDefinitions()) {
-            usage.put(fd, DictionaryQueries.countFieldOrTraitUsage(reg, fd));
+        for (LiftFieldAndTraitDefinition fd : header.getFieldsAndTraitsDefinitions()) {
+            usage.put(fd, header.countUses(fd));
         }
         return List.of(
             Columns.text("fieldDef.name", I18n.get("cfg.fieldDefName"), LiftFieldAndTraitDefinition::getName),
@@ -69,7 +71,7 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
             Columns.text("fieldDef.targets", I18n.get("cfg.targets"), LiftFieldAndTraitDefinition::getTargetAsString),
             Columns.text("fieldDef.description", I18n.get("cfg.description"), fd -> EditorSupport.firstForm(fd.getDescription())),
             Columns.text("fieldDef.usage", I18n.get("cfg.usageCount"),
-                fd -> String.valueOf(usage.computeIfAbsent(fd, x -> DictionaryQueries.countFieldOrTraitUsage(reg, x))))
+                fd -> String.valueOf(usage.computeIfAbsent(fd, header::countUses)))
         );
     }
 
@@ -164,7 +166,7 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
                 Dialogs.error(I18n.get("cfg.fieldDefType"), I18n.get("error.invalidValue", n));
             } catch (IllegalStateException ex) {
                 // The values of the fields or traits that use it depend on the data model.
-                long usage = DictionaryQueries.countFieldOrTraitUsage(ctx.dictionary().getLiftDictionaryRegistry(), fd);
+                long usage = ctx.dictionary().getHeader().countUses(fd);
                 Dialogs.error(I18n.get("cfg.fieldDefType"), I18n.get("cfg.typeChangeNotAllowed", usage));
                 restoring[0] = true;
                 try {
@@ -230,7 +232,7 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
                 fd.setResolvedRange(Optional.ofNullable(n));
             } catch (IllegalStateException ex) {
                 // The traits that use it hold features of the current range.
-                long usage = DictionaryQueries.countFieldOrTraitUsage(ctx.dictionary().getLiftDictionaryRegistry(), fd);
+                long usage = ctx.dictionary().getHeader().countUses(fd);
                 Dialogs.error(I18n.get("cfg.optionRange"), I18n.get("cfg.rangeChangeNotAllowed", usage));
                 restoringRange[0] = true;
                 try {

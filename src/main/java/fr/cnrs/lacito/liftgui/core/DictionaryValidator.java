@@ -57,14 +57,6 @@ public final class DictionaryValidator {
             if (spec instanceof UndeclaredName) {
                 issues.add(new Issue("validate.undeclaredTrait", describe(t) + " : " + spec.getName()));
             }
-            spec.getResolvedFeatureSet().ifPresent(set -> {
-                for (String token : DictionaryQueries.traitValueTokens(t)) {
-                    if (!set.hasFeature(token)) {
-                        issues.add(new Issue("validate.traitValueOutOfRange",
-                            describe(t) + " : " + spec.getName() + " = " + token));
-                    }
-                }
-            });
         }
         // The ranges defined in a shared .lift-ranges file: a range the file lacks, and the
         // values used that it does not declare (the dictionary holds them as bare features).
