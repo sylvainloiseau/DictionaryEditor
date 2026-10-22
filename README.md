@@ -8,7 +8,25 @@ Pick an installer for your plateform from the [github release page](https://gith
 
 ## Usage
 
-[](Doc/img/entries)
+- DictionaryEditor profide a complete access to all the components of the LIFT data model: entries, sense, example, translation, illustration, trait, note, field, etc.
+- It offers form for individual object and tables for each type of component, helping to increase comprehensiveness and consistency of the lexicographic description: missing field in a give language or field is visible.
+- It offers browsers for categories of field, note, trait, annotation, and feature set
+
+### Listing entries:
+
+![Listing entity](Doc/img/Entries.png)
+
+### Listing Senses
+
+![Listing entity](Doc/img/Senses.png)
+
+### Browse note type
+
+![Listing entity](Doc/img/BrowseNoteType.png)
+
+### Managing part of speech
+
+![Listing entity](Doc/img/GramInfo.png)
 
 ## Installation from sources
 
@@ -134,11 +152,11 @@ The artifacts are attached to the corresponding **Release** on GitHub (`.deb`, `
 
 ## Icon
 
-The application icon is plate 1 of:
+The application icon is plate 16 of:
 
-> Le Vaillant, François. *Histoire naturelle des oiseaux de paradis et des rolliers, suivie de celle des toucans et des barbus*. Vol. 1. Paris: Denné le jeune, Perlet, 1806. Plate 1: « Le grand Oiseau de Paradis, émeraude, mâle » (the greater bird-of-paradise, *Paradisaea apoda*, male), painted by Jacques Barraband, engraved by Pérée, printed by Langlois. DOI: [10.5962/bhl.title.61652](https://doi.org/10.5962/bhl.title.61652).
+> Le Vaillant, François. *Histoire naturelle des oiseaux de paradis et des rolliers, suivie de celle des toucans et des barbus*. Vol. 1. Paris: Denné le jeune, Perlet, 1806. Plate 16: « Le Nébuleux, étalant ses parures » (the "Nébuleux" bird-of-paradise displaying its plumes), painted by Jacques Barraband, engraved by Pérée, printed by Langlois. DOI: [10.5962/bhl.title.61652](https://doi.org/10.5962/bhl.title.61652).
 
-The scan is from the Smithsonian Libraries copy, digitised by the [Biodiversity Heritage Library](https://www.biodiversitylibrary.org/page/40634945). The file used is [Histoire naturelle des oiseaux de paradis et des rolliers (No. 1) (8112348391).jpg](https://commons.wikimedia.org/wiki/File:Histoire_naturelle_des_oiseaux_de_paradis_et_des_rolliers_(No._1)_(8112348391).jpg) on Wikimedia Commons. The illustration is in the public domain.
+The scan is from the Smithsonian Libraries copy, digitised by the [Biodiversity Heritage Library](https://www.biodiversitylibrary.org/page/40634990). The file used is [Histoire naturelle des oiseaux de paradis et des rolliers (No. 16) (8112364012).jpg](https://commons.wikimedia.org/wiki/File:Histoire_naturelle_des_oiseaux_de_paradis_et_des_rolliers_(No._16)_(8112364012).jpg) on Wikimedia Commons. The illustration is in the public domain. For the icon, the plate was cropped to the bird, its paper whitened (the uneven lighting evened out, a fold line removed), and white margins added to make it square.
 
 ## Authors
 

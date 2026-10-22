@@ -1,68 +1,11 @@
-quand on change un Id d'un LiftHeaderRangeElement, il faut mettre à jour tous les hash
-(AbstractNotable, LiftExemple : translation)
-relationsProperty et etymologyProperty dns LiftEntry (et autres ?)
-LiftReversal : où ?
-
-dans MainController,             element.setId(newId); -> bug, le Map id -> obj n'est plus bon.
-
-adapter builder et writer, renomer type et idref and unmarshallingType et unmashallingRef.
-
-dans LiftRange : utiliser, rangeContent2 créer getRangeElementProperty, addElementProperty, etc. ; add listener.
-
-finaliser PostUnmarshalling : pointer réellement sur les objets.
-Finir LiftXMLFactoryNew
-Finaliser entry depuis le handler et "addEntryToDictionary"
-garder RefID pour le contrôle des références
-
-registry et component sont concurrent dans l'API LiftDictionary
-on ne peut récupérer le DIctionaryComponent avec un getter.
-quand un dictionnaire est créé avec un Component, devrait peupler le registry et être abandonné.
-
-Quand un élément est retiré du dictionnaire, protester si il est référencé par un autre élément (refId) et ne le retirer que s'il n'est pas référencé.
 
 
-Dans registry, les SimpleListProperty devraient être ReadOnly puisque dérivées des map
-Finir d'implémente remove
-Chercher un Sense par gloss, une entrée par form... avoir des map pour récupérer les senses par gloss ou form ?
+##
 
-Refactoring de l'API pour soulager le MainController:
+16, 33, 41
 
-MainController
+> Le Vaillant, François. *Histoire naturelle des oiseaux de paradis et des rolliers, suivie de celle des toucans et des barbus*. Vol. 1. Paris: Denné le jeune, Perlet, 1806. Plate 1: « Le grand Oiseau de Paradis, émeraude, mâle » (the greater bird-of-paradise, *Paradisaea apoda*, male), painted by Jacques Barraband, engraved by Pérée, printed by Langlois. DOI: [10.5962/bhl.title.61652](https://doi.org/10.5962/bhl.title.61652).
 
-   ensureHeaderComplete()
-     ajoute "cfg.autoAdded"
-     doit être fait à la fin du chargement avec une fonction "searchForFieldTraitUsage..."
-     ou "discoverNewFieldTrait" dans le dictionary
-     ou
-     discoverUndocumentedFeature()
+The scan is from the Smithsonian Libraries copy, digitised by the [Biodiversity Heritage Library](https://www.biodiversitylibrary.org/page/40634945). The file used is [Histoire naturelle des oiseaux de paradis et des rolliers (No. 1) (8112348391).jpg](https://commons.wikimedia.org/wiki/File:Histoire_naturelle_des_oiseaux_de_paradis_et_des_rolliers_(No._1)_(8112348391).jpg) on Wikimedia Commons. The illustration is in the public domain.
 
-    /** Adds a language by inserting an empty form in the first available multitext of the appropriate type. */
-    private boolean addLanguageToDictionary
-
-    ->  faire dans le header.
-
-    getKnownTraitValues
-      voir rempalcment dansDictionaryValue
-
-  getObjectLanguages
-  getMetaLanguages
-  getKnownTraitNamesFor(LiftFieldAndTraitDefinitionTarget)
-  getKnownFieldTypesFor(LiftFieldAndTraitDefinitionTarget target) {
-  getKnownFieldTypes : plusieurs occurrences dans MainController
-  getKnownAnnotationNames
-  getKnownNoteTypes
-  getKnownRelationTypes
-  getKnownGramInfoValues
-  getHeaderRangeValues private List<String> getHeaderRangeValues(String rangeId)
-  getFactory
-
-  LiftFieldAndTraitDefinitionTarget -> LiftFieldAndTraitDefinitionHostElement
-
-  in showAddEtymologyDialog see knownTypes : stream all entry/etymology in order to extract etymology types
-
-- Prevoir dans dictionary :
-  rajouter note_type, translation_type relation_type dans le header
-
-  changement :
-  - ID example
-    - note_type, translation_type relation_type grammatical-info dans le header
+The previous icon, made the same way from plate 1 (« Le grand Oiseau de Paradis, émeraude, mâle », the greater bird-of-paradise, *Paradisaea apoda*, male; [Commons file](https://commons.wikimedia.org/wiki/File:Histoire_naturelle_des_oiseaux_de_paradis_et_des_rolliers_(No._1)_(8112348391).jpg), [BHL page](https://www.biodiversitylibrary.org/page/40634945)), is kept in `Doc/icon/plate-01/`.
