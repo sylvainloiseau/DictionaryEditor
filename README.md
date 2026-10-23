@@ -4,7 +4,7 @@
   <img src="https://github.com/sylvainloiseau/DictionaryEditor/blob/main/src/main/resources/fr/cnrs/lacito/liftgui/ui/icons/app/icon-256.png?raw=true" />
 </p>
 
-Application for editing dictionary compatible with the LIFT data format (This format is used by SIL Fieldworks and ELAN).
+Application for editing dictionary compatible with the [Lexicon Interchange FormaT - LIFT](https://github.com/sillsdev/lift-standard) data format (format is used by [SIL Fieldworks](https://software.sil.org/fr/fieldworks/) and [ELAN](https://archive.mpi.nl/tla/elan)).
 
 ## Installation
 
