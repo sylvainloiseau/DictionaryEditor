@@ -15,6 +15,7 @@ Pick an installer for your plateform from the [github release page](https://gith
 - DictionaryEditor profide a complete access to all the components of the LIFT data model: entries, sense, example, translation, illustration, trait, note, field, etc.
 - It offers form for individual object and tables for each type of component, helping to increase comprehensiveness and consistency of the lexicographic description: missing field in a give language or field is visible.
 - It offers browsers for categories of field, note, trait, annotation, and feature set
+- It exports the dictionary as a LaTeX document, and as a PDF when XeLaTeX or LuaLaTeX is installed (Tools ▸ Export as LaTeX / PDF): the polyglossia language and the font of each language, a thematic part by semantic domain, the illustrations as figures, and a quick preview on a sample. The settings can be saved as a JSON file, which `lift-api latex --config` also reads. A custom XSLT stylesheet can replace parts of the bundled ones (the LaTeX macros, the abbreviations…); the dialog creates a starting one.
 
 ### Listing entries:
 

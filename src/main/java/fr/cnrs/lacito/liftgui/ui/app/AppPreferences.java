@@ -82,6 +82,62 @@ public final class AppPreferences {
         return dir.isDirectory() ? dir : null;
     }
 
+    /* ─── LaTeX export ─── */
+
+    private static final String LATEX_PROGRAM = "latex.program.";
+    private static final String LATEX_OPEN_PDF = "latex.openPdf";
+    private static final String LATEX_SETTINGS = "latex.settings.";
+    private static final String LATEX_OUTPUT = "latex.output.";
+
+    /** The program chosen for an engine kind (xelatex, lualatex), or null: it belongs to the machine. */
+    public String latexProgram(String kind) {
+        return prefs.get(LATEX_PROGRAM + kind, null);
+    }
+
+    public void setLatexProgram(String kind, String path) {
+        if (path == null) prefs.remove(LATEX_PROGRAM + kind);
+        else prefs.put(LATEX_PROGRAM + kind, path);
+    }
+
+    /** Whether the PDF is opened at the end of an export. */
+    public boolean latexOpenPdf() {
+        return prefs.getBoolean(LATEX_OPEN_PDF, true);
+    }
+
+    public void setLatexOpenPdf(boolean open) {
+        prefs.putBoolean(LATEX_OPEN_PDF, open);
+    }
+
+    /** The JSON settings of the last LaTeX export of a dictionary, or null. */
+    public String latexSettings(File dictionary) {
+        return prefs.get(LATEX_SETTINGS + key(dictionary), null);
+    }
+
+    public void setLatexSettings(File dictionary, String json) {
+        if (json.length() <= Preferences.MAX_VALUE_LENGTH) prefs.put(LATEX_SETTINGS + key(dictionary), json);
+    }
+
+    /** The .tex of the last LaTeX export of a dictionary, or null. */
+    public String latexOutput(File dictionary) {
+        return prefs.get(LATEX_OUTPUT + key(dictionary), null);
+    }
+
+    public void setLatexOutput(File dictionary, String path) {
+        prefs.put(LATEX_OUTPUT + key(dictionary), path);
+    }
+
+    /** A preferences key (at most 80 characters) for a dictionary: a digest of its path. */
+    private static String key(File dictionary) {
+        String path = dictionary == null ? "" : dictionary.getAbsolutePath();
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-256")
+                .digest(path.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(d, 0, 16);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            return Integer.toHexString(path.hashCode());
+        }
+    }
+
     /** Applies the font size and the theme to a scene. */
     public void applyAppearance(Scene scene) {
         if (scene == null) return;

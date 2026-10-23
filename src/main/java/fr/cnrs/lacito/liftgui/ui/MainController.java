@@ -11,6 +11,7 @@ package fr.cnrs.lacito.liftgui.ui;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftgui.MainApp;
+import fr.cnrs.lacito.liftgui.MainApp;
 import fr.cnrs.lacito.liftgui.core.CsvExporter;
 import fr.cnrs.lacito.liftgui.ui.app.*;
 import fr.cnrs.lacito.liftgui.ui.editor.EditorContext;
@@ -438,6 +439,17 @@ public final class MainController {
             LOGGER.log(Level.SEVERE, "Export CSV", e);
             Dialogs.error(I18n.get("error.export"), I18n.formatErrorMessage("error.export.detail", e));
         }
+    }
+
+    /** Exports the dictionary to LaTeX, and to PDF when XeLaTeX or LuaLaTeX is installed. */
+    @FXML
+    private void onExportLatex() {
+        if (document.dictionary() == null) {
+            Dialogs.error(I18n.get("error.export"), I18n.get("error.noDictionaryShort"));
+            return;
+        }
+        LatexExportDialog.show(document.dictionary(), document.isDemo() ? null : document.file(), prefs, window(),
+            MainApp::openDocument);
     }
 
     /* ─── View menu ─── */

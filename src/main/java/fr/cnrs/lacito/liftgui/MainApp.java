@@ -11,6 +11,7 @@ package fr.cnrs.lacito.liftgui;
 
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import javafx.application.Application;
+import javafx.application.HostServices;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -25,10 +26,12 @@ public final class MainApp extends Application {
 
     private static final Logger LOGGER = Logger.getLogger(MainApp.class.getName());
     private static Stage primaryStage;
+    private static HostServices hostServices;
 
     @Override
     public void start(Stage stage) throws Exception {
         primaryStage = stage;
+        hostServices = getHostServices();
         primaryStage.setTitle(I18n.get("app.title"));
         addAppIcons(primaryStage);
 
@@ -66,6 +69,23 @@ public final class MainApp extends Application {
             loadScene();
         } catch (Exception ex) {
             LOGGER.log(Level.SEVERE, "Erreur au chargement de l'application", ex);
+        }
+    }
+
+    /**
+     * Opens a URI (a file, a folder, a web page) in the platform's default application:
+     * JavaFX's host services, or the platform's "open" command when they are not there
+     * (the application not started through {@link #main}, as in the tests).
+     */
+    public static void openDocument(String uri) {
+        if (hostServices != null) {
+            hostServices.showDocument(uri);
+            return;
+        }
+        try {
+            fr.cnrs.lacito.liftapi.export.LatexExport.openWithDefaultViewer(java.nio.file.Path.of(java.net.URI.create(uri)));
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Cannot open " + uri, e);
         }
     }
 

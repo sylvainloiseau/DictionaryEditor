@@ -76,6 +76,7 @@
           <items>
             <MenuItem text="%menu.tools.validate" onAction="#onValidateDictionary"/>
             <MenuItem text="%menu.tools.exportCsv" onAction="#onExportCsv"/>
+            <MenuItem text="%menu.tools.exportLatex" onAction="#onExportLatex"/>
           </items>
         </Menu>
       </menus>
