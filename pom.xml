@@ -26,21 +26,16 @@
     <!-- UI tests: headless (Monocle) by default; -Dheadless=false -Dglass.platform= shows the windows. -->
     <headless>true</headless>
     <glass.platform>Monocle</glass.platform>
+    <!-- The release of lift-api on Maven Central. To build against a lift-api installed
+         locally (mvn install in lift-api): -Dlift-api.version=0.1-SNAPSHOT -->
+    <lift-api.version>0.1.0</lift-api.version>
   </properties>
-
-  <repositories>
-    <repository>
-      <id>github</id>
-      <name>GitHub Packages</name>
-      <url>https://maven.pkg.github.com/sylvainloiseau/*</url>
-    </repository>
-  </repositories>
 
   <dependencies>
     <dependency>
       <groupId>io.github.sylvainloiseau</groupId>
       <artifactId>lift-api</artifactId>
-      <version>0.1-SNAPSHOT</version>
+      <version>${lift-api.version}</version>
     </dependency>
 
     <dependency>
