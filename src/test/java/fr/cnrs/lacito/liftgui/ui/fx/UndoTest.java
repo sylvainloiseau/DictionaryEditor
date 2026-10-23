@@ -33,11 +33,11 @@ class UndoTest extends MainWindowTest {
     }
 
     private void undo() {
-        fire(lookup("#undoButton").queryButton());
+        fireMenuItem("undoMenuItem");
     }
 
     private void redo() {
-        fire(lookup("#redoButton").queryButton());
+        fireMenuItem("redoMenuItem");
     }
 
     private String undoMenuText() {

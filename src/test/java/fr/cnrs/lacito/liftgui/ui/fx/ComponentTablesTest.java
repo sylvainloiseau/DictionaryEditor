@@ -188,7 +188,7 @@ class ComponentTablesTest extends MainWindowTest {
         pressDialogButton(ButtonType.OK);
         assertFalse(pronunciation.getMedias().contains(media));
         assertFalse(table().getItems().contains(media));
-        fire(lookup("#undoButton").queryButton());
+        fireMenuItem("undoMenuItem");
         assertTrue(pronunciation.getMedias().contains(media));
         assertTrue(table().getItems().contains(media), "the row is back");
     }

@@ -37,11 +37,11 @@ class DeletionTest extends MainWindowTest {
         assertFalse(table().getItems().contains(entry));
         assertTrue(isDirty());
 
-        fire(lookup("#undoButton").queryButton());
+        fireMenuItem("undoMenuItem");
         assertTrue(reg().getEntries().contains(entry));
         assertTrue(table().getItems().contains(entry));
 
-        fire(lookup("#redoButton").queryButton());
+        fireMenuItem("redoMenuItem");
         assertFalse(reg().getEntries().contains(entry));
     }
 
@@ -94,7 +94,7 @@ class DeletionTest extends MainWindowTest {
         pressDialogButton(ButtonType.OK);
         assertFalse(reg().getNotes().contains(note));
         assertEquals(rows - 1, table().getItems().size());
-        fire(lookup("#undoButton").queryButton());
+        fireMenuItem("undoMenuItem");
         assertTrue(reg().getNotes().contains(note));
     }
 
@@ -125,7 +125,7 @@ class DeletionTest extends MainWindowTest {
         pressDialogButton(ButtonType.OK);
         assertFalse(entry.getSenses().contains(sense));
         assertFalse(table().getItems().contains(sense));
-        fire(lookup("#undoButton").queryButton());
+        fireMenuItem("undoMenuItem");
         assertTrue(entry.getSenses().contains(sense));
     }
 
@@ -138,7 +138,7 @@ class DeletionTest extends MainWindowTest {
         fire(deleteButton());
         pressDialogButton(ButtonType.OK);
         assertFalse(parent.getExamples().contains(ex));
-        fire(lookup("#undoButton").queryButton());
+        fireMenuItem("undoMenuItem");
         assertTrue(parent.getExamples().contains(ex));
     }
 }

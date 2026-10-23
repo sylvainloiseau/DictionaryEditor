@@ -253,7 +253,7 @@ class HeaderConfigurationTest extends MainWindowTest {
         assertTrue(types.hasFeature("renamed"));
         assertEquals("renamed", trait.getValue());
 
-        fire(lookup("#undoButton").queryButton());
+        fireMenuItem("undoMenuItem");
         assertTrue(types.hasFeature("named"));
         assertFalse(types.hasFeature("renamed"));
         assertEquals("named", trait.getValue());

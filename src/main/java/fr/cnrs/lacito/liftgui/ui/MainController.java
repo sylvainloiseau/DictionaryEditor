@@ -49,7 +49,6 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
-import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -90,8 +89,6 @@ public final class MainController {
     @FXML private MenuBar menuBar;
     @FXML private SplitPane mainSplit;
     @FXML private Button addButton;
-    @FXML private Button undoButton;
-    @FXML private Button redoButton;
     @FXML private MenuItem undoMenuItem;
     @FXML private MenuItem redoMenuItem;
 
@@ -174,17 +171,11 @@ public final class MainController {
 
     private void setupUndoRedo() {
         History history = document.history();
-        undoButton.setGraphic(Icons.undoIcon());
-        redoButton.setGraphic(Icons.redoIcon());
-        undoButton.setTooltip(tooltip(Keys.MENU_EDIT_UNDO, "menu.edit.undoLabel", history.undoLabelProperty(), UndoKeys.UNDO));
-        redoButton.setTooltip(tooltip(Keys.MENU_EDIT_REDO, "menu.edit.redoLabel", history.redoLabelProperty(), UndoKeys.REDO_ALT));
         undoMenuItem.textProperty().bind(labelled(Keys.MENU_EDIT_UNDO, "menu.edit.undoLabel", history.undoLabelProperty()));
         redoMenuItem.textProperty().bind(labelled(Keys.MENU_EDIT_REDO, "menu.edit.redoLabel", history.redoLabelProperty()));
         // Shown in the menu; the keys themselves are handled by UndoKeys.
         undoMenuItem.setAccelerator(UndoKeys.UNDO);
         redoMenuItem.setAccelerator(UndoKeys.REDO_ALT);
-        undoButton.disableProperty().bind(history.canUndoProperty().not());
-        redoButton.disableProperty().bind(history.canRedoProperty().not());
         undoMenuItem.disableProperty().bind(history.canUndoProperty().not());
         redoMenuItem.disableProperty().bind(history.canRedoProperty().not());
     }
@@ -193,12 +184,6 @@ public final class MainController {
     private static StringBinding labelled(String plainKey, String labelKey, ReadOnlyStringProperty label) {
         return Bindings.createStringBinding(
             () -> label.get() == null ? I18n.get(plainKey) : I18n.get(labelKey, label.get()), label);
-    }
-
-    private static Tooltip tooltip(String plainKey, String labelKey, ReadOnlyStringProperty label, KeyCombination keys) {
-        Tooltip t = new Tooltip();
-        t.textProperty().bind(Bindings.concat(labelled(plainKey, labelKey, label), " (" + keys.getDisplayText() + ")"));
-        return t;
     }
 
     /** Hovering a menu title while another menu is open opens it (as in native menu bars). */

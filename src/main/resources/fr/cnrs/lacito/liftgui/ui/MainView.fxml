@@ -24,8 +24,8 @@
             styleClass="root">
 
   <top>
-    <HBox alignment="CENTER_LEFT" styleClass="top-bar">
-      <MenuBar fx:id="menuBar" styleClass="top-menu" HBox.hgrow="ALWAYS">
+      <!-- On macOS, the menus go to the system menu bar at the top of the screen. -->
+      <MenuBar fx:id="menuBar" styleClass="top-menu" useSystemMenuBar="true">
       <menus>
         <Menu text="%menu.file">
           <items>
@@ -81,14 +81,6 @@
         </Menu>
       </menus>
     </MenuBar>
-      <HBox styleClass="toolbar-inline" spacing="4" alignment="CENTER_RIGHT">
-        <padding>
-          <Insets top="4" right="12" bottom="4" left="8"/>
-        </padding>
-        <Button fx:id="undoButton" styleClass="toolbar-button" onAction="#onUndo"/>
-        <Button fx:id="redoButton" styleClass="toolbar-button" onAction="#onRedo"/>
-      </HBox>
-    </HBox>
   </top>
 
   <left>

@@ -92,6 +92,16 @@ public abstract class MainWindowTest extends ApplicationTest {
         WaitForAsyncUtils.waitForFxEvents();
     }
 
+    /** Fires the menu item with this id (e.g. undoMenuItem), whatever its current text. */
+    protected void fireMenuItem(String id) {
+        MenuBar bar = lookup(".menu-bar").queryAs(MenuBar.class);
+        MenuItem item = bar.getMenus().stream().flatMap(m -> m.getItems().stream())
+            .filter(i -> id.equals(i.getId())).findFirst()
+            .orElseThrow(() -> new AssertionError("no menu item " + id));
+        Platform.runLater(item::fire);
+        WaitForAsyncUtils.waitForFxEvents();
+    }
+
     /* ─── Model ─── */
 
     /** The dictionary being edited. */
