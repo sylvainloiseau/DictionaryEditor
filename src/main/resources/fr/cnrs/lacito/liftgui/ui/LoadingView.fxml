@@ -3,6 +3,8 @@
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ProgressBar?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 
@@ -12,8 +14,12 @@
            prefWidth="600" prefHeight="400">
   <VBox alignment="CENTER" spacing="20">
     <VBox alignment="CENTER" spacing="4">
-      <Label text="Application d'édition de" styleClass="loading-title"/>
-      <Label text="dictionnaires multilingues" styleClass="loading-title"/>
+      <Label text="DictionaryEditor" styleClass="loading-title"/>
+      <ImageView fitWidth="200" fitHeight="200" preserveRatio="true" smooth="true">
+        <image>
+          <Image url="@icons/app/icon-512.png"/>
+        </image>
+      </ImageView>
     </VBox>
     <ProgressBar fx:id="progressBar" styleClass="loading-progress" prefWidth="380" prefHeight="6" progress="0"/>
   </VBox>
