@@ -23,8 +23,23 @@ annotations):
    - a list of options to tick for fixed-value columns;
    - a min–max range for numbers (including counts) and dates.
 
-Decisions taken (2026-11-01): layouts are **global**; the list of nested counts of 3.3 is
-accepted; **multitext columns are editable**; the **entries table is included**.
+### Decisions (2026-11-01)
+
+| # | Decision |
+|---|---|
+| D1 | Layouts are **global** (not per dictionary). |
+| D2 | The nested counts of 3.3 are accepted. |
+| D3 | **Multitext columns are editable** (own, extension and ancestor texts). |
+| D4 | The **entries table is included**. |
+| D5 | Filters are **kept per view for the session** (not stored in the preferences). |
+| D6 | Typing in an empty field or note cell **creates** the field or note (one undo step); clearing its last text **removes** it (one undo step), see 3.5. |
+| D7 | Filters combine with **AND between columns, OR inside a column**; OR between columns is left for later (saved views). |
+| D8 | Filters go **in the column headers** (headers about 26 px taller). |
+| D9 | The **histogram** in the range popover and the **empty-cell marker** are kept. |
+
+Other tables built on `FilterableTable` (Categories, languages fields, header field
+definitions) get the new typed filters (step 3) with `TEXT` as default type; their columns
+stay fixed (out of scope).
 
 ---
 
@@ -223,11 +238,28 @@ cell on `formTextProperty(lang)`, commit = one undo step, an empty text removes 
 | Column | Edits | Cell without a target |
 |---|---|---|
 | Own multitext (gloss, definition, citation…) | the row's multitext | — |
-| Field / note | the field or note of that name on the row | **creates** the field or note on commit (one undo step; question 2) |
+| Field / note | the field or note of that name on the row | **creates** the field or note on commit (D6) |
 | Ancestor multitext (`up:entry/entry.form`…) | the ancestor's multitext; the other rows of the same ancestor follow (live cells) | read-only when the row has no such ancestor |
 | Counts, options, dates, numbers | read-only (morph type stays editable, as today) | — |
 
 An editable cell is shown with the usual hint (pencil cursor; double-click or F2 to edit).
+
+Creation and removal of fields and notes (D6), each **one undo step** through
+`History.perform(label, subject, gesture)`, which already groups everything a gesture
+changes:
+- **typing in an empty cell**: `perform("Add field <name>", row, () -> { create the field
+  or note; set the form })`; an empty commit on an empty cell does nothing (no entry in
+  the history);
+- **clearing a text**: the form of that language is removed; when it was the **last form**
+  and the field or note holds nothing else, it is removed in the same gesture. "Nothing
+  else" = no trait, no annotation, and for a note no field; otherwise the field or note is
+  kept, empty, so that no data is lost silently. The rule lives in one helper
+  (`ExtensionCells.commit`) with unit tests;
+- the editors on the right follow (they listen to the same model).
+
+An edited row that no longer passes the filters **stays visible** until the filters or the
+selection change (the predicate is `passes(row) || row == lastEditedRow`), so a correction
+does not make the row vanish under the cursor.
 
 ---
 
@@ -284,8 +316,25 @@ Performance:
 - a **row-text cache** (`IdentityHashMap<row, String[]>`, cleared on `refresh()` and on
   edits) avoids recomputing nested counts and ancestor texts for every filter and sort.
 
-Filters are kept **per view for the session**: navigating away and back restores them
-(today they are lost; question 1). Removing a column from the layout removes its filter.
+Filters are kept **per view for the session** (D5) in a `FilterSessions` map owned by
+`EditorContext`, keyed by `ViewKey`, for the views **without a subset**; a drill-down view
+(the senses of one entry…) starts without filters and does not change those of the full
+view. They are dropped when another dictionary is opened. Removing a column from the
+layout removes its filter.
+
+**Navigation to an object** (`ViewRequest.selecting`, parent links, cross navigation):
+`MainController.show` clears the search when it would hide the target row (today), and
+from now on also **the filters that hide it** (only those, computed by `FilterEngine`),
+with a notice in the toolbar ("Filters cleared to show …", with *Undo* restoring them).
+
+**Text matching** of the text filter and the search: both sides are normalised to **NFC**
+(combining diacritics in IPA and orthographies must match whatever the input method);
+ignore case = `CASE_INSENSITIVE | UNICODE_CASE`. With a regular expression, *contains* =
+`find()`, *starts with* = `lookingAt()`, *is exactly* = `matches()`.
+
+**Cache invalidation**: the row-text cache is cleared on `refresh()`, on a layout change,
+and on every change of the `History` (one listener on its cursor), which covers edits
+made in the editors, undo and redo.
 
 ---
 
@@ -385,12 +434,14 @@ In the header: `[Any ▾]`, `[2 – 5 ▾]`, `[≥ 2 ▾]`, `[≤ 2024-03 ▾]`.
   example, no gloss…);
 - **dates**: two fields that take partial dates (`2023`, `2023-05`, `2023-05-01`) with a
   `DatePicker` button, and presets relative to today;
-- a **small histogram** of the values over the rows that pass the other filters: optional,
-  step 7.
+- a **histogram** (D9) of the values over the rows that pass the other filters, computed
+  when the popover opens: integer bins for counts (up to 20, then grouped), months or
+  years for dates depending on the span; dragging over the bars sets min and max; the
+  selected range is highlighted.
 
 ### 5.5 Toolbar above the table: columns and active filters
 
-The "Reset filters" bar becomes a toolbar:
+The "Reset filters" bar becomes a toolbar (the button keeps its id, renamed *Clear all*, for the TestFX tests):
 
 ```
 [▥ Columns ⁵]  Filters: (Gloss·en contains "to" ✕) (Senses ≥ 2 ✕) (Morph type: root, stem ✕)   Clear all   124 / 3 210
@@ -413,6 +464,10 @@ The "Reset filters" bar becomes a toolbar:
 - ↓ from a filter moves to the first row.
 
 Every control has an accessible text ("Filter Gloss, en").
+
+The new shortcuts are registered in `Commands` (`table.columns` = Ctrl+Shift+K,
+`table.focusFilter` = Ctrl+Shift+F; both free today), so they can be changed in the
+shortcuts dialog like the others.
 
 ### 5.7 Choice of the filter by column type
 
@@ -556,21 +611,31 @@ dictionary are ignored and kept. Filters are kept in memory per view for the ses
 
 ## 9. Improvements suggested (included or for later)
 
-Included in the plan:
+### 9.1 Included in the plan
 - **is empty / is not empty** for every filter, and **= 0** presets on counts: finding
   what is missing is the main use of the tables;
 - **negation** ("not") on text and options filters;
 - **multi-select** options with counts, instead of today's single choice;
 - **active filter chips**, so a filter hidden by horizontal scrolling is still visible;
 - **"Filter as"** switch (5.7);
-- filters **kept when navigating** away and back.
+- filters **kept when navigating** away and back (D5);
+- **histogram** in the range popover and **empty-cell marker** (D9), see 9.2;
+- **NFC normalisation** in text matching (4.2).
 
-For later (the model allows them without redesign):
+### 9.2 Empty-cell marker
+
+Empty cells of multitext, field and note columns get a subtle diagonal hatch (CSS
+pseudo-class `:empty-value` set by the cell factory, light and dark variants), so a
+missing language stands out. Not on cells that cannot have a value (an ancestor column on
+a row without that ancestor: plain empty cell). Toggle: View ▸ *Mark empty cells*
+(preference `ui.markEmptyCells`, on by default).
+
+### 9.3 For later (the model allows them without redesign)
 - **saved views**: a named layout + filters + sort per table (e.g. "Senses without English
   gloss"), in the View menu; `ColumnFilter.toToken()` is the format;
-- **empty-cell marker**: a subtle hatch on empty cells of multitext columns, to spot
-  missing languages at a glance;
-- **histogram** in the range popover (step 7);
+- **OR between columns** (D7), in a small filter-group editor;
+- a filter on a **multitext group header** matching any of its languages;
+- a **diacritic-insensitive** toggle next to `Aa`;
 - **filter on the global search with the same options** (`Aa`, `.*`).
 
 ---
@@ -582,28 +647,35 @@ For later (the model allows them without redesign):
    decision (5.1).
 1. **Value types and layout model**: `ValueType`, `values`/`key` accessors, `LiftDate`,
    `ColumnRef` with languages, parse/format, `withLanguages`; numeric and date sorting.
-   Every existing column gets its type. Unit tests (`ColumnLayoutTest`, `LiftDateTest`).
+   Every existing column gets its type. Column comparators by type (the `SortedList`
+   sorts through the columns' comparators, which see the cell strings: numbers and
+   `LiftDate`s are parsed there). Unit tests (`ColumnLayoutTest`, `LiftDateTest`).
 2. **Filter model**: `ColumnFilter` and its three records, `FilterModel`, `FilterEngine`
-   (predicate, options with counts, min/max, row-text cache), token format. Unit tests,
-   no JavaFX.
+   (predicate, options with counts, min/max, histogram bins, row-text cache, "filters
+   hiding this row"), NFC matching, token format. Unit tests, no JavaFX, including a
+   timing test on a generated dictionary (20 000 entries: a refresh under 100 ms).
 3. **Filter widgets**: `FilterControls` (text, options, range), header graphics (or the
-   fallback row), `ActiveFiltersBar`, keyboard, i18n (en, fr), CSS (light and dark).
+   fallback row), histogram, `ActiveFiltersBar`, keyboard and `Commands`, i18n (en,
+   fr), CSS (light and dark).
    `FilterableTable` uses them; the old `GridPane` row, `FilterMode.AUTO` and
    `refreshFacets` are removed. Existing TestFX filter tests (`SearchAndFilterTest`)
    adapted; new tests: filter follows a dragged and a resized column; regex; options
    multi-select; count range.
 4. **Persistence + `setColumns`**: `AppPreferences`, `ColumnLayoutStore`, `ObjectTableView`
-   and `EntryView` read the store; reorder and widths saved; filters kept per view for the
-   session. TestFX: reorder, navigate away and back, order and filters kept.
+   and `EntryView` read the store; reorder and widths saved; `FilterSessions`; navigation
+   to an object clears the filters that hide it. TestFX: reorder, navigate away and back,
+   order and filters kept; parent link to a filtered-out row.
 5. **Generated catalog**: `ColumnCatalog`, sections, `ExtensionIndex`, containment table
-   (counts, ancestor kinds), missing own properties, editable multitexts (3.5). Unit tests
-   on `mock-dictionary.json`: a field gives one sub-column per language; counts; ancestor
-   of a subsense example; note on an example → its entry; creating a field by typing in
-   an empty cell, and undoing it. **Default layouts identical to today** (test).
+   (counts, ancestor kinds), missing own properties, editable multitexts and
+   `ExtensionCells` (3.5), titles of generated columns (R6). Unit tests on
+   `mock-dictionary.json`: a field gives one sub-column per language; counts; ancestor of
+   a subsense example; note on an example → its entry; creating a field by typing, and
+   undoing it in one step; clearing the last text removes the field, but not a field
+   with a trait. **Default layouts identical to today** (test).
 6. **Column chooser**: `ColumnChooser`, Columns popover, header context menu, Preferences ▸
    Tables (`TabPane`, buffered). TestFX: add a count column, hide a language, reset;
    change in the dialog → open table updated; Cancel → unchanged.
-7. **Polish and docs**: histogram, empty-cell marker (if accepted),
+7. **Polish and docs**: empty-cell marker and its View menu toggle,
    `documentation/…/configuration` and `fonctionnalites` pages, README screenshots.
 
 Each step builds and passes `mvn test` on its own. After step 3 the filters are fixed and
@@ -611,16 +683,30 @@ typed even before columns become configurable, so steps 0–3 can ship first.
 
 ---
 
-## 11. Questions
+## 11. Design review (2026-11-01)
 
-1. **Filters when navigating**: keep them per view for the session (proposed), or reset
-   them as today?
-2. **Typing in an empty field or note cell**: create the field or note (proposed, one undo
-   step), or keep such cells read-only until the field exists? And when the last form of a
-   field is cleared, remove the field (proposed) or keep it empty?
-3. **Options across columns**: AND between columns and OR inside a column (proposed). Is
-   an OR between columns needed (e.g. "no English gloss **or** no English definition")? It
-   would need a small filter-group editor; proposed for later, with saved views.
-4. **Header filters vs. a separate row**: the header is proposed (5.1); it makes headers
-   about 26 px taller. OK?
-5. **Optional items**: histogram in the range popover, empty-cell marker: include or drop?
+Points checked against the code and the decisions, and how the plan handles them.
+
+| # | Risk | Handled by |
+|---|---|---|
+| R1 | A filter is bound to a column by **index** and squeezed by the `GridPane` (1.1) | filters in the headers (5.1), bound to their own column; spike first, fallback bound by column |
+| R2 | Clicking a filter in a header **sorts** or **drags** the column | the controls consume mouse events (5.1); TestFX test |
+| R3 | Navigating to an object hidden by a **filter** (only the search is cleared today, `MainController.show`) | clears the filters that hide it, with a notice and *Undo* (4.2) |
+| R4 | Clearing a field's text **loses** its traits or annotations | removal only when it holds nothing else (3.5) |
+| R5 | Create-and-type and clear-and-remove are **two** undo steps | one `History.perform` gesture each (3.5) |
+| R6 | Generated columns are **ambiguous** in headers and CSV ("Form" of the row or of the entry?) | titles carry their section: "Entry › Form", "Field · literal-meaning", "Senses (count)", "Examples (all)"; the CSV header adds `[lang]` (`Leaf.header`) |
+| R7 | An edited row **vanishes** when it stops matching a filter | the last edited row stays visible (3.5) |
+| R8 | **Stale** cached texts after an edit in the editor panel, undo or redo | cache cleared on every `History` change (4.2) |
+| R9 | Counts and dates **sorted as text** | column comparators by `ValueType` (step 1) |
+| R10 | Same text, **different Unicode** forms (precomposed / combining) | NFC on both sides (4.2) |
+| R11 | Recomputing every facet at **each keystroke** (today) | options and histogram computed when their popover opens; text filters debounced; timing test (step 2) |
+| R12 | Drill-down views **overwrite** the filters of the full view | session filters only for views without a subset (4.2) |
+| R13 | A stored layout **refers to** fields or languages absent from the open dictionary | ignored and kept (2.1, 8); the chooser lists the languages of the dictionary, those not shown as dimmed chips |
+| R14 | A filter on a column the user **hides** keeps filtering invisibly | removing a column removes its filter (4.2) |
+| R15 | Shortcut **conflicts** | new shortcuts in `Commands`, customisable; Ctrl+Shift+K/F free today |
+| R16 | The **other tables** (Categories, languages fields, header) break when `FilterMode.AUTO` goes | they get `TEXT` by default and the new filters (Decisions) |
+| R17 | Catalog **size** (ancestor sections × fields × languages) | specs are cheap lambdas; only shown columns become `TableColumn`s; the chooser lists are virtualized and searchable |
+| R18 | Stored **preferences** from an earlier version | none exist yet (`ColumnLayout` was never stored): no migration |
+
+No open question remains; new questions found during the spike (step 0) will be added
+here.
