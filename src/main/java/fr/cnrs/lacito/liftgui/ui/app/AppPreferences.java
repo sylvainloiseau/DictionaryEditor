@@ -82,6 +82,34 @@ public final class AppPreferences {
         return dir.isDirectory() ? dir : null;
     }
 
+    /* ─── Editors and shortcuts ─── */
+
+    private static final String HIDE_EMPTY_SECTIONS = "ui.hideEmptySections";
+    private static final String SHORTCUT = "shortcut.";
+
+    /** Whether the editors hide their sections without any component (View menu). */
+    public boolean hideEmptySections() {
+        return prefs.getBoolean(HIDE_EMPTY_SECTIONS, false);
+    }
+
+    public void setHideEmptySections(boolean hide) {
+        prefs.putBoolean(HIDE_EMPTY_SECTIONS, hide);
+    }
+
+    /**
+     * The shortcut chosen for a command (a {@code KeyCombination} name such as
+     * "Shortcut+Alt+S"), "" for none, or null when the default applies.
+     */
+    public String shortcut(String commandId) {
+        return prefs.get(SHORTCUT + commandId, null);
+    }
+
+    /** Saves the shortcut of a command; null goes back to the default. */
+    public void setShortcut(String commandId, String keys) {
+        if (keys == null) prefs.remove(SHORTCUT + commandId);
+        else prefs.put(SHORTCUT + commandId, keys);
+    }
+
     /* ─── LaTeX export ─── */
 
     private static final String LATEX_PROGRAM = "latex.program.";

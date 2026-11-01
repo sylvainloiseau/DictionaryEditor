@@ -42,7 +42,6 @@ public final class AnnotationEditor extends VBox {
         this.dictionary = dictionary;
         this.textEditor = new MultiTextEditor(dictionary);
         setPadding(new Insets(4));
-        setStyle("-fx-border-color: #ddd; -fx-border-radius: 4; -fx-background-color: #fafafa; -fx-background-radius: 4;");
 
         typeCombo.setEditable(false);
         typeCombo.setMaxWidth(Double.MAX_VALUE);

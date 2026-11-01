@@ -1,5 +1,13 @@
 package fr.cnrs.lacito.liftgui.ui.fx;
 
+import fr.cnrs.lacito.liftgui.ui.controls.ComponentKind;
+import fr.cnrs.lacito.liftgui.ui.controls.ComponentSection;
+import fr.cnrs.lacito.liftgui.ui.controls.ItemCard;
+import javafx.scene.control.ButtonBase;
+import javafx.scene.control.CustomMenuItem;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.SeparatorMenuItem;
+
 import fr.cnrs.lacito.liftgui.testsupport.InMemoryPreferences;
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftgui.ui.I18n;
@@ -227,6 +235,64 @@ public abstract class MainWindowTest extends ApplicationTest {
         return lookup("#editorContainer .button")
             .match((Node n) -> n instanceof Button b && b.getText() != null && b.getText().startsWith(prefix))
             .queryButton();
+    }
+
+    /* ─── Component sections ─── */
+
+    /** The section of the editor panel listing the components of {@code kind} of {@code owner}. */
+    protected ComponentSection section(Object owner, ComponentKind kind) {
+        WaitForAsyncUtils.waitForFxEvents();
+        return lookup("#editorContainer .component-section")
+            .match((Node n) -> n instanceof ComponentSection s && s.owner() == owner && s.kind() == kind)
+            .queryAs(ComponentSection.class);
+    }
+
+    /** Clicks the [+] of a section whose kind needs nothing (sense, example…). */
+    protected void add(Object owner, ComponentKind kind) {
+        ButtonBase plus = section(owner, kind).addButton();
+        interact(plus::fire);
+        WaitForAsyncUtils.waitForFxEvents();
+    }
+
+    /**
+     * Opens the menu of the [+] of a section whose kind needs a type, and chooses
+     * {@code type}; the first type that can be chosen when it is null.
+     */
+    protected void addTyped(Object owner, ComponentKind kind, String type) {
+        MenuButton plus = (MenuButton) section(owner, kind).addButton();
+        interact(plus::show);
+        MenuItem item = plus.getItems().stream()
+            .filter(i -> !(i instanceof SeparatorMenuItem) && !(i instanceof CustomMenuItem) && !i.isDisable())
+            .filter(i -> type == null || type.equals(i.getText()))
+            .findFirst().orElseThrow(() -> new AssertionError("no type " + type + " in " + plus.getItems()));
+        Platform.runLater(() -> {
+            plus.hide();
+            item.fire();
+        });
+        WaitForAsyncUtils.waitForFxEvents();
+    }
+
+    /** The texts of the items of the menu of a [+], once opened (then closed). */
+    protected List<MenuItem> typeMenu(Object owner, ComponentKind kind) {
+        MenuButton plus = (MenuButton) section(owner, kind).addButton();
+        interact(plus::show);
+        List<MenuItem> items = List.copyOf(plus.getItems());
+        interact(plus::hide);
+        return items;
+    }
+
+    /** The card of a component in the editor panel. */
+    protected ItemCard card(Object component) {
+        WaitForAsyncUtils.waitForFxEvents();
+        return lookup("#editorContainer .item-card")
+            .match((Node n) -> n instanceof ItemCard c && c.component() == component)
+            .queryAs(ItemCard.class);
+    }
+
+    /** The node that has the keyboard focus. */
+    protected Node focusOwner() {
+        WaitForAsyncUtils.waitForFxEvents();
+        return stage.getScene().getFocusOwner();
     }
 
     /* ─── Dialogs ─── */

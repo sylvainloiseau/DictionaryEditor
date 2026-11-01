@@ -4,34 +4,39 @@
   <img src="https://github.com/sylvainloiseau/DictionaryEditor/blob/main/src/main/resources/fr/cnrs/lacito/liftgui/ui/icons/app/icon-256.png?raw=true" />
 </p>
 
-Application for editing dictionary compatible with the [Lexicon Interchange FormaT - LIFT](https://github.com/sillsdev/lift-standard) data format (format is used by [SIL Fieldworks](https://software.sil.org/fr/fieldworks/) and [ELAN](https://archive.mpi.nl/tla/elan)).
+Application for editing dictionaries compatible with the [Lexicon Interchange FormaT - LIFT](https://github.com/sillsdev/lift-standard) data format (format is used by [SIL Fieldworks](https://software.sil.org/fr/fieldworks/) and [ELAN](https://archive.mpi.nl/tla/elan)).
 
 ## Installation
 
 Pick an installer for your plateform from the [github release page](https://github.com/sylvainloiseau/DictionaryEditor/releases).
 
-## Usage
+## Feature
 
 - DictionaryEditor profide a complete access to all the components of the LIFT data model: entries, sense, example, translation, illustration, trait, note, field, etc.
-- It offers form for individual object and tables for each type of component, helping to increase comprehensiveness and consistency of the lexicographic description: missing field in a give language or field is visible.
-- It offers browsers for categories of field, note, trait, annotation, and feature set
+- List each component type in table -- helping to increase comprehensiveness and consistency of the lexicographic description: missing field in a given language or field is more easy to spot
+- edit objects in forms 
+- browse and manage categories (field, note, trait, annotation, grammatical category, feature set)
 - It exports the dictionary as a LaTeX document, and as a PDF when XeLaTeX or LuaLaTeX is installed (Tools ▸ Export as LaTeX / PDF): the polyglossia language and the font of each language, a thematic part by semantic domain, the illustrations as figures, and a quick preview on a sample. The settings can be saved as a JSON file, which `lift-api latex --config` also reads. A custom XSLT stylesheet can replace parts of the bundled ones (the LaTeX macros, the abbreviations…); the dialog creates a starting one.
 
-### Listing entries:
+### Listing entries
 
 ![Listing entity](Doc/img/entries.png)
 
 ### Listing Senses
 
-![Listing entity](Doc/img/Sense.png)
+![Listing sense](Doc/img/Sense.png)
+
+### Listing all metalanguage forms
+
+![Listing metalanguage](Doc/img/MetaLanguages.png)
 
 ### Browse note type
 
-![Listing entity](Doc/img/BrowseNoteType.png)
+![Browse note type](Doc/img/BrowseNoteType.png)
 
 ### Managing part of speech
 
-![Listing entity](Doc/img/GramInfo.png)
+![Managing part of speech](Doc/img/GramInfo.png)
 
 ## Installation from sources
 
@@ -165,10 +170,10 @@ The scan is from the Smithsonian Libraries copy, digitised by the [Biodiversity 
 
 ## Authors
 
-- Sylvain Loiseau, Sorbonne Paris Nord University / Lacito-CNRS laboratory
 - Computer science students, Sorbonne Paris Nord University:
   - Inès GBADAMASSI
   - Maryse GOEH-AKUE
   - Ermeline BRESSON
   - Ayman JARI
   - Erij MAZOUZ
+- Sylvain Loiseau, Sorbonne Paris Nord University / Lacito-CNRS laboratory

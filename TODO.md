@@ -1,4 +1,15 @@
+## Parameters for table
 
+## merge entries
+
+## Check that external file exist and offer to import range, trait and field definition into internal header
+
+##
+
+plan for adding common shortcut. save, save as. Including shifting between browser (menu items in the View menu).
+- relation editor -> aller à l'object référencé
+- parfois pas de nombre d'occ entre parenthèse
+- parfois bouton vert (dans Notes), parfois un bouton tout en bas
 
 ##
 
@@ -9,3 +20,14 @@
 The scan is from the Smithsonian Libraries copy, digitised by the [Biodiversity Heritage Library](https://www.biodiversitylibrary.org/page/40634945). The file used is [Histoire naturelle des oiseaux de paradis et des rolliers (No. 1) (8112348391).jpg](https://commons.wikimedia.org/wiki/File:Histoire_naturelle_des_oiseaux_de_paradis_et_des_rolliers_(No._1)_(8112348391).jpg) on Wikimedia Commons. The illustration is in the public domain.
 
 The previous icon, made the same way from plate 1 (« Le grand Oiseau de Paradis, émeraude, mâle », the greater bird-of-paradise, *Paradisaea apoda*, male; [Commons file](https://commons.wikimedia.org/wiki/File:Histoire_naturelle_des_oiseaux_de_paradis_et_des_rolliers_(No._1)_(8112348391).jpg), [BHL page](https://www.biodiversitylibrary.org/page/40634945)), is kept in `Doc/icon/plate-01/`.
+
+# Done
+
+Plan for restyling and reorganizing the create/delete and component number display in the editors (in the fr/cnrs/lacito/liftgui/ui/app/controls package).
+
+I would like harmonization regarding the following aspects:
+  - for components displayed in TitledPane: in some cases the number of existing components is diplayed (for instance, pronunciationsPane in the LiftEntryEditor class), in other cases it is not (for instance, traits in the traitsPane object in the ExtensibleWithoutFieldEditor class). Please display the actual number of components in all TitledPane displaying a component. In some cases, when there is no object, a label "None" is diplayed: Annotations TitledPane in the FieldEditor for instance. In that case, it is not necessary to display "None", the count "(0)" will be enough.
+- For creating a component: in some case there are buttons at the bottom of the form, such as addSenseBtn button and other in LiftEntryEditor. In other cases, a green button is diplayed inside the TitledPane, for instance for traits; in other case there is no Button at all for creating a new component, for instance for the annotation components of a trait (although there is a "+ Annotation" button for creating annotation in the ExtensibleWithoutFieldEditor annotation TitledPane). Please make a suggestion for an unified way of displaying button; they should stay close to the created component (not at the bottom of the page); they should not take too much space; maybe a [+] button directly in the Title bar of the TitledPand will be great since it will avoid consuming space and also make the button available to the user without a supplementary click for opening the empty TitledPane.
+- Not all components can be deleted: for instance Field can not be deleted. Some components have a small delete button on the top: please use this pattern on all components when the component can be deleted.
+
+Please make a plan for a good user experience, using modern GUI design and efficient data input. Ask question or suggest improvements if usefull.

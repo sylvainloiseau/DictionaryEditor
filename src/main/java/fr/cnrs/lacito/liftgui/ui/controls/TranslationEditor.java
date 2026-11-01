@@ -34,7 +34,6 @@ public final class TranslationEditor extends VBox {
         this.dictionary = dictionary;
         this.textEditor = new MultiTextEditor(dictionary);
         setPadding(new Insets(4));
-        setStyle("-fx-border-color: #cba; -fx-border-radius: 4; -fx-background-color: #faf6f2; -fx-background-radius: 4;");
 
         typeCombo.setEditable(false);
         typeCombo.setPromptText(I18n.get("col.type"));
@@ -57,6 +56,11 @@ public final class TranslationEditor extends VBox {
     }
 
     public void setTranslation(LiftTranslation tr) {
+        setTranslation(tr, null);
+    }
+
+    /** With {@code actions}, annotations can be added to the text of the translation. */
+    public void setTranslation(LiftTranslation tr, EditActions actions) {
         if (typeListener != null) typeCombo.valueProperty().removeListener(typeListener);
         typeListener = null;
         if (tr == null) {
@@ -83,5 +87,6 @@ public final class TranslationEditor extends VBox {
         };
         typeCombo.valueProperty().addListener(typeListener);
         textEditor.setMultiText(tr.getTranslation());
+        textEditor.setEditActions(actions);
     }
 }

@@ -1,32 +1,21 @@
 package fr.cnrs.lacito.liftgui.ui.controls;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
-import fr.cnrs.lacito.liftapi.builder.SenseBuilder;
 import fr.cnrs.lacito.liftapi.model.*;
-import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Consumer;
-import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
-import javafx.scene.control.Button;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.ChoiceDialog;
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.Dialog;
+import javafx.scene.Node;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
-import javafx.scene.control.Tooltip;
-import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.util.Pair;
 
 /**
  * Editor for a single {@link LiftEntry}.
@@ -34,31 +23,24 @@ import javafx.util.Pair;
  * Displays: forms MultiText, pronunciations, senses (SenseEditor each),
  * variants, relations, etymologies,
  * + NotableEditor for inherited properties (notes, fields, traits, annotations, dates),
- * + identity block and buttons to add senses, variants, pronunciations, relations, etymologies.
+ * + identity block.
  *
- * Self-contained: every component is created through the dictionary's component builder,
- * and the editor rebuilds itself after each addition. Hosts may optionally register
- * {@link #setOnChanged(Runnable)} (e.g. to refresh tables) and
- * {@link #setOnOpenSense(Consumer)} (shows an "open in Senses view" link per sense).
+ * Each list is a {@link ComponentSection}: with {@link EditActions}, its [+] adds a
+ * component (created through the dictionary's component builder) and each component can
+ * be deleted. Hosts may optionally register {@link #setOnChanged(Runnable)} (e.g. to
+ * refresh tables after a change of grammatical info) and {@link #setOnOpenSense(Consumer)}
+ * (shows an "open in Senses view" link per sense).
  */
 public final class LiftEntryEditor extends VBox {
 
     private final MultiTextEditor formsEditor;
-    private final VBox pronunciationsBox = new VBox(6);
-    private final VBox sensesBox = new VBox(6);
-    private final VBox variantsBox = new VBox(6);
-    private final VBox relationsBox = new VBox(6);
-    private final VBox etymologiesBox = new VBox(6);
-    private final TitledPane pronunciationsPane;
-    private final TitledPane sensesPane;
-    private final TitledPane variantsPane;
-    private final TitledPane relationsPane;
-    private final TitledPane etymologiesPane;
+    private final ComponentSection pronunciationsSection;
+    private final ComponentSection sensesSection;
+    private final ComponentSection variantsSection;
+    private final ComponentSection relationsSection;
+    private final ComponentSection etymologiesSection;
     private final NotableEditor notableEditor;
     private final GridPane identityBlock = new GridPane();
-    private final FlowPane addButtons = new FlowPane(8, 6);
-    /** Currently displayed entry — used to rebuild the editor after an addition. */
-    private LiftEntry currentEntry = null;
     private Runnable onChanged = null;
     private Consumer<LiftSense> onOpenSense = null;
     private final LiftDictionary dictionary;
@@ -75,47 +57,38 @@ public final class LiftEntryEditor extends VBox {
         formsEditor.useObjectLanguages();
         formsEditor.setFixedLanguageRows(true);
         TitledPane formsPane = titledPane(I18n.get(Keys.EDITOR_FORMS), formsEditor, true);
-        pronunciationsPane = titledPane(I18n.get(Keys.EDITOR_PRONUNCIATIONS), pronunciationsBox, false);
-        sensesPane = titledPane(I18n.get(Keys.EDITOR_SENSES), sensesBox, true);
+        pronunciationsSection = new ComponentSection(ComponentKind.PRONUNCIATION, I18n.get(Keys.EDITOR_PRONUNCIATIONS), false);
+        sensesSection = new ComponentSection(ComponentKind.SENSE, I18n.get(Keys.EDITOR_SENSES), true);
 
         Label variantsTitle = sectionTitle("editor.section.variantsRelations");
-        variantsPane = titledPane(I18n.get(Keys.EDITOR_VARIANTS), variantsBox, false);
-        relationsPane = titledPane(I18n.get(Keys.EDITOR_RELATIONS), relationsBox, false);
-        etymologiesPane = titledPane(I18n.get(Keys.EDITOR_ETYMOLOGIES), etymologiesBox, false);
+        variantsSection = new ComponentSection(ComponentKind.VARIANT, I18n.get(Keys.EDITOR_VARIANTS), false);
+        relationsSection = new ComponentSection(ComponentKind.RELATION, I18n.get(Keys.EDITOR_RELATIONS), false);
+        etymologiesSection = new ComponentSection(ComponentKind.ETYMOLOGY, I18n.get(Keys.EDITOR_ETYMOLOGIES), false);
 
         Label metadataTitle = sectionTitle("editor.section.metadata");
-        TitledPane extPane = titledPane(
-            I18n.get("editor.properties.inherited"),
-            notableEditor,
-            false
-        );
+        SectionPane extPane = SectionPane.properties(I18n.get("editor.properties.inherited"), notableEditor);
 
         identityBlock.setHgap(8);
         identityBlock.setVgap(6);
-        identityBlock.setStyle(
-            "-fx-background-color: #e8e8e8; -fx-padding: 8; -fx-background-radius: 4;"
-        );
+        identityBlock.getStyleClass().add("identity-block");
         TitledPane identityPane = titledPane(I18n.get("editor.identity"), identityBlock, true);
-
-        addButtons.setPadding(new Insets(8, 0, 0, 0));
 
         getChildren().addAll(
             lexicalTitle,
             formsPane,
-            pronunciationsPane,
-            sensesPane,
+            pronunciationsSection,
+            sensesSection,
             variantsTitle,
-            variantsPane,
-            relationsPane,
-            etymologiesPane,
+            variantsSection,
+            relationsSection,
+            etymologiesSection,
             metadataTitle,
             extPane,
-            identityPane,
-            addButtons
+            identityPane
         );
     }
 
-    /** Called after the editor modified the entry (added a component, changed a gram. info). */
+    /** Called after the editor modified the entry outside its sections (e.g. a grammatical info). */
     public void setOnChanged(Runnable callback) {
         this.onChanged = callback;
     }
@@ -129,80 +102,83 @@ public final class LiftEntryEditor extends VBox {
     }
 
     public void setEntry(LiftEntry entry) {
-        currentEntry = entry;
-        pronunciationsBox.getChildren().clear();
-        sensesBox.getChildren().clear();
-        variantsBox.getChildren().clear();
-        relationsBox.getChildren().clear();
-        etymologiesBox.getChildren().clear();
+        setEntry(entry, null);
+    }
+
+    /** Shows an entry; with {@code actions}, its components can be added and deleted. */
+    public void setEntry(LiftEntry entry, EditActions actions) {
+        pronunciationsSection.setOwner(entry, actions);
+        sensesSection.setOwner(entry, actions);
+        variantsSection.setOwner(entry, actions);
+        relationsSection.setOwner(entry, actions);
+        etymologiesSection.setOwner(entry, actions);
         identityBlock.getChildren().clear();
-        addButtons.getChildren().clear();
 
         if (entry == null) {
             formsEditor.setMultiText(null);
+            formsEditor.setEditActions(null);
             notableEditor.setModel(null);
-            updateCounts(0, 0, 0, 0, 0);
             return;
         }
 
-        List<String> relationTypes = relationTypes();
-
         formsEditor.setMultiText(entry.getForms());
+        formsEditor.setEditActions(actions);
 
+        List<Node> prons = new ArrayList<>();
         for (LiftPronunciation p : entry.getPronunciations()) {
             PronunciationEditor pe = new PronunciationEditor(dictionary);
-            pe.setPronunciation(p);
-            pronunciationsBox.getChildren().add(EditorSupport.withDeleteButton(pe, () -> ComponentDeletion.delete(
-                () -> entry.deletePronunciation(p), this::refresh)));
+            pe.setPronunciation(p, actions);
+            prons.add(pronunciationsSection.card(p, EditorSupport.firstForm(p.getPronunciation()), pe,
+                () -> entry.deletePronunciation(p)));
         }
+        pronunciationsSection.setItems(prons);
 
-        List<LiftSense> senses = entry.getSenses();
-        for (int i = 0; i < senses.size(); i++) {
-            sensesBox.getChildren().add(buildSensePane(entry, senses.get(i), i));
+        List<Node> senses = new ArrayList<>();
+        List<LiftSense> senseList = entry.getSenses();
+        for (int i = 0; i < senseList.size(); i++) {
+            LiftSense sense = senseList.get(i);
+            senses.add(SenseEditor.senseCard(sensesSection, i, sense, senseContent(sense, actions),
+                () -> entry.deleteSense(sense), i == 0));
         }
+        sensesSection.setItems(senses);
 
+        List<Node> variants = new ArrayList<>();
         for (LiftVariant v : entry.getVariants()) {
             VariantEditor ve = new VariantEditor(dictionary);
-            ve.setVariant(v, addActions(v));
-            variantsBox.getChildren().add(EditorSupport.withDeleteButton(ve, () -> ComponentDeletion.delete(
-                () -> entry.deleteVariant(v), this::refresh)));
+            ve.setVariant(v, actions);
+            String title = v.getRefId().orElse(EditorSupport.firstForm(v.getForms()));
+            variants.add(variantsSection.card(v, title, ve, () -> entry.deleteVariant(v)));
         }
+        variantsSection.setItems(variants);
 
+        List<Node> relations = new ArrayList<>();
         for (LiftRelation r : entry.getRelations()) {
             RelationEditor re = new RelationEditor(dictionary);
-            re.setRelation(r);
-            relationsBox.getChildren().add(EditorSupport.withDeleteButton(re, () -> ComponentDeletion.delete(
-                () -> entry.deleteRelation(r), this::refresh)));
+            re.setRelation(r, actions);
+            relations.add(relationsSection.card(r, SenseEditor.relationTitle(r), re, () -> entry.deleteRelation(r)));
         }
+        relationsSection.setItems(relations);
 
+        List<Node> etymologies = new ArrayList<>();
         for (LiftEtymology et : entry.getEtymologies()) {
             EtymologyEditor ee = new EtymologyEditor(dictionary);
-            ee.setEtymology(et);
-            etymologiesBox.getChildren().add(EditorSupport.withDeleteButton(ee, () -> ComponentDeletion.delete(
-                () -> entry.deleteEtymology(et), this::refresh)));
+            ee.setEtymology(et, actions);
+            String title = (EditorSupport.featureId(et.getType()) + "  " + EditorSupport.firstForm(et.getForms())).strip();
+            etymologies.add(etymologiesSection.card(et, title, ee, () -> entry.deleteEtymology(et)));
         }
+        etymologiesSection.setItems(etymologies);
 
-        updateCounts(
-            entry.getPronunciations().size(),
-            senses.size(),
-            entry.getVariants().size(),
-            entry.getRelations().size(),
-            entry.getEtymologies().size()
-        );
-
-        notableEditor.setModel(entry, addActions(entry));
+        notableEditor.setModel(entry, actions);
 
         // Identity block: ID, dates (read-only, grey)
         addReadOnlyRow(0, I18n.get("field.id"), entry.getId().orElse(""));
         addReadOnlyRow(1, I18n.get("field.dateCreated"), entry.getDateCreated().orElse(""));
         addReadOnlyRow(2, I18n.get("field.dateModified"), entry.getDateModified().orElse(""));
-
-        buildAddButtons(entry, relationTypes);
     }
 
     /* ─── Senses ─── */
 
-    private TitledPane buildSensePane(LiftEntry entry, LiftSense sense, int index) {
+    private Node senseContent(LiftSense sense, EditActions actions) {
         VBox box = new VBox(4);
         if (onOpenSense != null) {
             Hyperlink link = new Hyperlink(I18n.get("sense.openInSensesView"));
@@ -210,19 +186,11 @@ public final class LiftEntryEditor extends VBox {
             box.getChildren().add(link);
         }
         SenseEditor se = new SenseEditor(dictionary);
-        se.setGrammaticalInfoValues(gramInfoValues());
+        se.setGrammaticalInfoValues(EditorSupport.sortedFeatureIds(dictionary.getHeader().getGrammaticalInfoManager()));
         se.setOnGramInfoChanged(this::fireChanged);
-        se.setSense(
-            sense,
-            BuilderAddActions.multiTextAnnotator(dictionary),
-            annotationNames(),
-            this::addActions,
-            this::addActions
-        );
-        box.getChildren().add(EditorSupport.withDeleteButton(se, () -> ComponentDeletion.delete(
-            () -> entry.deleteSense(sense),
-            this::refresh)));
-        return titledPane("#" + (index + 1) + "  " + senseDisplayText(sense), box, index == 0);
+        se.setSense(sense, actions);
+        box.getChildren().add(se);
+        return box;
     }
 
     /** Display text of a sense: gloss(es) joined by " / ", else definition, else "?". */
@@ -235,149 +203,11 @@ public final class LiftEntryEditor extends VBox {
         return "?";
     }
 
-    /* ─── Add buttons ─── */
-
-    private void buildAddButtons(LiftEntry entry, List<String> relationTypes) {
-        Button addSenseBtn = new Button(I18n.get("btn.addSense"));
-        addSenseBtn.setOnAction(e -> {
-            // A sense needs a gloss (or a definition); the grammatical info is optional.
-            Optional<String> lang = Dialogs.firstLanguage(dictionary.getMetaLanguageManager().getLanguages());
-            if (lang.isEmpty()) return;
-            Optional<String> gloss = Dialogs.askText(I18n.get("btn.addSense"), I18n.get("col.gloss") + " (" + lang.get() + ")");
-            if (gloss.isEmpty()) return;
-            SenseBuilder sb = dictionary.getComponentBuilder().sense(entry).withGloss(lang.get(), gloss.get());
-            List<String> giValues = gramInfoValues();
-            if (!giValues.isEmpty()) {
-                ChoiceDialog<String> dlg = new ChoiceDialog<>(giValues.get(0), giValues);
-                dlg.setTitle(I18n.get("btn.addSense"));
-                dlg.setHeaderText(I18n.get("col.gramInfo"));
-                dlg.showAndWait()
-                    .filter(v -> v != null && !v.isBlank())
-                    .ifPresent(v -> sb.withPartOfSpeech(v.trim()));
-            }
-            sb.build();
-            refresh();
-        });
-
-        Button addVariantBtn = new Button(I18n.get("btn.addVariant"));
-        addVariantBtn.setOnAction(e -> {
-            dictionary.getComponentBuilder().variant(entry).build();
-            refresh();
-        });
-
-        Button addPronBtn = new Button(I18n.get("btn.addPronunciation"));
-        addPronBtn.setOnAction(e -> {
-            dictionary.getComponentBuilder().pronunciation(entry).build();
-            refresh();
-        });
-
-        Button addRelationBtn = new Button(I18n.get("btn.addRelation"));
-        boolean noRelationTypes = relationTypes.isEmpty();
-        addRelationBtn.setDisable(noRelationTypes);
-        addRelationBtn.setOnAction(e -> {
-            if (relationTypes.isEmpty()) return;
-            ChoiceDialog<String> dlg = new ChoiceDialog<>(relationTypes.get(0), relationTypes);
-            dlg.setTitle(I18n.get("btn.addRelation"));
-            dlg.setHeaderText(I18n.get("col.type"));
-            dlg.showAndWait()
-                .filter(t -> t != null && !t.isBlank())
-                .ifPresent(type -> {
-                    dictionary.getComponentBuilder().relation(type.trim(), entry).build();
-                    refresh();
-                });
-        });
-        StackPane addRelationWrapper = new StackPane(addRelationBtn);
-        if (noRelationTypes) {
-            Tooltip.install(addRelationWrapper, new Tooltip(I18n.get("tooltip.noRelationTypes")));
-        }
-
-        Button addEtymologyBtn = new Button(I18n.get("btn.addEtymology"));
-        addEtymologyBtn.setOnAction(e -> showAddEtymologyDialog(entry));
-
-        addButtons.getChildren().addAll(
-            addSenseBtn,
-            addVariantBtn,
-            addPronBtn,
-            addRelationWrapper,
-            addEtymologyBtn
-        );
-    }
-
-    private void showAddEtymologyDialog(LiftEntry entry) {
-        Dialog<Pair<String, String>> dlg = new Dialog<>();
-        dlg.setTitle(I18n.get("btn.addEtymology"));
-        dlg.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        TextField sourceField = new TextField();
-        sourceField.setPromptText(I18n.get("col.source"));
-        List<String> knownTypes = EditorSupport.sortedFeatureIds(dictionary.getHeader().getEtymologyTypeManager());
-        ComboBox<String> typeCombo = new ComboBox<>(FXCollections.observableArrayList(knownTypes));
-        typeCombo.setEditable(true);
-        typeCombo.setPromptText(I18n.get("col.type"));
-        GridPane grid = new GridPane();
-        grid.setHgap(8);
-        grid.setVgap(8);
-        grid.add(new Label(I18n.get("col.type")), 0, 0);
-        grid.add(typeCombo, 1, 0);
-        grid.add(new Label(I18n.get("col.source")), 0, 1);
-        grid.add(sourceField, 1, 1);
-        dlg.getDialogPane().setContent(grid);
-        dlg.setResultConverter(btn ->
-            btn == ButtonType.OK
-                ? new Pair<>(
-                      typeCombo.getValue() != null
-                          ? typeCombo.getValue()
-                          : typeCombo.getEditor().getText(),
-                      sourceField.getText()
-                  )
-                : null
-        );
-        dlg.showAndWait().ifPresent(pair -> {
-            String type = pair.getKey() != null ? pair.getKey().trim() : "";
-            String source = pair.getValue() != null ? pair.getValue().trim() : "";
-            if (type.isEmpty()) type = "unknown";
-            dictionary.getComponentBuilder().etymology(entry, type, source).build();
-            refresh();
-        });
-    }
-
-    /** Add actions on a component of the entry: every addition rebuilds this editor. */
-    private ExtensibleAddActions addActions(Object model) {
-        return BuilderAddActions.of(dictionary, model, this::refresh);
-    }
-
-    /** After a change made in this editor: reports it, and rebuilds the editor. */
-    private void refresh() {
-        setEntry(currentEntry);
-        fireChanged();
-    }
-
     private void fireChanged() {
         if (onChanged != null) onChanged.run();
     }
 
-    /* ─── Header values ─── */
-
-    private List<String> relationTypes() {
-        return EditorSupport.sortedFeatureIds(dictionary.getHeader().getRelationTypeManager());
-    }
-
-    private List<String> annotationNames() {
-        return EditorSupport.sortedFeatureIds(dictionary.getHeader().getAnnotationTypeManager());
-    }
-
-    private List<String> gramInfoValues() {
-        return EditorSupport.sortedFeatureIds(dictionary.getHeader().getGrammaticalInfoManager());
-    }
-
     /* ─── Layout helpers ─── */
-
-    private void updateCounts(int pronunciations, int senses, int variants, int relations, int etymologies) {
-        pronunciationsPane.setText(I18n.get(Keys.EDITOR_PRONUNCIATIONS) + " (" + pronunciations + ")");
-        sensesPane.setText(I18n.get(Keys.EDITOR_SENSES) + " (" + senses + ")");
-        variantsPane.setText(I18n.get(Keys.EDITOR_VARIANTS) + " (" + variants + ")");
-        relationsPane.setText(I18n.get(Keys.EDITOR_RELATIONS) + " (" + relations + ")");
-        etymologiesPane.setText(I18n.get(Keys.EDITOR_ETYMOLOGIES) + " (" + etymologies + ")");
-    }
 
     private void addReadOnlyRow(int row, String label, String value) {
         TextField tf = EditorSupport.readOnlyField(value);

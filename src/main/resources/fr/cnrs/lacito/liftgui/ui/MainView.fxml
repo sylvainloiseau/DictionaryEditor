@@ -3,6 +3,7 @@
 <?import javafx.geometry.Insets?>
 <?import javafx.geometry.Pos?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckMenuItem?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.Menu?>
 <?import javafx.scene.control.MenuBar?>
@@ -29,16 +30,16 @@
       <menus>
         <Menu text="%menu.file">
           <items>
-            <MenuItem text="%menu.file.new" onAction="#onNewDictionary"/>
-            <MenuItem text="%menu.file.open" onAction="#onImportLift"/>
+            <MenuItem id="file.new" text="%menu.file.new" onAction="#onNewDictionary"/>
+            <MenuItem id="file.open" text="%menu.file.open" onAction="#onImportLift"/>
             <Menu fx:id="recentMenu" text="%menu.file.openRecent"/>
             <SeparatorMenuItem/>
-            <MenuItem text="%menu.file.save" onAction="#onSave"/>
-            <MenuItem text="%menu.file.saveAs" onAction="#onSaveAs"/>
+            <MenuItem id="file.save" text="%menu.file.save" onAction="#onSave"/>
+            <MenuItem id="file.saveAs" text="%menu.file.saveAs" onAction="#onSaveAs"/>
             <SeparatorMenuItem/>
-            <MenuItem text="%menu.file.preferences" onAction="#onPreferences"/>
+            <MenuItem id="file.preferences" text="%menu.file.preferences" onAction="#onPreferences"/>
             <SeparatorMenuItem/>
-            <MenuItem text="%menu.file.quit" onAction="#onQuit"/>
+            <MenuItem id="file.quit" text="%menu.file.quit" onAction="#onQuit"/>
           </items>
         </Menu>
         <Menu text="%menu.edit">
@@ -46,37 +47,46 @@
             <MenuItem fx:id="undoMenuItem" text="%menu.edit.undo" onAction="#onUndo"/>
             <MenuItem fx:id="redoMenuItem" text="%menu.edit.redo" onAction="#onRedo"/>
             <SeparatorMenuItem/>
-            <MenuItem text="%menu.edit.copy" onAction="#onCopy"/>
-            <MenuItem text="%menu.edit.paste" onAction="#onPaste"/>
-            <MenuItem text="%menu.edit.cut" onAction="#onCut"/>
+            <MenuItem id="edit.copy" text="%menu.edit.copy" onAction="#onCopy"/>
+            <MenuItem id="edit.paste" text="%menu.edit.paste" onAction="#onPaste"/>
+            <MenuItem id="edit.cut" text="%menu.edit.cut" onAction="#onCut"/>
           </items>
         </Menu>
+        <!-- Filled by AddCommands: one item per kind of component. -->
+        <Menu fx:id="addMenu" text="%menu.add"/>
         <Menu text="%menu.view">
           <items>
             <!-- Filled from ComponentKinds by MainController, like the navigation tree. -->
             <Menu fx:id="viewObjectsMenu" text="%menu.view.objects"/>
             <Menu text="%menu.view.languages">
               <items>
-                <MenuItem text="%nav.objectLangs" onAction="#onViewObjectLangs"/>
-                <MenuItem text="%nav.metaLangs" onAction="#onViewMetaLangs"/>
+                <MenuItem id="view.objectLangs" text="%nav.objectLangs" onAction="#onViewObjectLangs"/>
+                <MenuItem id="view.metaLangs" text="%nav.metaLangs" onAction="#onViewMetaLangs"/>
               </items>
             </Menu>
             <Menu text="%menu.view.categories">
               <items>
-                <MenuItem text="%nav.gramInfo" onAction="#onViewGramInfo"/>
-                <MenuItem text="%nav.traitValues" onAction="#onViewTraitValues"/>
-                <MenuItem text="%nav.transTypes" onAction="#onViewTransTypes"/>
-                <MenuItem text="%nav.noteTypes" onAction="#onViewNoteTypes"/>
-                <MenuItem text="%nav.relationTypes" onAction="#onViewRelationTypes"/>
+                <MenuItem id="view.gramInfo" text="%nav.gramInfo" onAction="#onViewGramInfo"/>
+                <MenuItem id="view.traitValues" text="%nav.traitValues" onAction="#onViewTraitValues"/>
+                <MenuItem id="view.transTypes" text="%nav.transTypes" onAction="#onViewTransTypes"/>
+                <MenuItem id="view.noteTypes" text="%nav.noteTypes" onAction="#onViewNoteTypes"/>
+                <MenuItem id="view.relationTypes" text="%nav.relationTypes" onAction="#onViewRelationTypes"/>
               </items>
             </Menu>
+            <SeparatorMenuItem/>
+            <CheckMenuItem fx:id="hideEmptySectionsItem" text="%menu.view.hideEmptySections"/>
           </items>
         </Menu>
         <Menu text="%menu.tools">
           <items>
-            <MenuItem text="%menu.tools.validate" onAction="#onValidateDictionary"/>
-            <MenuItem text="%menu.tools.exportCsv" onAction="#onExportCsv"/>
-            <MenuItem text="%menu.tools.exportLatex" onAction="#onExportLatex"/>
+            <MenuItem id="tools.validate" text="%menu.tools.validate" onAction="#onValidateDictionary"/>
+            <MenuItem id="tools.exportCsv" text="%menu.tools.exportCsv" onAction="#onExportCsv"/>
+            <MenuItem id="tools.exportLatex" text="%menu.tools.exportLatex" onAction="#onExportLatex"/>
+          </items>
+        </Menu>
+        <Menu text="%menu.help">
+          <items>
+            <MenuItem id="help.shortcuts" text="%menu.help.shortcuts" onAction="#onShortcuts"/>
           </items>
         </Menu>
       </menus>

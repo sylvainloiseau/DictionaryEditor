@@ -185,7 +185,7 @@ class ComponentTablesTest extends MainWindowTest {
     void deletingAMediaFromItsTableCanBeUndone() {
         show("nav.media", media);
         fire(deleteButton());
-        pressDialogButton(ButtonType.OK);
+        assertFalse(dialogOpen(), "a media file is deleted without asking: it can be undone");
         assertFalse(pronunciation.getMedias().contains(media));
         assertFalse(table().getItems().contains(media));
         fireMenuItem("undoMenuItem");

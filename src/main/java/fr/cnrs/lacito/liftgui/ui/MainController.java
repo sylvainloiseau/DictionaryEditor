@@ -14,6 +14,8 @@ import fr.cnrs.lacito.liftgui.MainApp;
 import fr.cnrs.lacito.liftgui.MainApp;
 import fr.cnrs.lacito.liftgui.core.CsvExporter;
 import fr.cnrs.lacito.liftgui.ui.app.*;
+import fr.cnrs.lacito.liftgui.ui.controls.ComponentSection;
+import fr.cnrs.lacito.liftgui.ui.editor.AddCommands;
 import fr.cnrs.lacito.liftgui.ui.editor.EditorContext;
 import fr.cnrs.lacito.liftgui.ui.editor.EditorPanel;
 import fr.cnrs.lacito.liftgui.ui.nav.NavigationTree;
@@ -91,11 +93,14 @@ public final class MainController {
     @FXML private Button addButton;
     @FXML private MenuItem undoMenuItem;
     @FXML private MenuItem redoMenuItem;
+    @FXML private Menu addMenu;
+    @FXML private CheckMenuItem hideEmptySectionsItem;
 
     /* ─── State ─── */
     private final AppPreferences prefs = new AppPreferences();
     private final DictionaryDocument document = new DictionaryDocument();
     private final FileActions fileActions = new FileActions(document, prefs, this::window);
+    private final Commands commands = new Commands(prefs);
     private Navigator navigator;
     private NavigationTree navigation;
     private EditorContext ctx;
@@ -133,9 +138,25 @@ public final class MainController {
         // View ▸ Objects lists the component tables, as the navigation tree does.
         for (ViewKey key : ComponentKinds.keys()) {
             MenuItem item = new MenuItem(I18n.get(key.i18nKey()));
+            item.setId("view." + key.name().toLowerCase(java.util.Locale.ROOT));
             item.setOnAction(e -> navigator.go(key));
             viewObjectsMenu.getItems().add(item);
         }
+
+        // Add ▸ Sense, Example…: to the component shown in the editor, or around the focus.
+        new AddCommands(ctx, editorContainer).install(addMenu);
+
+        // View ▸ Hide empty sections, remembered.
+        hideEmptySectionsItem.setId("view.hideEmptySections");
+        hideEmptySectionsItem.setSelected(prefs.hideEmptySections());
+        ComponentSection.HIDE_EMPTY.set(prefs.hideEmptySections());
+        hideEmptySectionsItem.selectedProperty().addListener((obs, o, hide) -> {
+            prefs.setHideEmptySections(hide);
+            ComponentSection.HIDE_EMPTY.set(hide);
+        });
+
+        // Every menu item with an id is a command, with its keyboard shortcut.
+        commands.register(menuBar);
 
         setupSplitPane();
         setupMenuHover();
@@ -306,12 +327,17 @@ public final class MainController {
     }
 
     @FXML
+    private void onShortcuts() {
+        ShortcutsDialog.show(commands, window());
+    }
+
+    @FXML
     private void onPreferences() {
         PreferencesDialog.show(prefs, menuBar.getScene(), () -> {
             // The reloaded scene takes over the open dictionary, and its history.
             document.handOver();
             Platform.runLater(MainApp::reloadScene);
-        });
+        }, this::onShortcuts);
         document.history().setLimit(prefs.historyLimit());
     }
 

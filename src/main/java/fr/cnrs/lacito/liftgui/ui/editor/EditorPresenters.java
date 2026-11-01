@@ -47,10 +47,14 @@ public final class EditorPresenters {
         return ctx.panel();
     }
 
-    /** Add actions for a component shown in the panel: an addition shows the object again. */
-    private ExtensibleAddActions addActions(Object model) {
-        return BuilderAddActions.of(dictionary(), model, () -> {
+    /**
+     * The edit actions of the editor shown in the panel: an addition or a deletion shows the
+     * object again, and redraws the table.
+     */
+    private EditActions actions() {
+        return EditActions.of(dictionary(), () -> ctx.document().file(), () -> {
             redisplay();
+            ctx.refreshTable();
         });
     }
 
@@ -92,7 +96,7 @@ public final class EditorPresenters {
             LiftEntryEditor entryEditor = new LiftEntryEditor(dictionary());
             entryEditor.setOnOpenSense(ctx.navigator()::goToSenseAmongEntrySenses);
             entryEditor.setOnChanged(ctx::refreshTable);
-            entryEditor.setEntry(entry);
+            entryEditor.setEntry(entry, actions());
             addChildrenLinks(entry,
                 new Children(ViewKey.PRONUNCIATIONS, entry.getPronunciations()),
                 new Children(ViewKey.VARIANTS, entry.getVariants()),
@@ -137,63 +141,8 @@ public final class EditorPresenters {
         SenseEditor se = new SenseEditor(dictionary());
         se.setGrammaticalInfoValues(EditorSupport.sortedFeatureIds(dictionary().getHeader().getGrammaticalInfoManager()));
         se.setOnGramInfoChanged(ctx::refreshTable);
-        se.setSense(
-            sense,
-            BuilderAddActions.multiTextAnnotator(dictionary()),
-            EditorSupport.sortedFeatureIds(dictionary().getHeader().getAnnotationTypeManager()),
-            this::addActions,
-            this::addActions
-        );
-        panel().add(se, senseAddButtons(sense));
-    }
-
-    private FlowPane senseAddButtons(LiftSense sense) {
-        // An example needs its text, a sense a gloss (or a definition), a reversal a type.
-        Button addExBtn = new Button(I18n.get("btn.addExample"));
-        addExBtn.setOnAction(e ->
-            Dialogs.firstLanguage(dictionary().getObjectLanguageManager().getLanguages()).ifPresent(lang ->
-                Dialogs.askText(I18n.get("btn.addExample"), I18n.get("col.example") + " (" + lang + ")").ifPresent(text -> {
-                    dictionary().getComponentBuilder().example(sense).withExample(lang, text).build();
-                    showSense(sense);
-                })
-            )
-        );
-        Button addNoteBtn = new Button(I18n.get("btn.addNote"));
-        addNoteBtn.setOnAction(e ->
-            Dialogs.chooseType(I18n.get("btn.addNote"), dictionary().getHeader().getNoteTypeManager())
-                .ifPresent(type -> {
-                    dictionary().getComponentBuilder().note(sense, type).build();
-                    showSense(sense);
-                })
-        );
-        Button addRelationBtn = new Button(I18n.get("btn.addRelation"));
-        addRelationBtn.setOnAction(e ->
-            Dialogs.chooseType(I18n.get("btn.addRelation"), dictionary().getHeader().getRelationTypeManager())
-                .ifPresent(type -> {
-                    dictionary().getComponentBuilder().relation(type, sense).build();
-                    showSense(sense);
-                })
-        );
-        Button addReversalBtn = new Button(I18n.get("btn.addReversal"));
-        addReversalBtn.setOnAction(e ->
-            Dialogs.chooseType(I18n.get("btn.addReversal"), dictionary().getHeader().getInverseTypeManager())
-                .ifPresent(type -> {
-                    dictionary().getComponentBuilder().reversal(sense).withType(type).build();
-                    showSense(sense);
-                })
-        );
-        Button addSubSenseBtn = new Button(I18n.get("btn.addSubSense"));
-        addSubSenseBtn.setOnAction(e ->
-            Dialogs.firstLanguage(dictionary().getMetaLanguageManager().getLanguages()).ifPresent(lang ->
-                Dialogs.askText(I18n.get("btn.addSubSense"), I18n.get("col.gloss") + " (" + lang + ")").ifPresent(gloss -> {
-                    dictionary().getComponentBuilder().sense(sense).withGloss(lang, gloss).build();
-                    showSense(sense);
-                })
-            )
-        );
-        FlowPane addButtons = new FlowPane(8, 6, addExBtn, addNoteBtn, addRelationBtn, addReversalBtn, addSubSenseBtn);
-        addButtons.setPadding(new Insets(8, 0, 0, 0));
-        return addButtons;
+        se.setSense(sense, actions());
+        panel().add(se);
     }
 
     public void showExample(LiftExample ex) {
@@ -203,7 +152,7 @@ public final class EditorPresenters {
         addParentLink(ex);
         addChildrenLinks(ex, new Children(ViewKey.TRANSLATIONS, List.copyOf(ex.getTranslationComponents())));
         ExampleEditor ee = new ExampleEditor(dictionary());
-        ee.setExample(ex, BuilderAddActions.multiTextAnnotator(dictionary()), addActions(ex));
+        ee.setExample(ex, actions());
         panel().add(ee);
     }
 
@@ -214,7 +163,7 @@ public final class EditorPresenters {
         if (parent != null) panel().add(delete.component(note, () -> parent.deleteNote(note)));
         addParentLink(note);
         NoteEditor ne = new NoteEditor(dictionary());
-        ne.setNote(note);
+        ne.setNote(note, actions());
         panel().add(ne);
     }
 
@@ -225,7 +174,7 @@ public final class EditorPresenters {
         if (parent != null) panel().add(delete.component(v, () -> parent.deleteVariant(v)));
         addParentLink(v);
         VariantEditor ve = new VariantEditor(dictionary());
-        ve.setVariant(v, addActions(v));
+        ve.setVariant(v, actions());
         panel().add(ve);
     }
 
@@ -242,7 +191,7 @@ public final class EditorPresenters {
         }
         addParentLink(relation);
         RelationEditor re = new RelationEditor(dictionary());
-        re.setRelation(relation);
+        re.setRelation(relation, actions());
         panel().add(re);
     }
 
@@ -257,7 +206,7 @@ public final class EditorPresenters {
         if (parent != null) panel().add(delete.component(et, () -> parent.deleteEtymology(et)));
         addParentLink(et);
         EtymologyEditor ee = new EtymologyEditor(dictionary());
-        ee.setEtymology(et);
+        ee.setEtymology(et, actions());
         panel().add(ee);
     }
 
@@ -280,7 +229,7 @@ public final class EditorPresenters {
         if (parent != null) panel().add(delete.component(field, () -> parent.deleteField(field)));
         addParentLink(field);
         FieldEditor fe = new FieldEditor(dictionary());
-        fe.setField(field);
+        fe.setField(field, actions());
         panel().add(fe);
     }
 
@@ -291,7 +240,7 @@ public final class EditorPresenters {
         if (parent != null) panel().add(delete.component(translation, () -> parent.deleteTranslation(translation)));
         addParentLink(translation);
         TranslationEditor te = new TranslationEditor(dictionary());
-        te.setTranslation(translation);
+        te.setTranslation(translation, actions());
         panel().add(te);
     }
 
@@ -304,7 +253,7 @@ public final class EditorPresenters {
         addParentLink(pronunciation);
         addChildrenLinks(pronunciation, new Children(ViewKey.MEDIA, pronunciation.getMedias()));
         PronunciationEditor pe = new PronunciationEditor(dictionary());
-        pe.setPronunciation(pronunciation);
+        pe.setPronunciation(pronunciation, actions());
         panel().add(pe);
     }
 
@@ -315,7 +264,7 @@ public final class EditorPresenters {
         if (parent != null) panel().add(delete.component(media, () -> parent.deleteMedia(media)));
         addParentLink(media);
         ExternalDocumentEditor ede = new ExternalDocumentEditor(dictionary(), () -> ctx.document().file());
-        ede.setDocument(media);
+        ede.setDocument(media, actions());
         panel().add(ede);
     }
 
@@ -326,7 +275,7 @@ public final class EditorPresenters {
         if (parent != null) panel().add(delete.component(illustration, () -> parent.deleteIllustration(illustration)));
         addParentLink(illustration);
         ExternalDocumentEditor ede = new ExternalDocumentEditor(dictionary(), () -> ctx.document().file());
-        ede.setDocument(illustration);
+        ede.setDocument(illustration, actions());
         panel().add(ede);
     }
 
@@ -342,7 +291,7 @@ public final class EditorPresenters {
         }
         addParentLink(reversal);
         ReversalEditor re = new ReversalEditor(dictionary());
-        re.setReversal(reversal);
+        re.setReversal(reversal, actions());
         panel().add(re);
     }
 
@@ -354,7 +303,7 @@ public final class EditorPresenters {
         if (parent != null) panel().add(delete.component(trait, () -> parent.deleteTrait(trait)));
         addParentLink(trait);
         TraitEditor te = new TraitEditor(dictionary());
-        te.setTrait(trait, EditorSupport.targetOf(parent));
+        te.setTrait(trait, EditorSupport.targetOf(parent), actions());
         panel().add(te);
     }
 

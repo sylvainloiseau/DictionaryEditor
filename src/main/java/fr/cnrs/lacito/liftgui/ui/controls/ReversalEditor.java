@@ -14,6 +14,7 @@ import fr.cnrs.lacito.liftapi.model.Feature;
 import fr.cnrs.lacito.liftapi.model.HasReversal;
 import fr.cnrs.lacito.liftapi.model.LiftReversal;
 import fr.cnrs.lacito.liftgui.ui.I18n;
+import java.util.List;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -32,7 +33,7 @@ public final class ReversalEditor extends VBox {
 
     private final ComboBox<Feature> typeCombo = new ComboBox<>();
     private final MultiTextEditor formsEditor;
-    private final VBox mainBox = new VBox(6);
+    private final ComponentSection mainSection;
     private ChangeListener<Feature> typeListener;
     private final LiftDictionary dictionary;
 
@@ -41,7 +42,6 @@ public final class ReversalEditor extends VBox {
         this.formsEditor = new MultiTextEditor(dictionary);
         super(6);
         setPadding(new Insets(4));
-        setStyle("-fx-border-color: #b9c; -fx-border-radius: 4; -fx-background-color: #f8f4fa; -fx-background-radius: 4;");
 
         typeCombo.setEditable(false);
         typeCombo.setPromptText(I18n.get("col.type"));
@@ -59,17 +59,22 @@ public final class ReversalEditor extends VBox {
         formsPane.setExpanded(true);
         formsPane.setAnimated(false);
 
-        TitledPane mainPane = new TitledPane(I18n.get("editor.reversalMain"), mainBox);
-        mainPane.setExpanded(false);
-        mainPane.setAnimated(false);
+        formsEditor.getStyleClass().add(Reveal.FIRST_INPUT);
+        mainSection = new ComponentSection(ComponentKind.REVERSAL, I18n.get("editor.reversalMain"), false);
+        mainSection.setMaxCount(1);
 
-        getChildren().addAll(grid, formsPane, mainPane);
+        getChildren().addAll(grid, formsPane, mainSection);
     }
 
     public void setReversal(LiftReversal rev) {
+        setReversal(rev, null);
+    }
+
+    /** With {@code actions}, the main reversal can be added and deleted. */
+    public void setReversal(LiftReversal rev, EditActions actions) {
         if (typeListener != null) typeCombo.valueProperty().removeListener(typeListener);
         typeListener = null;
-        mainBox.getChildren().clear();
+        mainSection.setOwner(rev, actions);
         if (rev == null) {
             typeCombo.getItems().clear();
             typeCombo.setDisable(true);
@@ -90,10 +95,15 @@ public final class ReversalEditor extends VBox {
         typeCombo.valueProperty().addListener(typeListener);
 
         formsEditor.setMultiText(rev.getForms());
-        if (rev.getMain() != null) {
+        formsEditor.setEditActions(actions);
+        LiftReversal main = rev.getMain();
+        if (main != null) {
             ReversalEditor mainEditor = new ReversalEditor(dictionary);
-            mainEditor.setReversal(rev.getMain());
-            mainBox.getChildren().add(mainEditor);
+            mainEditor.setReversal(main, actions);
+            String title = EditorSupport.featureId(main.getType()) + "  " + EditorSupport.firstForm(main.getForms());
+            mainSection.setItems(List.of(mainSection.card(main, title.strip(), mainEditor, rev::deleteMain)));
+        } else {
+            mainSection.setItems(List.of());
         }
     }
 }

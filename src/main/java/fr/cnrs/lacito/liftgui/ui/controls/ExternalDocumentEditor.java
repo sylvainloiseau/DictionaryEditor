@@ -45,7 +45,6 @@ public final class ExternalDocumentEditor extends VBox {
         this.dictionaryFile = dictionaryFile;
         this.labelEditor = new MultiTextEditor(dictionary);
         setPadding(new Insets(4));
-        setStyle("-fx-border-color: #bcb; -fx-border-radius: 4; -fx-background-color: #f6faf4; -fx-background-radius: 4;");
 
         hrefField.setPromptText(I18n.get("col.file"));
         HBox fileBox = new HBox(6, hrefField, chooseBtn);
@@ -66,6 +65,11 @@ public final class ExternalDocumentEditor extends VBox {
     }
 
     public void setDocument(HasExternalDocument doc) {
+        setDocument(doc, null);
+    }
+
+    /** With {@code actions}, annotations can be added to the label. */
+    public void setDocument(HasExternalDocument doc, EditActions actions) {
         if (bound != null) hrefField.textProperty().unbindBidirectional(bound);
         bound = switch (doc) {
             case LiftMedia m -> m.hrefProperty();
@@ -90,6 +94,7 @@ public final class ExternalDocumentEditor extends VBox {
             if (chosen != null) href.set(pathFor(chosen, base));
         });
         labelEditor.setMultiText(doc.getLabel());
+        labelEditor.setEditActions(actions);
     }
 
     private File baseFolder() {

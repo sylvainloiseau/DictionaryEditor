@@ -47,9 +47,6 @@ public final class EtymologyEditor extends VBox {
         this.glossesEditor = new MultiTextEditor(dictionary);
         this.extensibleEditor = new ExtensibleWithFieldEditor(dictionary);
         setPadding(new Insets(4));
-        setStyle(
-            "-fx-border-color: #abc; -fx-border-radius: 4; -fx-background-color: #f4f8fa; -fx-background-radius: 4;"
-        );
 
         typeCombo.setEditable(false);
         typeCombo.setPromptText(I18n.get("col.type"));
@@ -57,6 +54,7 @@ public final class EtymologyEditor extends VBox {
         EditorSupport.showFeatureIds(typeCombo);
         sourceField.setPromptText(I18n.get("col.source"));
         formsEditor.useObjectLanguages();
+        formsEditor.getStyleClass().add(Reveal.FIRST_INPUT);
 
         GridPane grid = new GridPane();
         grid.setHgap(8);
@@ -76,14 +74,17 @@ public final class EtymologyEditor extends VBox {
         glossesPane.setExpanded(false);
         glossesPane.setAnimated(false);
 
-        TitledPane extPane = new TitledPane(I18n.get("editor.properties.withFields"), extensibleEditor);
-        extPane.setExpanded(false);
-        extPane.setAnimated(false);
+        SectionPane extPane = SectionPane.properties(I18n.get("editor.properties.withFields"), extensibleEditor);
 
         getChildren().addAll(grid, formsPane, glossesPane, extPane);
     }
 
     public void setEtymology(LiftEtymology ety) {
+        setEtymology(ety, null);
+    }
+
+    /** With {@code actions}, the properties of the etymology can be added and deleted. */
+    public void setEtymology(LiftEtymology ety, EditActions actions) {
         if (typeListener != null) typeCombo.valueProperty().removeListener(typeListener);
         if (sourceListener != null) sourceField.textProperty().removeListener(sourceListener);
         typeListener = null;
@@ -116,6 +117,8 @@ public final class EtymologyEditor extends VBox {
 
         formsEditor.setMultiText(ety.getForms());
         glossesEditor.setMultiText(ety.getGlosses());
-        extensibleEditor.setModel(ety);
+        formsEditor.setEditActions(actions);
+        glossesEditor.setEditActions(actions);
+        extensibleEditor.setModel(ety, actions);
     }
 }

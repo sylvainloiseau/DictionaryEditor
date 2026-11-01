@@ -91,14 +91,13 @@ class UndoTest extends MainWindowTest {
     }
 
     @Test
-    void anAdditionWithItsDialogIsOneUndoStep() {
+    void anAdditionIsOneUndoStep() {
         openView("nav.senses");
         selectRow(0);
         LiftSense sense = (LiftSense) table().getSelectionModel().getSelectedItem();
         int notes = sense.getNotes().size();
         int steps = history().cursor();
-        fire(editorButton(I18n.get("btn.addNote")));
-        pressDialogButton(ButtonType.OK);
+        addTyped(sense, fr.cnrs.lacito.liftgui.ui.controls.ComponentKind.NOTE, null);
         assertEquals(notes + 1, sense.getNotes().size());
         assertEquals(steps + 1, history().cursor());
         undo();
@@ -107,11 +106,11 @@ class UndoTest extends MainWindowTest {
     }
 
     @Test
-    void aCancelledDialogRecordsNothing() {
+    void aMenuOfTypesClosedWithoutChoiceRecordsNothing() {
         openView("nav.senses");
         selectRow(0);
-        fire(editorButton(I18n.get("btn.addNote")));
-        pressDialogButton(ButtonType.CANCEL);
+        LiftSense sense = (LiftSense) table().getSelectionModel().getSelectedItem();
+        typeMenu(sense, fr.cnrs.lacito.liftgui.ui.controls.ComponentKind.NOTE);
         assertEquals(0, history().entries().size());
         assertFalse(history().canUndoProperty().get());
     }

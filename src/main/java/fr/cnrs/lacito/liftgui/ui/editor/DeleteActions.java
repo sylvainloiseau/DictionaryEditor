@@ -8,6 +8,7 @@ import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
 import fr.cnrs.lacito.liftgui.ui.ObjectLabels;
+import fr.cnrs.lacito.liftgui.ui.controls.ComponentDeletion;
 import fr.cnrs.lacito.liftgui.ui.controls.LiftEntryEditor;
 import javafx.scene.control.Button;
 
@@ -26,42 +27,47 @@ public final class DeleteActions {
     public Button entry(LiftEntry entry) {
         String label = ObjectLabels.entryLabel(entry);
         String shown = "?".equals(label) ? I18n.get("editor.noForm") : label;
-        return button(I18n.get(Keys.CONFIRM_DELETE_ENTRY, shown), () -> {
+        return button(true, I18n.get(Keys.CONFIRM_DELETE_ENTRY, shown), () -> {
             if (ctx.delete(I18n.get("undo.deleteEntry", shown), entry, () -> ctx.dictionary().removeEntry(entry))) afterChange();
         });
     }
 
     public Button sense(LiftSense sense) {
         String shown = LiftEntryEditor.senseDisplayText(sense);
-        return button(I18n.get(Keys.CONFIRM_DELETE_SENSE, shown), () -> {
+        return button(ComponentDeletion.needsConfirmation(sense), I18n.get(Keys.CONFIRM_DELETE_SENSE, shown), () -> {
             HasSense parent = sense.getParent();
             if (ctx.delete(I18n.get("undo.deleteSense", shown), sense, () -> parent.deleteSense(sense))) afterChange();
         });
     }
 
     public Button example(LiftExample ex) {
-        return button(I18n.get("confirm.delete.example"), () -> {
+        return button(ComponentDeletion.needsConfirmation(ex), I18n.get("confirm.delete.example"), () -> {
             LiftSense parent = ex.getParent();
             if (ctx.delete(I18n.get("undo.deleteExample"), ex, () -> parent.deleteExample(ex))) afterChange();
         });
     }
 
     /**
-     * Deletes a component shown in its own view (note, variant, relation, etymology).
+     * Deletes a component shown in its own view (note, variant, relation, etymology…).
      *
      * @param component the component
      * @param remove    removes it (typically {@code parent.deleteX(x)})
      */
     public Button component(Object component, Runnable remove) {
-        return button(I18n.get("confirm.delete.component"), () -> {
+        return button(ComponentDeletion.needsConfirmation(component), I18n.get("confirm.delete.component"), () -> {
             if (ctx.delete(null, component, remove)) afterChange();
         });
     }
 
-    private Button button(String confirmText, Runnable delete) {
+    /**
+     * The delete button. As inside the editors, only an entry and the main components that
+     * are not empty ask first (see {@link ComponentDeletion#needsConfirmation}): the
+     * deletion can be undone.
+     */
+    private Button button(boolean confirm, String confirmText, Runnable delete) {
         Button b = EditorPanel.deleteButton();
         b.setOnAction(e -> {
-            if (Dialogs.confirm(I18n.get(Keys.CONFIRM_DELETE_TITLE), confirmText)) delete.run();
+            if (!confirm || Dialogs.confirm(I18n.get(Keys.CONFIRM_DELETE_TITLE), confirmText)) delete.run();
         });
         return b;
     }

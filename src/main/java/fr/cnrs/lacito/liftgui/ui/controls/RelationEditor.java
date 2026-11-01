@@ -46,9 +46,6 @@ public final class RelationEditor extends VBox {
         this.usageEditor = new MultiTextEditor(dictionary);
         this.extensibleEditor = new ExtensibleWithFieldEditor(dictionary);
         setPadding(new Insets(4));
-        setStyle(
-            "-fx-border-color: #bca; -fx-border-radius: 4; -fx-background-color: #f8faf4; -fx-background-radius: 4;"
-        );
 
         typeCombo.setEditable(false);
         typeCombo.setPromptText(I18n.get("col.type"));
@@ -74,14 +71,17 @@ public final class RelationEditor extends VBox {
         usagePane.setExpanded(false);
         usagePane.setAnimated(false);
 
-        TitledPane extPane = new TitledPane(I18n.get("editor.properties.withFields"), extensibleEditor);
-        extPane.setExpanded(false);
-        extPane.setAnimated(false);
+        SectionPane extPane = SectionPane.properties(I18n.get("editor.properties.withFields"), extensibleEditor);
 
         getChildren().addAll(grid, usagePane, extPane);
     }
 
     public void setRelation(LiftRelation rel) {
+        setRelation(rel, null);
+    }
+
+    /** With {@code actions}, the properties of the relation can be added and deleted. */
+    public void setRelation(LiftRelation rel, EditActions actions) {
         if (typeListener != null) typeCombo.valueProperty().removeListener(typeListener);
         if (orderListener != null) orderField.textProperty().removeListener(orderListener);
         typeListener = null;
@@ -119,6 +119,7 @@ public final class RelationEditor extends VBox {
         orderField.textProperty().addListener(orderListener);
 
         usageEditor.setMultiText(rel.getUsage());
-        extensibleEditor.setModel(rel);
+        usageEditor.setEditActions(actions);
+        extensibleEditor.setModel(rel, actions);
     }
 }

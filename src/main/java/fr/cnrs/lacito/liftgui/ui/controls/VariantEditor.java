@@ -19,18 +19,16 @@ import fr.cnrs.lacito.liftapi.model.LiftVariant;
 import fr.cnrs.lacito.liftapi.model.MultiText;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import javafx.geometry.Insets;
-import javafx.scene.control.Button;
+import javafx.scene.Node;
 import javafx.scene.control.ComboBox;
-import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
-import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.TitledPane;
-import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -50,11 +48,11 @@ public final class VariantEditor extends VBox {
     private final ComboBox<String> variantTypeCombo = new ComboBox<>();
     private final MultiTextEditor parentEntryFormsEditor;
     private final MultiTextEditor formsEditor;
-    private final VBox pronunciationsBox = new VBox(6);
-    private final VBox relationsBox = new VBox(6);
+    private final ComponentSection pronunciationsSection;
+    private final ComponentSection relationsSection;
     private final ExtensibleWithFieldEditor extensibleEditor;
     private LiftVariant currentVariant;
-    private ExtensibleAddActions currentAddActions;
+    private EditActions currentActions;
     private boolean updatingVariantType = false;
     private final LiftDictionary dictionary;
 
@@ -65,7 +63,6 @@ public final class VariantEditor extends VBox {
         this.formsEditor = new MultiTextEditor(dictionary);
         this.extensibleEditor = new ExtensibleWithFieldEditor(dictionary);
         setPadding(new Insets(4));
-        setStyle("-fx-border-color: #bbc; -fx-border-radius: 4; -fx-background-color: #f6f6fa; -fx-background-radius: 4;");
 
         variantTypeCombo.setEditable(false);
         variantTypeCombo.setMaxWidth(Double.MAX_VALUE);
@@ -78,6 +75,7 @@ public final class VariantEditor extends VBox {
         parentEntryFormsEditor.setFixedLanguageRows(true);
         formsEditor.useObjectLanguages();
         formsEditor.setFixedLanguageRows(true);
+        formsEditor.getStyleClass().add(Reveal.FIRST_INPUT);
 
         TitledPane parentFormsPane = new TitledPane(I18n.get("editor.parentEntryForms"), parentEntryFormsEditor);
         parentFormsPane.setExpanded(true);
@@ -97,19 +95,11 @@ public final class VariantEditor extends VBox {
         formsPane.setExpanded(true);
         formsPane.setAnimated(false);
 
-        TitledPane pronPane = new TitledPane(I18n.get("editor.pronunciations"), pronunciationsBox);
-        pronPane.setExpanded(false);
-        pronPane.setAnimated(false);
+        pronunciationsSection = new ComponentSection(ComponentKind.PRONUNCIATION, I18n.get("editor.pronunciations"), false);
+        relationsSection = new ComponentSection(ComponentKind.RELATION, I18n.get("editor.relations"), false);
+        SectionPane extPane = SectionPane.properties(I18n.get("editor.properties.withFields"), extensibleEditor);
 
-        TitledPane relPane = new TitledPane(I18n.get("editor.relations"), relationsBox);
-        relPane.setExpanded(false);
-        relPane.setAnimated(false);
-
-        TitledPane extPane = new TitledPane(I18n.get("editor.properties.withFields"), extensibleEditor);
-        extPane.setExpanded(false);
-        extPane.setAnimated(false);
-
-        getChildren().addAll(parentFormsPane, grid, formsPane, pronPane, relPane, extPane);
+        getChildren().addAll(parentFormsPane, grid, formsPane, pronunciationsSection, relationsSection, extPane);
     }
 
     public void setVariant(LiftVariant v) {
@@ -117,15 +107,15 @@ public final class VariantEditor extends VBox {
     }
 
     /**
-     * @param v          the variant
-     * @param addActions optional callbacks for adding pronunciation, relation, trait, annotation,
-     *                   field; when null the variant is shown read-only
+     * @param v       the variant
+     * @param actions to add and delete its pronunciations, relations and properties; when
+     *                null the variant is shown read-only
      */
-    public void setVariant(LiftVariant v, ExtensibleAddActions addActions) {
-        pronunciationsBox.getChildren().clear();
-        relationsBox.getChildren().clear();
+    public void setVariant(LiftVariant v, EditActions actions) {
+        pronunciationsSection.setOwner(v, actions);
+        relationsSection.setOwner(v, actions);
         currentVariant = v;
-        currentAddActions = addActions;
+        currentActions = actions;
 
         if (v == null) {
             refField.setText("");
@@ -158,7 +148,7 @@ public final class VariantEditor extends VBox {
         try {
             variantTypeCombo.getItems().setAll(comboItems);
             variantTypeCombo.setValue(currentVariantType == null ? EMPTY_CHOICE : currentVariantType);
-            variantTypeCombo.setDisable(addActions == null || comboItems.size() <= 1);
+            variantTypeCombo.setDisable(actions == null || comboItems.size() <= 1);
         } finally {
             updatingVariantType = false;
         }
@@ -169,56 +159,27 @@ public final class VariantEditor extends VBox {
 
         formsEditor.setMultiText(v.getForms());
         // Editable when the host gives add actions; parent lexical forms stay read-only above
-        formsEditor.setReadOnly(addActions == null);
+        formsEditor.setReadOnly(actions == null);
 
-        if (addActions != null) {
-            Button addPronBtn = new Button(I18n.get("btn.addPronunciation"));
-            addPronBtn.getStyleClass().add("example-add-button");
-            addPronBtn.setOnAction(e -> {
-                addActions.addPronunciation();
-                addActions.refresh();
-            });
-            pronunciationsBox.getChildren().add(new FlowPane(6, 4, addPronBtn));
+        formsEditor.setEditActions(actions);
 
-            Button addRelBtn = new Button(I18n.get("btn.addRelation"));
-            addRelBtn.getStyleClass().add("example-add-button");
-            addRelBtn.setOnAction(e -> {
-                List<String> types = EditorSupport.sortedFeatureIds(dictionary.getHeader().getRelationTypeManager());
-                Optional<String> typeOpt;
-                if (types.isEmpty()) {
-                    TextInputDialog tid = new TextInputDialog();
-                    tid.setTitle(I18n.get("btn.addRelation"));
-                    tid.setHeaderText(I18n.get("col.type"));
-                    typeOpt = tid.showAndWait();
-                } else {
-                    ChoiceDialog<String> dlg = new ChoiceDialog<>(types.get(0), types);
-                    dlg.setTitle(I18n.get("btn.addRelation"));
-                    dlg.setHeaderText(I18n.get("col.type"));
-                    typeOpt = dlg.showAndWait();
-                }
-                typeOpt.filter(t -> t != null && !t.isBlank()).ifPresent(type -> {
-                    addActions.addRelation(type.trim());
-                    addActions.refresh();
-                });
-            });
-            relationsBox.getChildren().add(new FlowPane(6, 4, addRelBtn));
-        }
-
+        List<Node> prons = new ArrayList<>();
         for (LiftPronunciation p : v.getPronunciations()) {
             PronunciationEditor pe = new PronunciationEditor(dictionary);
-            pe.setPronunciation(p);
-            Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.delete(
-                () -> v.deletePronunciation(p), addActions::refresh);
-            pronunciationsBox.getChildren().add(EditorSupport.withDeleteButton(pe, onDelete));
+            pe.setPronunciation(p, actions);
+            prons.add(pronunciationsSection.card(p, EditorSupport.firstForm(p.getPronunciation()), pe,
+                () -> v.deletePronunciation(p)));
         }
+        pronunciationsSection.setItems(prons);
+
+        List<Node> relations = new ArrayList<>();
         for (LiftRelation r : v.getRelations()) {
             RelationEditor re = new RelationEditor(dictionary);
-            re.setRelation(r);
-            Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.delete(
-                () -> v.deleteRelation(r), addActions::refresh);
-            relationsBox.getChildren().add(EditorSupport.withDeleteButton(re, onDelete));
+            re.setRelation(r, actions);
+            relations.add(relationsSection.card(r, SenseEditor.relationTitle(r), re, () -> v.deleteRelation(r)));
         }
-        extensibleEditor.setModel(v, addActions);
+        relationsSection.setItems(relations);
+        extensibleEditor.setModel(v, actions);
     }
 
     /**
@@ -247,8 +208,8 @@ public final class VariantEditor extends VBox {
             existingTrait.setValue(newValue);
             return;
         }
-        if (currentAddActions != null) {
-            currentAddActions.addTrait(VARIANT_TYPE_TRAIT, newValue);
+        if (currentActions != null) {
+            currentActions.dictionary().getComponentBuilder().trait(currentVariant, VARIANT_TYPE_TRAIT, newValue).build();
         }
     }
 }

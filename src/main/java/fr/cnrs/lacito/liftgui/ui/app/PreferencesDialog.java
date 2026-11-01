@@ -25,7 +25,16 @@ public final class PreferencesDialog {
      *                         typically reloads the main scene)
      */
     public static void show(AppPreferences prefs, Scene scene, Runnable onLocaleChanged) {
+        show(prefs, scene, onLocaleChanged, null);
+    }
+
+    /**
+     * Same, with a "Keyboard shortcuts…" button running {@code onShortcuts} (which opens the
+     * shortcuts dialog); no button when it is null.
+     */
+    public static void show(AppPreferences prefs, Scene scene, Runnable onLocaleChanged, Runnable onShortcuts) {
         Dialog<Void> dlg = new Dialog<>();
+        if (scene != null && scene.getWindow() != null) dlg.initOwner(scene.getWindow());
         dlg.setTitle(I18n.get("prefs.title"));
         dlg.setHeaderText(I18n.get("prefs.title"));
         dlg.setResizable(true);
@@ -76,6 +85,12 @@ public final class PreferencesDialog {
         grid.addRow(2, new Label(I18n.get("prefs.theme")), new HBox(12, lightBtn, darkBtn));
         grid.addRow(3, new Label(I18n.get("prefs.defaultPath")), pathBox);
         grid.addRow(4, new Label(I18n.get("prefs.historyLimit")), historySpinner);
+        if (onShortcuts != null) {
+            Button shortcutsBtn = new Button(I18n.get("prefs.shortcuts"));
+            shortcutsBtn.setId("prefsShortcuts");
+            shortcutsBtn.setOnAction(e -> onShortcuts.run());
+            grid.add(shortcutsBtn, 1, 5);
+        }
         GridPane.setHgrow(langCombo, Priority.ALWAYS);
         GridPane.setHgrow(fontBox, Priority.ALWAYS);
         GridPane.setHgrow(pathBox, Priority.ALWAYS);

@@ -91,7 +91,7 @@ class DeletionTest extends MainWindowTest {
         LiftNote note = (LiftNote) table().getSelectionModel().getSelectedItem();
         int rows = table().getItems().size();
         fire(deleteButton());
-        pressDialogButton(ButtonType.OK);
+        assertFalse(dialogOpen(), "a note is deleted without asking: it can be undone");
         assertFalse(reg().getNotes().contains(note));
         assertEquals(rows - 1, table().getItems().size());
         fireMenuItem("undoMenuItem");

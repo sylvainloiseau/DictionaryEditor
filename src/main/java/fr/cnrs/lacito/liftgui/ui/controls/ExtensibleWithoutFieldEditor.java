@@ -11,39 +11,41 @@ package fr.cnrs.lacito.liftgui.ui.controls;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.AbstractExtensibleWithoutField;
+import fr.cnrs.lacito.liftapi.model.HasAnnotation;
 import fr.cnrs.lacito.liftapi.model.LiftAnnotation;
-import fr.cnrs.lacito.liftapi.model.LiftFieldAndTraitDefinition;
 import fr.cnrs.lacito.liftapi.model.LiftFieldAndTraitDefinitionTarget;
 import fr.cnrs.lacito.liftapi.model.LiftTrait;
 import fr.cnrs.lacito.liftgui.ui.I18n;
+import java.util.ArrayList;
+import java.util.List;
+import javafx.beans.Observable;
+import javafx.beans.binding.Bindings;
+import javafx.beans.property.ReadOnlyIntegerProperty;
+import javafx.beans.property.ReadOnlyIntegerWrapper;
 import javafx.geometry.Insets;
-import javafx.scene.control.Button;
-import javafx.scene.control.ChoiceDialog;
+import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
-import javafx.scene.control.TextInputDialog;
-import javafx.scene.control.TitledPane;
-import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
-import java.util.List;
-import java.util.Optional;
-
 /**
  * Programmatic editor for any {@link AbstractExtensibleWithoutField}.
  *
- * Displays: dateCreation, dateModification, list of Traits (TraitEditor), list of Annotations (AnnotationEditor).
- * When add actions are given, also offers buttons to add and delete traits and annotations.
- * This component is reused inside FieldEditor, NoteEditor, etc.
+ * Displays: dateCreation, dateModification, the traits (TraitEditor) and the annotations
+ * (AnnotationEditor), each in a {@link ComponentSection}. With {@link EditActions}, they
+ * can be added and deleted. This component is reused inside FieldEditor, NoteEditor, etc.
+ * Its {@link #totalProperty() total} is the number of components in all its sections.
  */
 public class ExtensibleWithoutFieldEditor extends VBox {
 
     private final TextField dateCreatedField = EditorSupport.readOnlyField("");
     private final TextField dateModifiedField = EditorSupport.readOnlyField("");
-    private final VBox traitsBox = new VBox(6);
-    private final VBox annotationsBox = new VBox(6);
+    private final ComponentSection traitsSection;
+    private final ComponentSection annotationsSection;
+    private final List<SectionPane> counted = new ArrayList<>();
+    private final ReadOnlyIntegerWrapper total = new ReadOnlyIntegerWrapper(this, "total", 0);
     private final LiftDictionary dictionary;
 
     public ExtensibleWithoutFieldEditor(LiftDictionary dictionary) {
@@ -64,24 +66,34 @@ public class ExtensibleWithoutFieldEditor extends VBox {
         GridPane.setHgrow(dateCreatedField, Priority.ALWAYS);
         GridPane.setHgrow(dateModifiedField, Priority.ALWAYS);
 
-        TitledPane traitsPane = new TitledPane(I18n.get("editor.traits"), traitsBox);
-        traitsPane.setExpanded(false);
-        traitsPane.setAnimated(false);
+        traitsSection = new ComponentSection(ComponentKind.TRAIT, I18n.get("editor.traits"), false);
+        annotationsSection = new ComponentSection(ComponentKind.ANNOTATION, I18n.get("editor.annotations"), false);
+        countIn(traitsSection);
+        countIn(annotationsSection);
 
-        TitledPane annotationsPane = new TitledPane(I18n.get("editor.annotations"), annotationsBox);
-        annotationsPane.setExpanded(false);
-        annotationsPane.setAnimated(false);
+        getChildren().addAll(datesGrid, traitsSection, annotationsSection);
+    }
 
-        getChildren().addAll(datesGrid, traitsPane, annotationsPane);
+    /** Adds the components of a section to the {@link #totalProperty() total}. */
+    protected final void countIn(SectionPane section) {
+        counted.add(section);
+        Observable[] deps = counted.stream().map(SectionPane::countProperty).toArray(Observable[]::new);
+        total.bind(Bindings.createIntegerBinding(() -> counted.stream().mapToInt(SectionPane::getCount).sum(), deps));
+    }
+
+    /** The number of components in all the sections of this editor. */
+    public ReadOnlyIntegerProperty totalProperty() {
+        return total.getReadOnlyProperty();
     }
 
     public void setModel(AbstractExtensibleWithoutField model) {
         setModel(model, null);
     }
 
-    public void setModel(AbstractExtensibleWithoutField model, ExtensibleAddActions addActions) {
-        traitsBox.getChildren().clear();
-        annotationsBox.getChildren().clear();
+    /** With {@code actions}, traits and annotations can be added and deleted; without, read-only. */
+    public void setModel(AbstractExtensibleWithoutField model, EditActions actions) {
+        traitsSection.setOwner(model, actions);
+        annotationsSection.setOwner(model, actions);
 
         if (model == null) {
             dateCreatedField.setText("");
@@ -93,62 +105,37 @@ public class ExtensibleWithoutFieldEditor extends VBox {
         dateModifiedField.setText(model.getDateModified().orElse(""));
         LiftFieldAndTraitDefinitionTarget target = EditorSupport.targetOf(model);
 
-        if (addActions != null) addButtons(target, addActions);
-
+        List<Node> traits = new ArrayList<>();
         for (LiftTrait t : model.getTraits()) {
             TraitEditor te = new TraitEditor(dictionary);
-            te.setTrait(t, target);
-            Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.delete(
-                () -> model.deleteTrait(t), addActions::refresh);
-            traitsBox.getChildren().add(EditorSupport.withDeleteButton(te, onDelete));
+            te.setTrait(t, target, actions);
+            traits.add(traitsSection.card(t, traitTitle(t), te, () -> model.deleteTrait(t)));
         }
+        traitsSection.setItems(traits);
 
-        for (LiftAnnotation a : model.getAnnotations()) {
-            AnnotationEditor ae = new AnnotationEditor(dictionary);
-            ae.setAnnotation(a);
-            Runnable onDelete = addActions == null ? null : () -> ComponentDeletion.delete(
-                () -> model.deleteAnnotation(a), addActions::refresh);
-            annotationsBox.getChildren().add(EditorSupport.withDeleteButton(ae, onDelete));
-        }
+        annotationsSection.setItems(annotationCards(annotationsSection, model, dictionary, actions));
     }
 
-    private void addButtons(LiftFieldAndTraitDefinitionTarget target, ExtensibleAddActions addActions) {
-        Button addTraitBtn = new Button(I18n.get("btn.addTrait"));
-        addTraitBtn.getStyleClass().add("example-add-button");
-        addTraitBtn.setOnAction(e -> {
-            List<String> names = EditorSupport.traitDefinitions(dictionary.getHeader(), target).stream()
-                .map(LiftFieldAndTraitDefinition::getName).sorted().toList();
-            ChoiceDialog<String> dlg = new ChoiceDialog<>(names.isEmpty() ? null : names.get(0), names);
-            dlg.setTitle(I18n.get("btn.addTrait"));
-            dlg.setHeaderText(I18n.get("col.name"));
-            dlg.showAndWait().ifPresent(name -> {
-                addActions.addTrait(name, "");
-                addActions.refresh();
-            });
-        });
-        traitsBox.getChildren().add(new FlowPane(6, 4, addTraitBtn));
+    /** "status = done". */
+    static String traitTitle(LiftTrait t) {
+        String value = t.getValue();
+        return value == null || value.isBlank() ? t.getName() : t.getName() + " = " + value;
+    }
 
-        Button addAnnotBtn = new Button(I18n.get("btn.addAnnotation"));
-        addAnnotBtn.getStyleClass().add("example-add-button");
-        addAnnotBtn.setOnAction(e -> {
-            List<String> names = EditorSupport.sortedFeatureIds(dictionary.getHeader().getAnnotationTypeManager());
-            Optional<String> nameOpt;
-            if (names.isEmpty()) {
-                TextInputDialog tid = new TextInputDialog();
-                tid.setTitle(I18n.get("btn.addAnnotation"));
-                tid.setHeaderText(I18n.get("col.name"));
-                nameOpt = tid.showAndWait();
-            } else {
-                ChoiceDialog<String> dlg = new ChoiceDialog<>(names.get(0), names);
-                dlg.setTitle(I18n.get("btn.addAnnotation"));
-                dlg.setHeaderText(I18n.get("col.name"));
-                nameOpt = dlg.showAndWait();
-            }
-            nameOpt.filter(n -> n != null && !n.isBlank()).ifPresent(name -> {
-                addActions.addAnnotation(name.trim());
-                addActions.refresh();
-            });
-        });
-        annotationsBox.getChildren().add(new FlowPane(6, 4, addAnnotBtn));
+    /** The cards of the annotations of {@code owner}, for its annotations section. */
+    static List<Node> annotationCards(ComponentSection section, HasAnnotation owner, LiftDictionary dictionary,
+                                      EditActions actions) {
+        List<Node> cards = new ArrayList<>();
+        int i = 1;
+        for (LiftAnnotation a : owner.getAnnotations()) {
+            if (a == null) continue;
+            AnnotationEditor ae = new AnnotationEditor(dictionary);
+            ae.setAnnotation(a);
+            String type = EditorSupport.featureId(a.getType());
+            String title = type.isBlank() ? "#" + i : "#" + i + "  " + type;
+            cards.add(section.card(a, title, ae, () -> owner.deleteAnnotation(a)));
+            i++;
+        }
+        return cards;
     }
 }

@@ -44,7 +44,6 @@ public final class NoteEditor extends VBox {
         this.textEditor = new MultiTextEditor(dictionary);
         super(6);
         setPadding(new Insets(4));
-        setStyle("-fx-border-color: #c9b; -fx-border-radius: 4; -fx-background-color: #faf5f8; -fx-background-radius: 4;");
 
         typeCombo.setEditable(false);
         typeCombo.setPromptText(I18n.get("col.type"));
@@ -62,14 +61,17 @@ public final class NoteEditor extends VBox {
         textPane.setExpanded(true);
         textPane.setAnimated(false);
 
-        TitledPane extPane = new TitledPane(I18n.get("editor.properties.withFields"), extensibleEditor);
-        extPane.setExpanded(false);
-        extPane.setAnimated(false);
+        SectionPane extPane = SectionPane.properties(I18n.get("editor.properties.withFields"), extensibleEditor);
 
         getChildren().addAll(grid, textPane, extPane);
     }
 
     public void setNote(LiftNote note) {
+        setNote(note, null);
+    }
+
+    /** With {@code actions}, the properties of the note can be added and deleted. */
+    public void setNote(LiftNote note, EditActions actions) {
         if (typeListener != null) typeCombo.valueProperty().removeListener(typeListener);
         typeListener = null;
         if (note == null) {
@@ -103,6 +105,6 @@ public final class NoteEditor extends VBox {
         };
         typeCombo.valueProperty().addListener(typeListener);
         textEditor.setMultiText(note.getText());
-        extensibleEditor.setModel(note);
+        extensibleEditor.setModel(note, actions);
     }
 }

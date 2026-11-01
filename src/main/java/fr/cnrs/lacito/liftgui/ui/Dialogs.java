@@ -10,11 +10,27 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.TextInputDialog;
+import javafx.stage.Stage;
+import javafx.stage.Window;
 
 /** The standard dialogs of the application. */
 public final class Dialogs {
 
     private Dialogs() {}
+
+    /**
+     * Gives a dialog the application's active window as owner, so that it is centred on it
+     * and stays above it.
+     */
+    public static <D extends Dialog<?>> D owned(D dialog) {
+        // A stage, not a popup (a menu, a tooltip) that may be showing.
+        Window owner = Window.getWindows().stream().filter(w -> w instanceof Stage && w.isShowing() && w.isFocused())
+            .findFirst()
+            .orElseGet(() -> Window.getWindows().stream().filter(w -> w instanceof Stage && w.isShowing()).findFirst()
+                .orElse(null));
+        if (owner != null && dialog.getOwner() == null && !dialog.isShowing()) dialog.initOwner(owner);
+        return dialog;
+    }
 
     public static void error(String title, String message) {
         show(Alert.AlertType.ERROR, title, message);
@@ -29,7 +45,7 @@ public final class Dialogs {
         a.setTitle(title);
         a.setHeaderText(null);
         a.setContentText(message);
-        a.showAndWait();
+        owned(a).showAndWait();
     }
 
     /**
@@ -47,7 +63,7 @@ public final class Dialogs {
         area.setPrefRowCount(12);
         a.getDialogPane().setExpandableContent(area);
         a.getDialogPane().setExpanded(true);
-        a.showAndWait();
+        owned(a).showAndWait();
     }
 
     /** Asks for confirmation; true when the user chose OK. */
@@ -56,7 +72,7 @@ public final class Dialogs {
         a.setTitle(title);
         a.setHeaderText(null);
         a.setContentText(message);
-        return a.showAndWait().filter(r -> r == ButtonType.OK).isPresent();
+        return owned(a).showAndWait().filter(r -> r == ButtonType.OK).isPresent();
     }
 
     /**
@@ -69,7 +85,7 @@ public final class Dialogs {
         TextInputDialog dlg = new TextInputDialog();
         dlg.setTitle(title);
         dlg.setHeaderText(label);
-        return dlg.showAndWait().map(String::trim).filter(t -> !t.isEmpty());
+        return owned(dlg).showAndWait().map(String::trim).filter(t -> !t.isEmpty());
     }
 
     /** The first of a set of languages in alphabetical order, or empty. */
@@ -89,6 +105,6 @@ public final class Dialogs {
         Dialog<String> dlg = types.isEmpty() ? new TextInputDialog() : new ChoiceDialog<>(types.get(0), types);
         dlg.setTitle(title);
         dlg.setHeaderText(I18n.get("col.type"));
-        return dlg.showAndWait().map(String::trim).filter(t -> !t.isEmpty());
+        return owned(dlg).showAndWait().map(String::trim).filter(t -> !t.isEmpty());
     }
 }

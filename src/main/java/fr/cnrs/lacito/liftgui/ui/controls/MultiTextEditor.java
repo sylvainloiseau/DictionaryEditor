@@ -42,16 +42,15 @@ import java.util.function.BiConsumer;
 public final class MultiTextEditor extends VBox {
 
     private final VBox rowsBox = new VBox(6);
-    private final VBox annotationsBox = new VBox(6);
     private final ComboBox<String> addLangCombo = new ComboBox<>();
-    private final TitledPane annotationsPane = new TitledPane(I18n.get("editor.annotations"), annotationsBox);
+    private final ComponentSection annotationsSection =
+        new ComponentSection(ComponentKind.ANNOTATION, I18n.get("editor.annotations"), false);
     private final ObservableList<String> allLanguages = FXCollections.observableArrayList();
     private MultiText multiText;
     private boolean readOnly;
     /** When true: one {@link TextField} row per configured language (no language picker ComboBox). */
     private boolean fixedLanguageRows;
-    private BiConsumer<String, MultiText> onAddAnnotation;
-    private List<String> knownAnnotationNames = List.of();
+    private EditActions actions;
     private final LiftDictionary dictionary;
 
     public MultiTextEditor(LiftDictionary dictionary) {
@@ -71,11 +70,7 @@ public final class MultiTextEditor extends VBox {
             }
         });
 
-        annotationsPane.setExpanded(false);
-        annotationsPane.setAnimated(false);
-        annotationsBox.setPadding(new Insets(8, 16, 8, 16));
-
-        getChildren().addAll(rowsBox, addLangCombo, annotationsPane);
+        getChildren().addAll(rowsBox, addLangCombo, annotationsSection);
         setAvailableLanguages(dictionary.getMetaLanguageManager().getLanguages());
     }
 
@@ -84,10 +79,9 @@ public final class MultiTextEditor extends VBox {
         setAvailableLanguages(dictionary.getObjectLanguageManager().getLanguages());
     }
 
-    /** Optional: when set, enables "add annotation" button in the Annotations pane. Callback receives (name, multiText). */
-    public void setOnAddAnnotation(BiConsumer<String, MultiText> callback, Collection<String> annotationNames) {
-        this.onAddAnnotation = callback;
-        this.knownAnnotationNames = annotationNames == null ? List.of() : new ArrayList<>(annotationNames);
+    /** With {@code actions}, annotations can be added to the multitext and deleted; null for read-only. */
+    public void setEditActions(EditActions actions) {
+        this.actions = actions;
         rebuildAnnotations();
     }
 
@@ -183,65 +177,11 @@ public final class MultiTextEditor extends VBox {
     }
 
     private void rebuildAnnotations() {
-        annotationsBox.getChildren().clear();
-        List<LiftAnnotation> annotations = getAnnotationsSafe();
-        boolean editable = onAddAnnotation != null && multiText != null && !readOnly;
-
-        if (editable) {
-            Button addBtn = new Button(I18n.get("btn.addAnnotation"));
-            addBtn.getStyleClass().add("example-add-button");
-            addBtn.setOnAction(e -> {
-                String name;
-                if (knownAnnotationNames.isEmpty()) {
-                    TextInputDialog dlg = new TextInputDialog("");
-                    dlg.setTitle(I18n.get("btn.addAnnotation"));
-                    dlg.setHeaderText(I18n.get("col.type"));
-                    name = dlg.showAndWait().orElse(null);
-                } else {
-                    ChoiceDialog<String> dlg = new ChoiceDialog<>(
-                        knownAnnotationNames.get(0), knownAnnotationNames);
-                    dlg.setTitle(I18n.get("btn.addAnnotation"));
-                    dlg.setHeaderText(I18n.get("col.type"));
-                    name = dlg.showAndWait().orElse(null);
-                }
-                if (name != null && !name.trim().isBlank()) {
-                    onAddAnnotation.accept(name.trim(), multiText);
-                    rebuildAnnotations();
-                }
-            });
-            annotationsBox.getChildren().add(addBtn);
-        }
-
-        if (annotations.isEmpty()) {
-            if (!editable) annotationsBox.getChildren().add(new Label(I18n.get("editor.none")));
-            return;
-        }
-
-        MultiText owner = multiText;
-        int i = 1;
-        for (LiftAnnotation a : annotations) {
-            AnnotationEditor ae = new AnnotationEditor(dictionary);
-            ae.setAnnotation(a);
-            String type = EditorSupport.featureId(a.getType());
-            String title = type.isBlank() ? "#" + i : "#" + i + " - " + type;
-            Runnable onDelete = editable
-                ? () -> ComponentDeletion.delete(
-                      () -> owner.deleteAnnotation(a),
-                      this::rebuildAnnotations)
-                : null;
-            TitledPane tp = new TitledPane(title, EditorSupport.withDeleteButton(ae, onDelete));
-            tp.setExpanded(false);
-            tp.setAnimated(false);
-            annotationsBox.getChildren().add(tp);
-            i++;
-        }
-    }
-
-    private List<LiftAnnotation> getAnnotationsSafe() {
-        if (multiText == null) return List.of();
-        List<LiftAnnotation> annotations = multiText.getAnnotations();
-        if (annotations == null || annotations.isEmpty()) return List.of();
-        return annotations.stream().filter(Objects::nonNull).toList();
+        boolean editable = actions != null && multiText != null && !readOnly;
+        annotationsSection.setOwner(multiText, editable ? actions : null, this::rebuildAnnotations);
+        if (multiText == null) return;
+        annotationsSection.setItems(
+            ExtensibleWithoutFieldEditor.annotationCards(annotationsSection, multiText, dictionary, editable ? actions : null));
     }
 
     private Set<String> getUsedLanguages() {

@@ -1,5 +1,8 @@
 package fr.cnrs.lacito.liftgui.ui.fx;
 
+import fr.cnrs.lacito.liftgui.ui.controls.ComponentKind;
+import javafx.scene.control.TextField;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import fr.cnrs.lacito.liftapi.model.LiftEntry;
@@ -46,15 +49,17 @@ class CreationTest extends MainWindowTest {
     }
 
     @Test
-    void theEntryEditorAddsASenseWithAGloss() {
+    void theEntryEditorAddsAnEmptySenseAndTheGlossIsTypedAtOnce() {
         LiftEntry entry = (LiftEntry) table().getSelectionModel().getSelectedItem();
         int senses = entry.getSenses().size();
-        fire(editorButton(I18n.get("btn.addSense")));
-        answerTextDialog("new meaning");
-        // Then the optional grammatical info.
-        if (dialogOpen()) pressDialogButton(ButtonType.OK);
+        add(entry, ComponentKind.SENSE);
+        assertFalse(dialogOpen(), "no dialog: the sense is created empty");
         assertEquals(senses + 1, entry.getSenses().size());
-        assertEquals("new meaning", entry.getSenses().getLast().getGlosses().getForms().iterator().next().toPlainText());
+        LiftSense created = entry.getSenses().getLast();
+        assertTrue(created.getGlosses().isEmpty());
+        assertTrue(focusOwner() instanceof TextField, "the focus is in the gloss");
+        write("new meaning");
+        assertEquals("new meaning", created.getGlosses().getForms().iterator().next().toPlainText());
         assertTrue(isDirty());
     }
 
@@ -68,8 +73,7 @@ class CreationTest extends MainWindowTest {
     void theSenseEditorAddsAnExample() {
         LiftSense sense = openFirstSense();
         int examples = sense.getExamples().size();
-        fire(editorButton(I18n.get("btn.addExample")));
-        answerTextDialog("an example");
+        add(sense, ComponentKind.EXAMPLE);
         assertEquals(examples + 1, sense.getExamples().size());
         assertTrue(isDirty());
         assertTrue(lookup("#editorContainer .hyperlink").queryAll().stream()
@@ -82,8 +86,7 @@ class CreationTest extends MainWindowTest {
         LiftSense sense = openFirstSense();
         int subSenses = sense.getSenses().size();
         int tableRows = table().getItems().size();
-        fire(editorButton(I18n.get("btn.addSubSense")));
-        answerTextDialog("narrower meaning");
+        add(sense, ComponentKind.SUB_SENSE);
         assertEquals(subSenses + 1, sense.getSenses().size());
         assertTrue(isDirty());
         assertEquals(tableRows + 1, table().getItems().size(), "the senses table lists the new sub-sense");
@@ -93,18 +96,16 @@ class CreationTest extends MainWindowTest {
     void theSenseEditorAddsANoteOfAChosenType() {
         LiftSense sense = openFirstSense();
         int notes = sense.getNotes().size();
-        fire(editorButton(I18n.get("btn.addNote")));
-        pressDialogButton(ButtonType.OK);
+        addTyped(sense, ComponentKind.NOTE, null);
         assertEquals(notes + 1, sense.getNotes().size());
         assertTrue(isDirty());
     }
 
     @Test
-    void cancellingAnAdditionLeavesTheDictionaryUnmodified() {
+    void closingTheMenuOfTypesLeavesTheDictionaryUnmodified() {
         LiftSense sense = openFirstSense();
         int notes = sense.getNotes().size();
-        fire(editorButton(I18n.get("btn.addNote")));
-        pressDialogButton(ButtonType.CANCEL);
+        typeMenu(sense, ComponentKind.NOTE);
         assertEquals(notes, sense.getNotes().size());
         assertFalse(isDirty());
     }
@@ -113,12 +114,13 @@ class CreationTest extends MainWindowTest {
     void theSenseEditorAddsAReversal() {
         LiftSense sense = openFirstSense();
         int reversals = sense.getReversals().size();
-        fire(editorButton(I18n.get("btn.addReversal")));
-        if (lookup(".dialog-pane .text-field").tryQuery().isPresent()
-            && lookup(".dialog-pane .combo-box").tryQuery().isEmpty()) {
-            answerTextDialog("rev-type");
+        boolean anyType = typeMenu(sense, ComponentKind.REVERSAL).stream()
+            .anyMatch(i -> !(i instanceof javafx.scene.control.SeparatorMenuItem) && !I18n.get("menu.otherType").equals(i.getText()));
+        if (anyType) {
+            addTyped(sense, ComponentKind.REVERSAL, null);
         } else {
-            pressDialogButton(ButtonType.OK);
+            addTyped(sense, ComponentKind.REVERSAL, I18n.get("menu.otherType"));
+            answerTextDialog("rev-type");
         }
         assertEquals(reversals + 1, sense.getReversals().size());
         assertTrue(isDirty());

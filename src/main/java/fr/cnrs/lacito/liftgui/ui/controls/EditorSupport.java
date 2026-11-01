@@ -165,19 +165,4 @@ public final class EditorSupport {
     public static void showError(String title, String message) {
         Dialogs.error(title, message);
     }
-
-    /**
-     * Wraps an item editor with a small delete button above it. When {@code onDelete} is
-     * null, the editor is returned unchanged.
-     */
-    public static Node withDeleteButton(Node editor, Runnable onDelete) {
-        if (onDelete == null) return editor;
-        Button del = new Button(I18n.get("btn.deleteItem"));
-        del.getStyleClass().add("delete-item-button");
-        del.setStyle("-fx-text-fill: #c0392b; -fx-font-size: 11px; -fx-padding: 2 8 2 8;");
-        del.setOnAction(e -> onDelete.run());
-        HBox bar = new HBox(del);
-        bar.setAlignment(Pos.CENTER_RIGHT);
-        return new VBox(2, bar, editor);
-    }
 }

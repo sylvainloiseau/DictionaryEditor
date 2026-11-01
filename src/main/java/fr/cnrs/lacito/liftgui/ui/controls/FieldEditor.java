@@ -41,7 +41,6 @@ public final class FieldEditor extends VBox {
         this.textEditor = new MultiTextEditor(dictionary);
         this.extensibleEditor = new ExtensibleWithoutFieldEditor(dictionary);
         setPadding(new Insets(4));
-        setStyle("-fx-border-color: #bcd; -fx-border-radius: 4; -fx-background-color: #f0f4f8; -fx-background-radius: 4;");
 
         typeField.setMaxWidth(Double.MAX_VALUE);
 
@@ -56,14 +55,17 @@ public final class FieldEditor extends VBox {
         textPane.setExpanded(true);
         textPane.setAnimated(false);
 
-        TitledPane extPane = new TitledPane(I18n.get("editor.properties.withoutFields"), extensibleEditor);
-        extPane.setExpanded(false);
-        extPane.setAnimated(false);
+        SectionPane extPane = SectionPane.properties(I18n.get("editor.properties.withoutFields"), extensibleEditor);
 
         getChildren().addAll(grid, textPane, extPane);
     }
 
     public void setField(LiftField f) {
+        setField(f, null);
+    }
+
+    /** With {@code actions}, the traits and annotations of the field can be added and deleted. */
+    public void setField(LiftField f, EditActions actions) {
         if (f == null) {
             typeField.setText("");
             textEditor.setMultiText(null);
@@ -79,6 +81,6 @@ public final class FieldEditor extends VBox {
         typeField.setText(name);
         EditorSupport.flagUndocumented(typeField, documented.contains(name), "tooltip.undocumentedType");
         textEditor.setMultiText(f.getText());
-        extensibleEditor.setModel(f);
+        extensibleEditor.setModel(f, actions);
     }
 }

@@ -12,12 +12,13 @@ package fr.cnrs.lacito.liftgui.ui.controls;
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.*;
 import fr.cnrs.lacito.liftgui.ui.I18n;
+import java.io.File;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
+import java.util.Objects;
+import java.util.function.Supplier;
 import javafx.geometry.Insets;
+import javafx.scene.Node;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
@@ -31,9 +32,9 @@ import javafx.scene.layout.VBox;
  *
  * Displays: grammatical info (ComboBox, values from the header; the empty choice removes it),
  * definition MultiText, gloss MultiText, examples (ExampleEditor each), relations (RelationEditor each),
- * reversals, sub-senses (recursive SenseEditor each),
+ * reversals, illustrations, sub-senses (recursive SenseEditor each),
  * + NotableEditor for inherited properties (notes, fields, traits, annotations, dates).
- * When the sense has add actions, its examples, relations, reversals and sub-senses can be deleted.
+ * With {@link EditActions}, all of them can be added and deleted.
  */
 public final class SenseEditor extends VBox {
 
@@ -44,11 +45,11 @@ public final class SenseEditor extends VBox {
     private final GridPane identityBlock = new GridPane();
     private final MultiTextEditor definitionEditor;
     private final MultiTextEditor glossEditor;
-    private final VBox examplesBox = new VBox(6);
-    private final VBox relationsBox = new VBox(6);
-    private final VBox reversalsBox = new VBox(6);
-    private final VBox subSensesBox = new VBox(6);
-    private final TitledPane subSensesPane;
+    private final ComponentSection examplesSection;
+    private final ComponentSection relationsSection;
+    private final ComponentSection reversalsSection;
+    private final ComponentSection illustrationsSection;
+    private final ComponentSection subSensesSection;
     private final NotableEditor notableEditor;
     /** Currently displayed sense — used by the save listener. */
     private LiftSense currentSense = null;
@@ -62,9 +63,6 @@ public final class SenseEditor extends VBox {
         this.glossEditor = new MultiTextEditor(dictionary);
         this.notableEditor = new NotableEditor(this.dictionary);
         setPadding(new Insets(4));
-        setStyle(
-            "-fx-border-color: #aab; -fx-border-radius: 4; -fx-background-color: #f4f4fa; -fx-background-radius: 4;"
-        );
 
         grammaticalInfoCombo.setEditable(false);
         grammaticalInfoCombo.setPromptText(I18n.get("col.gramInfo"));
@@ -96,20 +94,21 @@ public final class SenseEditor extends VBox {
 
         definitionEditor.setFixedLanguageRows(true);
         glossEditor.setFixedLanguageRows(true);
+        // A new sense: the user types its gloss first.
+        glossEditor.getStyleClass().add(Reveal.FIRST_INPUT);
 
         TitledPane defPane = titledPane(I18n.get("col.definition"), definitionEditor, true);
         TitledPane glossPane = titledPane(I18n.get("col.gloss"), glossEditor, true);
-        TitledPane exPane = titledPane(I18n.get("editor.examples"), examplesBox, true);
-        TitledPane relPane = titledPane(I18n.get("editor.relations"), relationsBox, false);
-        TitledPane revPane = titledPane(I18n.get("editor.reversals"), reversalsBox, false);
-        subSensesPane = titledPane(I18n.get("editor.subSenses"), subSensesBox, false);
-        TitledPane extPane = titledPane(I18n.get("editor.properties.inherited"), notableEditor, false);
+        examplesSection = new ComponentSection(ComponentKind.EXAMPLE, I18n.get("editor.examples"), true);
+        relationsSection = new ComponentSection(ComponentKind.RELATION, I18n.get("editor.relations"), false);
+        reversalsSection = new ComponentSection(ComponentKind.REVERSAL, I18n.get("editor.reversals"), false);
+        illustrationsSection = new ComponentSection(ComponentKind.ILLUSTRATION, I18n.get("nav.illustrations"), false);
+        subSensesSection = new ComponentSection(ComponentKind.SUB_SENSE, I18n.get("editor.subSenses"), false);
+        SectionPane extPane = SectionPane.properties(I18n.get("editor.properties.inherited"), notableEditor);
 
         identityBlock.setHgap(8);
         identityBlock.setVgap(6);
-        identityBlock.setStyle(
-            "-fx-background-color: #e8e8e8; -fx-padding: 8; -fx-background-radius: 4;"
-        );
+        identityBlock.getStyleClass().add("identity-block");
         TitledPane identityPane = titledPane(I18n.get("editor.identity"), identityBlock, true);
 
         getChildren().addAll(
@@ -119,10 +118,11 @@ public final class SenseEditor extends VBox {
             defPane,
             glossPane,
             sectionTitle("editor.section.examplesRelations"),
-            exPane,
-            relPane,
-            revPane,
-            subSensesPane,
+            examplesSection,
+            relationsSection,
+            reversalsSection,
+            illustrationsSection,
+            subSensesSection,
             sectionTitle("editor.section.metadata"),
             extPane,
             identityPane
@@ -146,46 +146,27 @@ public final class SenseEditor extends VBox {
     }
 
     public void setSense(LiftSense sense) {
-        setSense(sense, null, List.of());
+        setSense(sense, null);
     }
 
     /**
-     * Same as above with optional callback to create annotations on MultiText (definition, gloss).
+     * Shows a sense. With {@code actions}, its examples, relations, reversals, illustrations,
+     * sub-senses, annotations and properties can be added and deleted; without, read-only.
      */
-    public void setSense(
-        LiftSense sense,
-        BiConsumer<String, MultiText> onAddAnnotation,
-        Collection<String> knownAnnotationNames
-    ) {
-        setSense(sense, onAddAnnotation, knownAnnotationNames, s -> null, ex -> null);
-    }
-
-    /**
-     * Same with optional add actions for trait/annotation/field/note in NotableEditor.
-     * When the factory gives add actions for this sense, its examples, relations, reversals
-     * and sub-senses can be deleted.
-     */
-    public void setSense(
-        LiftSense sense,
-        BiConsumer<String, MultiText> onAddAnnotation,
-        Collection<String> knownAnnotationNames,
-        Function<LiftSense, ExtensibleAddActions> addActionsFactory,
-        Function<LiftExample, ExtensibleAddActions> exampleAddActionsFactory
-    ) {
-        ExtensibleAddActions addActions =
-            addActionsFactory != null ? addActionsFactory.apply(sense) : null;
-        examplesBox.getChildren().clear();
-        relationsBox.getChildren().clear();
-        reversalsBox.getChildren().clear();
-        subSensesBox.getChildren().clear();
+    public void setSense(LiftSense sense, EditActions actions) {
+        examplesSection.setOwner(sense, actions);
+        relationsSection.setOwner(sense, actions);
+        reversalsSection.setOwner(sense, actions);
+        illustrationsSection.setOwner(sense, actions);
+        subSensesSection.setOwner(sense, actions);
 
         if (sense == null) {
             currentSense = null;
             grammaticalInfoCombo.setValue(null);
             definitionEditor.setMultiText(null);
-            definitionEditor.setOnAddAnnotation(null, null);
+            definitionEditor.setEditActions(null);
             glossEditor.setMultiText(null);
-            glossEditor.setOnAddAnnotation(null, null);
+            glossEditor.setEditActions(null);
             notableEditor.setModel(null);
             identityBlock.getChildren().clear();
             return;
@@ -212,61 +193,86 @@ public final class SenseEditor extends VBox {
 
         definitionEditor.setMultiText(sense.getDefinition());
         glossEditor.setMultiText(sense.getGlosses());
-        if (onAddAnnotation != null) {
-            definitionEditor.setOnAddAnnotation(onAddAnnotation, knownAnnotationNames);
-            glossEditor.setOnAddAnnotation(onAddAnnotation, knownAnnotationNames);
-        }
+        definitionEditor.setEditActions(actions);
+        glossEditor.setEditActions(actions);
 
-        Runnable refresh = addActions == null ? null : addActions::refresh;
-
-        List<LiftExample> examples = sense.getExamples();
-        for (int i = 0; i < examples.size(); i++) {
-            LiftExample ex = examples.get(i);
-            int index = i;
+        List<Node> examples = new ArrayList<>();
+        List<LiftExample> exampleList = sense.getExamples();
+        for (int i = 0; i < exampleList.size(); i++) {
+            LiftExample ex = exampleList.get(i);
             ExampleEditor ee = new ExampleEditor(dictionary);
-            ExtensibleAddActions exAddActions =
-                exampleAddActionsFactory != null ? exampleAddActionsFactory.apply(ex) : null;
-            ee.setExample(ex, onAddAnnotation, exAddActions);
-            Runnable onDelete = refresh == null ? null : () -> ComponentDeletion.delete(
-                () -> sense.deleteExample(ex),
-                refresh);
-            examplesBox.getChildren().add(EditorSupport.withDeleteButton(ee, onDelete));
+            ee.setExample(ex, actions);
+            String text = EditorSupport.firstForm(ex.getExample());
+            ItemCard card = examplesSection.card(ex, "#" + (i + 1) + "  " + (text.isBlank() ? I18n.get("sense.empty") : text),
+                ee, () -> sense.deleteExample(ex));
+            if (text.isBlank()) card.getStyleClass().add("item-empty");
+            examples.add(card);
         }
+        examplesSection.setItems(examples);
 
+        List<Node> relations = new ArrayList<>();
         for (LiftRelation rel : sense.getRelations()) {
             RelationEditor re = new RelationEditor(dictionary);
-            re.setRelation(rel);
-            Runnable onDelete = refresh == null ? null : () -> ComponentDeletion.delete(
-                () -> sense.deleteRelation(rel), refresh);
-            relationsBox.getChildren().add(EditorSupport.withDeleteButton(re, onDelete));
+            re.setRelation(rel, actions);
+            relations.add(relationsSection.card(rel, relationTitle(rel), re, () -> sense.deleteRelation(rel)));
         }
+        relationsSection.setItems(relations);
 
+        List<Node> reversals = new ArrayList<>();
         for (LiftReversal rev : sense.getReversals()) {
             ReversalEditor rve = new ReversalEditor(dictionary);
-            rve.setReversal(rev);
-            Runnable onDelete = refresh == null ? null : () -> ComponentDeletion.delete(
-                () -> sense.deleteReversal(rev), refresh);
-            reversalsBox.getChildren().add(EditorSupport.withDeleteButton(rve, onDelete));
+            rve.setReversal(rev, actions);
+            String title = (EditorSupport.featureId(rev.getType()) + "  " + EditorSupport.firstForm(rev.getForms())).strip();
+            reversals.add(reversalsSection.card(rev, title, rve, () -> sense.deleteReversal(rev)));
         }
+        reversalsSection.setItems(reversals);
 
-        List<LiftSense> subSenses = sense.getSenses();
-        for (int i = 0; i < subSenses.size(); i++) {
-            LiftSense sub = subSenses.get(i);
-            int index = i;
+        Supplier<File> file = actions == null ? () -> null : actions::dictionaryFile;
+        List<Node> illustrations = new ArrayList<>();
+        for (LiftIllustration ill : sense.getIllustrations()) {
+            ExternalDocumentEditor ede = new ExternalDocumentEditor(dictionary, file);
+            ede.setDocument(ill, actions);
+            illustrations.add(illustrationsSection.card(ill, Objects.toString(ill.getHref(), ""), ede,
+                () -> sense.deleteIllustration(ill)));
+        }
+        illustrationsSection.setItems(illustrations);
+
+        List<Node> subSenses = new ArrayList<>();
+        List<LiftSense> subList = sense.getSenses();
+        for (int i = 0; i < subList.size(); i++) {
+            LiftSense sub = subList.get(i);
             SenseEditor se = new SenseEditor(dictionary);
             se.setGrammaticalInfoValues(
                 grammaticalInfoCombo.getItems().stream().filter(v -> !v.isBlank()).toList()
             );
             se.setOnGramInfoChanged(onGramInfoChanged);
-            se.setSense(sub, onAddAnnotation, knownAnnotationNames, addActionsFactory, exampleAddActionsFactory);
-            Runnable onDelete = refresh == null ? null : () -> ComponentDeletion.delete(
-                () -> sense.deleteSense(sub),
-                refresh);
-            subSensesBox.getChildren().add(EditorSupport.withDeleteButton(se, onDelete));
+            se.setSense(sub, actions);
+            subSenses.add(senseCard(subSensesSection, i, sub, se, () -> sense.deleteSense(sub), true));
         }
-        subSensesPane.setExpanded(!subSenses.isEmpty());
+        subSensesSection.setItems(subSenses);
+        subSensesSection.setExpanded(!subList.isEmpty());
 
-        notableEditor.setModel(sense, addActions);
+        notableEditor.setModel(sense, actions);
+    }
+
+    /**
+     * The card of a sense or a sub-sense: "#2  to walk", or "#2  (empty)" in grey for a
+     * sense without gloss nor definition. It folds.
+     */
+    static ItemCard senseCard(ComponentSection section, int index, LiftSense sense, Node editor, Runnable remove,
+                              boolean expanded) {
+        String text = LiftEntryEditor.senseDisplayText(sense);
+        boolean empty = "?".equals(text);
+        ItemCard card = section.card(sense, "#" + (index + 1) + "  " + (empty ? I18n.get("sense.empty") : text),
+            editor, remove);
+        if (empty) card.getStyleClass().add("item-empty");
+        return card.collapsible(expanded);
+    }
+
+    /** "synonym → walk". */
+    static String relationTitle(LiftRelation rel) {
+        String type = rel.getType() == null ? "?" : rel.getType().getId();
+        return rel.getRefId().map(r -> type + " → " + r).orElse(type);
     }
 
     private void addIdentityRow(int row, String label, String value) {

@@ -43,7 +43,7 @@ public final class TraitEditor extends VBox {
 
     private final TextField nameField = EditorSupport.readOnlyField("");
     private final VBox valueBox = new VBox(4);
-    private final VBox annotationsBox = new VBox(6);
+    private final ComponentSection annotationsSection;
     private LiftTrait trait;
     private final LiftDictionary dictionary;
 
@@ -51,9 +51,6 @@ public final class TraitEditor extends VBox {
         super(6);
         this.dictionary = dictionary;
         setPadding(new Insets(4));
-        setStyle(
-            "-fx-border-color: #cde; -fx-border-radius: 4; -fx-background-color: #f5f8fc; -fx-background-radius: 4;"
-        );
 
         nameField.setMaxWidth(Double.MAX_VALUE);
 
@@ -74,11 +71,9 @@ public final class TraitEditor extends VBox {
         GridPane.setHgrow(nameField, Priority.ALWAYS);
         GridPane.setHgrow(valueBox, Priority.ALWAYS);
 
-        TitledPane annoPane = new TitledPane(I18n.get("editor.annotations"), annotationsBox);
-        annoPane.setExpanded(false);
-        annoPane.setAnimated(false);
+        annotationsSection = new ComponentSection(ComponentKind.ANNOTATION, I18n.get("editor.annotations"), false);
 
-        getChildren().addAll(grid, annoPane);
+        getChildren().addAll(grid, annotationsSection);
     }
 
     /**
@@ -88,8 +83,13 @@ public final class TraitEditor extends VBox {
      *               trait definition
      */
     public void setTrait(LiftTrait t, LiftFieldAndTraitDefinitionTarget target) {
+        setTrait(t, target, null);
+    }
+
+    /** Same; with {@code actions}, the annotations of the trait can be added and deleted. */
+    public void setTrait(LiftTrait t, LiftFieldAndTraitDefinitionTarget target, EditActions actions) {
         this.trait = t;
-        annotationsBox.getChildren().clear();
+        annotationsSection.setOwner(t, actions);
         if (t == null) {
             nameField.setText("");
             valueBox.getChildren().clear();
@@ -109,11 +109,8 @@ public final class TraitEditor extends VBox {
 
         valueBox.getChildren().setAll(buildValueWidget(t));
 
-        for (LiftAnnotation a : t.getAnnotations()) {
-            AnnotationEditor ae = new AnnotationEditor(dictionary);
-            ae.setAnnotation(a);
-            annotationsBox.getChildren().add(ae);
-        }
+        annotationsSection.setItems(
+            ExtensibleWithoutFieldEditor.annotationCards(annotationsSection, t, dictionary, actions));
     }
 
     private Node buildValueWidget(LiftTrait t) {
