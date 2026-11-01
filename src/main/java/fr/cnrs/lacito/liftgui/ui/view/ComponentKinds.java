@@ -21,8 +21,13 @@ import fr.cnrs.lacito.liftgui.ui.editor.EditorContext;
 import fr.cnrs.lacito.liftgui.ui.editor.EditorPresenters;
 import fr.cnrs.lacito.liftgui.ui.nav.ViewKey;
 import fr.cnrs.lacito.liftgui.ui.nav.ViewRequest;
+import fr.cnrs.lacito.liftgui.ui.I18n;
+import fr.cnrs.lacito.liftgui.ui.table.ColumnSection;
 import fr.cnrs.lacito.liftgui.ui.table.ColumnSpec;
+import fr.cnrs.lacito.liftgui.ui.table.catalogs.ColumnCatalog;
 import fr.cnrs.lacito.liftgui.ui.table.catalogs.ComponentColumns;
+import fr.cnrs.lacito.liftgui.ui.table.catalogs.ExtensionCells;
+import fr.cnrs.lacito.liftgui.ui.table.catalogs.EntryColumns;
 import fr.cnrs.lacito.liftgui.ui.table.catalogs.ExampleColumns;
 import fr.cnrs.lacito.liftgui.ui.table.catalogs.SenseColumns;
 import java.util.List;
@@ -64,9 +69,23 @@ public final class ComponentKinds {
         public DictionaryView view(ViewRequest r, EditorContext ctx) {
             LiftDictionary d = ctx.dictionary();
             EditorPresenters editors = ctx.editors();
-            return new ObjectTableView<>(ctx, type, columns.apply(d),
+            return new ObjectTableView<>(ctx, key, r.subset() != null, type, sections(d, ctx::perform),
                 ObjectTableView.rows(r.subset(), type, rows.apply(d.getLiftDictionaryRegistry())),
                 r.title(), placeholder, o -> editor.accept(editors, o));
+        }
+
+        /** All the columns available for this kind, in sections (cell edits are not undo steps of their own). */
+        public List<ColumnSection<T>> sections(LiftDictionary d) {
+            return sections(d, ExtensionCells.Gesture.DIRECT);
+        }
+
+        /**
+         * All the columns available for this kind, in sections.
+         *
+         * @param gesture runs the creation or removal of a field or note typed in a cell as one undo step
+         */
+        public List<ColumnSection<T>> sections(LiftDictionary d, ExtensionCells.Gesture gesture) {
+            return ColumnCatalog.sections(type, d, ComponentKinds::baseCatalog, gesture);
         }
 
         /** Shows {@code o}, which must be of this kind, in the editor panel. */
@@ -76,7 +95,7 @@ public final class ComponentKinds {
     }
 
     private static final List<ComponentKind<?>> ALL = List.of(
-        new ComponentKind<>(ViewKey.ENTRIES, LiftEntry.class, d -> List.of(),
+        new ComponentKind<>(ViewKey.ENTRIES, LiftEntry.class, EntryColumns::catalog,
             LiftDictionaryRegistry::getEntries, null, EditorPresenters::showEntry),
         new ComponentKind<>(ViewKey.SENSES, LiftSense.class, SenseColumns::catalog,
             LiftDictionaryRegistry::getSenses, "placeholder.noSense", EditorPresenters::showSense),
@@ -123,6 +142,18 @@ public final class ComponentKinds {
     /** The kind of a view, if it is a component table. */
     public static Optional<ComponentKind<?>> ofKey(ViewKey key) {
         return ALL.stream().filter(k -> k.key() == key).findFirst();
+    }
+
+    /** The plain catalog of the kind of class {@code type}. */
+    private static Optional<List<? extends ColumnSpec<?>>> baseCatalog(Class<?> type, LiftDictionary d) {
+        return ALL.stream().filter(k -> k.type() == type).findFirst().map(k -> k.columns().apply(d));
+    }
+
+    /** The sections of the columns of a kind, for rows of type {@code T}. */
+    @SuppressWarnings("unchecked")
+    public static <T> List<ColumnSection<T>> sectionsOf(ComponentKind<?> kind, LiftDictionary d,
+                                                        ExtensionCells.Gesture gesture) {
+        return ((ComponentKind<T>) kind).sections(d, gesture);
     }
 
     /** The kind of a component, if it has a table. */

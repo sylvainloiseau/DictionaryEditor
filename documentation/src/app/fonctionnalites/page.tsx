@@ -26,6 +26,15 @@ export default function FonctionnalitesPage() {
       </section>
 
       <section className="space-y-4">
+        <h2 className="text-xl font-semibold text-gray-800">{t.fonctionnalites.tablesTitle}</h2>
+        <ul className="ml-4 list-disc list-inside space-y-2 text-gray-600">
+          {t.fonctionnalites.tablesItems.map((item, i) => (
+            <li key={i}>{item}</li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="space-y-4">
         <h2 className="text-xl font-semibold text-gray-800">{t.fonctionnalites.categoryTitle}</h2>
         <p className="leading-relaxed text-gray-600">{t.fonctionnalites.categoryDesc}</p>
       </section>

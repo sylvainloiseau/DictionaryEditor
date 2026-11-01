@@ -22,7 +22,7 @@ public final class SenseColumns {
                     s -> s.getParentEntry() == null ? null : s.getParentEntry().getForms())
                 .width(120),
             Columns.<LiftSense>text("sense.gramInfo", I18n.get(Keys.COL_GRAM_INFO),
-                s -> s.getGrammaticalInfo().map(x -> x.getGramInfoValue().getId()).orElse("")),
+                s -> s.getGrammaticalInfo().map(x -> x.getGramInfoValue().getId()).orElse("")).option(),
             Columns.multiText("sense.gloss", I18n.get(Keys.COL_GLOSS), metaLangs, LiftSense::getGlosses),
             Columns.multiText("sense.definition", I18n.get(Keys.COL_DEFINITION), metaLangs, LiftSense::getDefinition),
             Columns.<LiftSense>text("sense.id", I18n.get("col.id"), s -> s.getId().orElse("")).hidden()

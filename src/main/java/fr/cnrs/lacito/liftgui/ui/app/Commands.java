@@ -175,6 +175,8 @@ public final class Commands {
         d.put("add.annotation", new KeyCodeCombination(KeyCode.A, SC, ALT));
         d.put("add.inSection", new KeyCodeCombination(KeyCode.N, SC, SHIFT));
         d.put("help.shortcuts", new KeyCodeCombination(KeyCode.SLASH, SC));
+        d.put("view.columns", new KeyCodeCombination(KeyCode.K, SC, SHIFT));
+        d.put("view.focusFilter", new KeyCodeCombination(KeyCode.F, SC, SHIFT));
         return d;
     }
 

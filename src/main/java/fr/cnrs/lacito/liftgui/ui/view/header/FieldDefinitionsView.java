@@ -66,12 +66,12 @@ public final class FieldDefinitionsView extends ObjectTableView<LiftFieldAndTrai
         }
         return List.of(
             Columns.text("fieldDef.name", I18n.get("cfg.fieldDefName"), LiftFieldAndTraitDefinition::getName),
-            Columns.text("fieldDef.kind", I18n.get("cfg.kind"), FieldDefinitionsView::kindLabel),
-            Columns.text("fieldDef.type", I18n.get("cfg.fieldDefType"), LiftFieldAndTraitDefinition::getTypeStr),
+            Columns.<LiftFieldAndTraitDefinition>text("fieldDef.kind", I18n.get("cfg.kind"), FieldDefinitionsView::kindLabel).option(),
+            Columns.<LiftFieldAndTraitDefinition>text("fieldDef.type", I18n.get("cfg.fieldDefType"), LiftFieldAndTraitDefinition::getTypeStr).option(),
             Columns.text("fieldDef.targets", I18n.get("cfg.targets"), LiftFieldAndTraitDefinition::getTargetAsString),
             Columns.text("fieldDef.description", I18n.get("cfg.description"), fd -> EditorSupport.firstForm(fd.getDescription())),
-            Columns.text("fieldDef.usage", I18n.get("cfg.usageCount"),
-                fd -> String.valueOf(usage.computeIfAbsent(fd, header::countUses)))
+            Columns.<LiftFieldAndTraitDefinition>number("fieldDef.usage", I18n.get("cfg.usageCount"),
+                fd -> usage.computeIfAbsent(fd, header::countUses))
         );
     }
 

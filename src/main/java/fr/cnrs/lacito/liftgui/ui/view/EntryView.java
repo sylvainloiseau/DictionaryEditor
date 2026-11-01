@@ -7,7 +7,7 @@ import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
 import fr.cnrs.lacito.liftgui.ui.editor.EditorContext;
-import fr.cnrs.lacito.liftgui.ui.table.catalogs.EntryColumns;
+import fr.cnrs.lacito.liftgui.ui.nav.ViewKey;
 import java.util.List;
 import java.util.Optional;
 import javafx.scene.input.Clipboard;
@@ -20,7 +20,9 @@ import javafx.scene.input.ClipboardContent;
 public final class EntryView extends ObjectTableView<LiftEntry> {
 
     public EntryView(EditorContext ctx, List<?> subset, String title) {
-        super(ctx, LiftEntry.class, EntryColumns.catalog(ctx.dictionary()),
+        super(ctx, ViewKey.ENTRIES, subset != null, LiftEntry.class,
+            ComponentKinds.<LiftEntry>sectionsOf(ComponentKinds.ofKey(ViewKey.ENTRIES).orElseThrow(), ctx.dictionary(),
+                ctx::perform),
             rows(subset, LiftEntry.class, ctx.dictionary().getLiftDictionaryRegistry().getEntries()),
             title, "placeholder.noData", ctx.editors()::showEntry);
         table.searchText(DictionaryQueries::searchText);

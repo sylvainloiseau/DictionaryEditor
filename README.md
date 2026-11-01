@@ -14,6 +14,8 @@ Pick an installer for your plateform from the [github release page](https://gith
 
 - DictionaryEditor profide a complete access to all the components of the LIFT data model: entries, sense, example, translation, illustration, trait, note, field, etc.
 - List each component type in table -- helping to increase comprehensiveness and consistency of the lexicographic description: missing field in a given language or field is more easy to spot
+- choose the columns of each table (Columns button, or Preferences ▸ Tables): any property of the component, its fields, traits, notes and annotations, the number of its subcomponents, the properties of its parent and ancestors; multilingual texts get one column per language, and can be edited in the table
+- filter each column from its header: text (match case, regular expression, empty / not empty), values to tick with their counts, or a range with a histogram for numbers, counts and dates
 - edit objects in forms 
 - browse and manage categories (field, note, trait, annotation, grammatical category, feature set)
 - It exports the dictionary as a LaTeX document, and as a PDF when XeLaTeX or LuaLaTeX is installed (Tools ▸ Export as LaTeX / PDF): the polyglossia language and the font of each language, a thematic part by semantic domain, the illustrations as figures, and a quick preview on a sample. The settings can be saved as a JSON file, which `lift-api latex --config` also reads. A custom XSLT stylesheet can replace parts of the bundled ones (the LaTeX macros, the abbreviations…); the dialog creates a starting one.

@@ -22,10 +22,14 @@ import fr.cnrs.lacito.liftgui.ui.nav.NavigationTree;
 import fr.cnrs.lacito.liftgui.ui.nav.Navigator;
 import fr.cnrs.lacito.liftgui.ui.nav.ViewKey;
 import fr.cnrs.lacito.liftgui.ui.nav.ViewRequest;
+import fr.cnrs.lacito.liftgui.ui.table.ColumnLayoutStore;
 import fr.cnrs.lacito.liftgui.ui.table.FilterableTable;
+import fr.cnrs.lacito.liftgui.ui.table.TableFactory;
 import fr.cnrs.lacito.liftgui.ui.view.ComponentKinds;
 import fr.cnrs.lacito.liftgui.ui.view.DictionaryView;
 import fr.cnrs.lacito.liftgui.ui.view.EntryView;
+import fr.cnrs.lacito.liftgui.ui.view.ObjectTableView;
+import fr.cnrs.lacito.liftgui.ui.view.TablesPreferences;
 import fr.cnrs.lacito.liftgui.ui.view.Views;
 import fr.cnrs.lacito.liftgui.core.DictionaryQueries;
 import fr.cnrs.lacito.liftgui.ui.undo.ChangeLabels;
@@ -95,6 +99,7 @@ public final class MainController {
     @FXML private MenuItem redoMenuItem;
     @FXML private Menu addMenu;
     @FXML private CheckMenuItem hideEmptySectionsItem;
+    @FXML private CheckMenuItem markEmptyCellsItem;
 
     /* ─── State ─── */
     private final AppPreferences prefs = new AppPreferences();
@@ -119,6 +124,8 @@ public final class MainController {
             ? List.of()
             : document.dictionary().getLiftDictionaryRegistry().getSenses());
         ctx = new EditorContext(document, panel, navigator, searchField.textProperty(), this::updateCountLabel);
+        ctx.setColumnLayouts(new ColumnLayoutStore(prefs::columnLayout, prefs::setColumnLayout,
+            prefs::columnWidths, prefs::setColumnWidths));
         navigation = new NavigationTree(navTree, navigator::go, this::onCreateNewObject);
 
         // The history records every change lift-api reports; an entry it closes dates the
@@ -131,6 +138,7 @@ public final class MainController {
         // A new dictionary (opened, created, or handed over): its ranges in the navigation
         // tree, and the entries view. The document gives it a fresh history.
         document.dictionaryProperty().addListener((obs, o, d) -> {
+            ctx.filterSessions().clear();
             navigation.setRanges(d == null ? null : d.getHeader());
             navigator.go(ViewKey.ENTRIES);
         });
@@ -153,6 +161,15 @@ public final class MainController {
         hideEmptySectionsItem.selectedProperty().addListener((obs, o, hide) -> {
             prefs.setHideEmptySections(hide);
             ComponentSection.HIDE_EMPTY.set(hide);
+        });
+
+        // View ▸ Mark empty cells, remembered.
+        markEmptyCellsItem.setId("view.markEmptyCells");
+        markEmptyCellsItem.setSelected(prefs.markEmptyCells());
+        TableFactory.MARK_EMPTY.set(prefs.markEmptyCells());
+        markEmptyCellsItem.selectedProperty().addListener((obs, o, mark) -> {
+            prefs.setMarkEmptyCells(mark);
+            TableFactory.MARK_EMPTY.set(mark);
         });
 
         // Every menu item with an id is a command, with its keyboard shortcut.
@@ -337,7 +354,7 @@ public final class MainController {
             // The reloaded scene takes over the open dictionary, and its history.
             document.handOver();
             Platform.runLater(MainApp::reloadScene);
-        }, this::onShortcuts);
+        }, this::onShortcuts, new TablesPreferences(ctx));
         document.history().setLimit(prefs.historyLimit());
     }
 
@@ -424,6 +441,18 @@ public final class MainController {
             return;
         }
         ValidationDialog.show(d);
+    }
+
+    /** View ▸ Columns…: the column chooser of the current table. */
+    @FXML
+    private void onColumns() {
+        if (currentView instanceof ObjectTableView<?> v) v.openColumnChooser(false);
+    }
+
+    /** View ▸ Filter the current column: focuses the filter of the column of the focused cell. */
+    @FXML
+    private void onFocusFilter() {
+        if (currentView != null) currentView.table().ifPresent(FilterableTable::focusFilter);
     }
 
     /** Exports the rows shown in the current table. */

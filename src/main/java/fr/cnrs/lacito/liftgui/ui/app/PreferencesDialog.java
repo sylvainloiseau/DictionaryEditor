@@ -15,6 +15,15 @@ import javafx.stage.DirectoryChooser;
 /** The preferences dialog: interface language, font size, theme and default directory. */
 public final class PreferencesDialog {
 
+    /** A further tab of the dialog (Tables…), applied on OK. */
+    public interface Page {
+        String title();
+
+        javafx.scene.Node node();
+
+        void apply();
+    }
+
     private PreferencesDialog() {}
 
     /**
@@ -33,6 +42,12 @@ public final class PreferencesDialog {
      * shortcuts dialog); no button when it is null.
      */
     public static void show(AppPreferences prefs, Scene scene, Runnable onLocaleChanged, Runnable onShortcuts) {
+        show(prefs, scene, onLocaleChanged, onShortcuts, null);
+    }
+
+    /** Same, with a further tab ({@code page}, may be null): the General settings and, say, the Tables. */
+    public static void show(AppPreferences prefs, Scene scene, Runnable onLocaleChanged, Runnable onShortcuts,
+                            Page page) {
         Dialog<Void> dlg = new Dialog<>();
         if (scene != null && scene.getWindow() != null) dlg.initOwner(scene.getWindow());
         dlg.setTitle(I18n.get("prefs.title"));
@@ -94,10 +109,23 @@ public final class PreferencesDialog {
         GridPane.setHgrow(langCombo, Priority.ALWAYS);
         GridPane.setHgrow(fontBox, Priority.ALWAYS);
         GridPane.setHgrow(pathBox, Priority.ALWAYS);
-        dlg.getDialogPane().setContent(grid);
+        if (page == null) {
+            dlg.getDialogPane().setContent(grid);
+        } else {
+            Tab general = new Tab(I18n.get("prefs.general"), grid);
+            general.setClosable(false);
+            Tab extra = new Tab(page.title(), page.node());
+            extra.setClosable(false);
+            extra.setId("prefsTablesTab");
+            TabPane tabs = new TabPane(general, extra);
+            tabs.setId("prefsTabs");
+            dlg.getDialogPane().setContent(tabs);
+            dlg.getDialogPane().setPrefSize(860, 640);
+        }
 
         dlg.setResultConverter(bt -> {
             if (bt != ButtonType.OK) return null;
+            if (page != null) page.apply();
             prefs.setFontSize((int) fontSlider.getValue());
             prefs.setDarkTheme(darkBtn.isSelected());
             prefs.setDefaultPath(pathField.getText().trim());

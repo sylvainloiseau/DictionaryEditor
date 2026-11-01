@@ -29,23 +29,20 @@ public final class EntryColumns {
             .sorted()
             .toList();
         return List.of(
-            Columns.<LiftEntry>multiText("entry.form", I18n.get(Keys.COL_FORM), formLangs, LiftEntry::getForms)
-                .live((e, lang) -> e.getForms().formTextProperty(lang))
-                // An empty text removes the form, as in the editors.
-                .editable((e, lang, text) -> e.getForms().formTextProperty(lang).set(text))
-                .facet(),
+            Columns.<LiftEntry>multiText("entry.form", I18n.get(Keys.COL_FORM), formLangs, LiftEntry::getForms),
             Columns.<LiftEntry>text("entry.morphType", I18n.get(Keys.COL_MORPH_TYPE),
                     e -> DictionaryQueries.traitValue(e, Keys.MORPH_TYPE))
                 .live((e, lang) -> Bindings.createStringBinding(
                     () -> DictionaryQueries.traitValue(e, Keys.MORPH_TYPE), e.getTraits()))
                 .editable((e, lang, text) -> setMorphType(d, e, text.trim()))
-                .facet()
+                .option()
                 .width(110),
             Columns.<LiftEntry>text("entry.dateCreated", I18n.get(Keys.COL_DATE_CREATED), e -> e.getDateCreated().orElse(""))
-                .facet()
+                .date()
                 .width(130),
             Columns.<LiftEntry>text("entry.id", I18n.get("col.id"), e -> e.getId().orElse("")).hidden(),
             Columns.<LiftEntry>text("entry.dateModified", I18n.get("field.dateModified"), e -> e.getDateModified().orElse(""))
+                .date()
                 .hidden()
         );
     }

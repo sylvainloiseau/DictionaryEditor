@@ -75,6 +75,10 @@
             </Menu>
             <SeparatorMenuItem/>
             <CheckMenuItem fx:id="hideEmptySectionsItem" text="%menu.view.hideEmptySections"/>
+            <SeparatorMenuItem/>
+            <MenuItem id="view.columns" text="%menu.view.columns" onAction="#onColumns"/>
+            <MenuItem id="view.focusFilter" text="%menu.view.focusFilter" onAction="#onFocusFilter"/>
+            <CheckMenuItem fx:id="markEmptyCellsItem" text="%menu.view.markEmptyCells"/>
           </items>
         </Menu>
         <Menu text="%menu.tools">

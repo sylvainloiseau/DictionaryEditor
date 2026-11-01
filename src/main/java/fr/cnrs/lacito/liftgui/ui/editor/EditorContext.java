@@ -22,6 +22,10 @@ public final class EditorContext {
     private final BiConsumer<Integer, Integer> countLabel;
     private final EditorPresenters editors;
     private Runnable refreshTable = () -> {};
+    private fr.cnrs.lacito.liftgui.ui.table.ColumnLayoutStore columnLayouts =
+        fr.cnrs.lacito.liftgui.ui.table.ColumnLayoutStore.inMemory();
+    private final fr.cnrs.lacito.liftgui.ui.table.FilterSessions filterSessions =
+        new fr.cnrs.lacito.liftgui.ui.table.FilterSessions();
 
     /**
      * @param searchText the global search text, followed by the tables
@@ -77,6 +81,20 @@ public final class EditorContext {
      */
     public void perform(String label, Object subject, Runnable gesture) {
         document.history().perform(label, subject, gesture);
+    }
+
+    /** The columns chosen for each table. */
+    public fr.cnrs.lacito.liftgui.ui.table.ColumnLayoutStore columnLayouts() {
+        return columnLayouts;
+    }
+
+    public void setColumnLayouts(fr.cnrs.lacito.liftgui.ui.table.ColumnLayoutStore store) {
+        this.columnLayouts = store;
+    }
+
+    /** The filters of each table, kept while the dictionary stays open. */
+    public fr.cnrs.lacito.liftgui.ui.table.FilterSessions filterSessions() {
+        return filterSessions;
     }
 
     /** Redraws the cells of the current table (after an edit made in the editor panel). */

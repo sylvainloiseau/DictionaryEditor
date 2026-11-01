@@ -710,3 +710,35 @@ Points checked against the code and the decisions, and how the plan handles them
 
 No open question remains; new questions found during the spike (step 0) will be added
 here.
+
+---
+
+## 12. Implementation notes (2026-11-01)
+
+All the steps of section 10 are implemented. Where the code differs from the plan:
+
+- **Packages**: the filter model is `ui.table.filter` (`ColumnFilter`, `TextFilter`,
+  `OptionFilter`, `RangeFilter`, `FilterModel`, `FilterEngine`, `FilterTokens`), the widgets
+  `ui.table.widgets` (`TextFilterControl`, `OptionFilterControl`, `RangeFilterControl`,
+  `FilterPopover`, `TableToolbar`, `ColumnChooser`), the generated catalogs
+  `ui.table.catalogs` (`ColumnCatalog`, `ModelTree`, `ExtensionCells`); `LiftDate` is in
+  `core`; the Tables tab is `ui.view.TablesPreferences` (a `PreferencesDialog.Page`).
+- **Spike (step 0)**: the filters are in the headers. The header's label spans the whole
+  header; the graphic is aligned at the bottom (`VBox` aligned bottom-left) so that single
+  and language columns share one baseline. The mouse events are consumed on a wrapper of
+  the widget, not on the widget itself (a control ignores events consumed on its own node).
+- **`ColumnSpec`** is a final class (it has more fields than a readable record); every
+  `Columns.multiText` column is live and editable (D3), `applies` tells which cells can be
+  edited or marked empty.
+- **Direct counts** are not bound to the lists: like every cell, they are recomputed when the
+  table is refreshed (after each edit made in the editor panel), which shows the same result.
+- **Parent**: the generic "Parent type / Parent" columns stay in the kind's own section
+  (they are its current columns) instead of a separate section.
+- **lift-api**: `getField(name)` and `getNote(type)` throw when there is none;
+  `ExtensionCells.field` / `note` look them up in the maps instead.
+- **Static properties**: tables listen to `TableFactory.MARK_EMPTY` through a weak listener,
+  otherwise every table ever shown stays in memory.
+- **Tests**: `ColumnLayoutTest`, `LiftDateTest`, `ColumnFilterTest`, `FilterEngineTest`,
+  `ColumnCatalogTest` (no JavaFX toolkit); `SearchAndFilterTest` (rewritten) and
+  `ColumnsTest` (TestFX). The TestFX tests need the demo dictionary
+  `src/main/resources/lift/20260302.lift`, which is not in git (`*.lift` is ignored).

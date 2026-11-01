@@ -66,11 +66,11 @@ public final class LanguageFieldView extends ObjectTableView<MultiTextRow> {
     private static List<ColumnSpec<MultiTextRow>> columns(LiftDictionary d, boolean objectLanguages) {
         return List.of(
             Columns.<MultiTextRow>text("text.kind", I18n.get(Keys.COL_PARENT_TYPE), r -> ObjectLabels.multiTextKind(r.multiText()))
+                .option()
                 .width(100),
             Columns.<MultiTextRow>text("text.owner", I18n.get(Keys.COL_PARENT), r -> ObjectLabels.ownerId(r.multiText())),
             Columns.<MultiTextRow>perLanguage("text.text", I18n.get(Keys.NAV_LANGUAGES), languages(d, objectLanguages),
                     (r, lang) -> lang.equals(r.lang()) ? r.text() : "")
-                .textFilter()
                 .width(160)
         );
     }

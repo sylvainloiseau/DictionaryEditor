@@ -48,7 +48,7 @@ public final class CategoryViews {
 
     private static ColumnSpec<CategoryRow> frequencyColumn() {
         return Columns.<CategoryRow>text("category.frequency", I18n.get(Keys.COL_FREQUENCY), r -> String.valueOf(r.frequency()))
-            .textFilter()
+            .number()
             .width(100);
     }
 
@@ -141,8 +141,8 @@ public final class CategoryViews {
         List<CategoryRow> rows = count(reg(ctx).getNotes().stream(),
             n -> new CategoryRow(ObjectLabels.describeParentType(n.getParent()), "", DictionaryQueries.featureId(n.getType()), 0));
         List<ColumnSpec<CategoryRow>> columns = List.of(
-            Columns.text("category.value", I18n.get("col.type"), CategoryRow::value),
-            Columns.text("category.parentType", I18n.get("col.parentType"), CategoryRow::parentType),
+            Columns.<CategoryRow>text("category.value", I18n.get("col.type"), CategoryRow::value).option(),
+            Columns.<CategoryRow>text("category.parentType", I18n.get("col.parentType"), CategoryRow::parentType).option(),
             frequencyColumn()
         );
         return view(ctx, rows, columns, "placeholder.noData", r -> {
@@ -163,9 +163,9 @@ public final class CategoryViews {
             t -> new CategoryRow(ObjectLabels.describeParentType(t.getParent()), t.getName(),
                 Objects.toString(t.getValue(), ""), 0));
         List<ColumnSpec<CategoryRow>> columns = List.of(
-            Columns.text("trait.parentType", I18n.get(Keys.COL_PARENT_TYPE), CategoryRow::parentType),
-            Columns.text("trait.name", I18n.get(Keys.COL_NAME), CategoryRow::name),
-            Columns.text("trait.value", I18n.get(Keys.COL_VALUE), CategoryRow::value),
+            Columns.<CategoryRow>text("trait.parentType", I18n.get(Keys.COL_PARENT_TYPE), CategoryRow::parentType).option(),
+            Columns.<CategoryRow>text("trait.name", I18n.get(Keys.COL_NAME), CategoryRow::name).option(),
+            Columns.<CategoryRow>text("trait.value", I18n.get(Keys.COL_VALUE), CategoryRow::value).option(),
             frequencyColumn()
         );
         return view(ctx, rows, columns, "placeholder.noTrait", r -> {

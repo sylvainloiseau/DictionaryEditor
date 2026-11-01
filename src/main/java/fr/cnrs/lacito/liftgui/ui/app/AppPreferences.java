@@ -110,6 +110,59 @@ public final class AppPreferences {
         else prefs.put(SHORTCUT + commandId, keys);
     }
 
+    /* ─── Tables ─── */
+
+    private static final String TABLE_COLUMNS = "table.columns.";
+    private static final String TABLE_WIDTHS = "table.widths.";
+    private static final String MARK_EMPTY_CELLS = "ui.markEmptyCells";
+
+    /** The columns chosen for a table (the text form of a {@code ColumnLayout}); null for the default ones. */
+    public String columnLayout(String table) {
+        return prefs.get(TABLE_COLUMNS + table, null);
+    }
+
+    /** Saves the columns of a table; null goes back to the default ones. */
+    public void setColumnLayout(String table, String layout) {
+        if (layout == null) prefs.remove(TABLE_COLUMNS + table);
+        else if (layout.length() <= Preferences.MAX_VALUE_LENGTH) prefs.put(TABLE_COLUMNS + table, layout);
+    }
+
+    /** The widths given by the user to the columns of a table, by leaf id. */
+    public java.util.Map<String, Double> columnWidths(String table) {
+        java.util.Map<String, Double> widths = new java.util.LinkedHashMap<>();
+        String s = prefs.get(TABLE_WIDTHS + table, "");
+        for (String item : s.split(";")) {
+            int eq = item.lastIndexOf('=');
+            if (eq <= 0) continue;
+            try {
+                widths.put(item.substring(0, eq), Double.parseDouble(item.substring(eq + 1)));
+            } catch (NumberFormatException e) {
+                // skipped
+            }
+        }
+        return widths;
+    }
+
+    public void setColumnWidths(String table, java.util.Map<String, Double> widths) {
+        StringBuilder sb = new StringBuilder();
+        widths.forEach((id, w) -> {
+            if (id.contains(";")) return;
+            if (sb.length() > 0) sb.append(';');
+            sb.append(id).append('=').append(Math.round(w));
+        });
+        if (sb.length() == 0) prefs.remove(TABLE_WIDTHS + table);
+        else if (sb.length() <= Preferences.MAX_VALUE_LENGTH) prefs.put(TABLE_WIDTHS + table, sb.toString());
+    }
+
+    /** Whether the empty cells of text columns are marked (View menu). */
+    public boolean markEmptyCells() {
+        return prefs.getBoolean(MARK_EMPTY_CELLS, true);
+    }
+
+    public void setMarkEmptyCells(boolean mark) {
+        prefs.putBoolean(MARK_EMPTY_CELLS, mark);
+    }
+
     /* ─── LaTeX export ─── */
 
     private static final String LATEX_PROGRAM = "latex.program.";

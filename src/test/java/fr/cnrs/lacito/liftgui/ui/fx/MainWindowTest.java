@@ -68,6 +68,7 @@ public abstract class MainWindowTest extends ApplicationTest {
         // Dialogs left open by a failed test must not block the next one.
         interact(() -> new ArrayList<>(Window.getWindows()).forEach(w -> {
             if (w != stage && w instanceof Stage s) s.close();
+            else if (w instanceof javafx.stage.PopupWindow p) p.hide();
         }));
         FxToolkit.hideStage();
         FxToolkit.cleanupStages();

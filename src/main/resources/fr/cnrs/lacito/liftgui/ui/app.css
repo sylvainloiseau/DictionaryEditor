@@ -98,28 +98,221 @@
   -fx-font-size: 13px;
 }
 
-/* ─── Filtres de colonnes : ComboBox avec espace pour afficher "Filtrer" sans troncature ─── */
-.filter-row {
-  -fx-background-color: #eef2f3;
+/* ─── Column filters: in the column headers ─── */
+/* The header's label holds the title and the filter, at the bottom of the header, so that
+   the filters of single columns and of language sub-columns share one baseline. */
+.table-view .column-header.filter-column > .label {
+  -fx-alignment: bottom-left;
+  -fx-content-display: graphic-only;
+  -fx-padding: 2 3 4 3;
 }
-.filter-text {
+.filter-header .filter-title {
+  -fx-padding: 0 2 0 2;
+}
+.filter-text-box {
+  -fx-background-color: -fx-text-box-border, -fx-control-inner-background;
+  -fx-background-insets: 0, 1;
+  -fx-background-radius: 4, 3;
+  -fx-alignment: center-left;
+  -fx-pref-height: 26;
+  -fx-min-height: 26;
+  -fx-max-height: 26;
+}
+.filter-text-box:active {
+  -fx-background-color: #4c6f76, derive(#d3e8eb, 40%);
+}
+.filter-text-box:error {
+  -fx-background-color: #c0392b, #fdecea;
+}
+.filter-text-box .filter-text,
+.filter-text-box .filter-text:focused {
+  -fx-background-color: transparent;
   -fx-font-size: 11px;
+  -fx-padding: 3 4 3 6;
+}
+.filter-toggle {
+  -fx-font-size: 10px;
+  -fx-padding: 1 4 1 4;
+  -fx-background-color: transparent;
+  -fx-background-radius: 3;
+  -fx-text-fill: #66767a;
+}
+.filter-toggle:selected {
+  -fx-background-color: #4c6f76;
+  -fx-text-fill: white;
+}
+.filter-menu {
+  -fx-background-color: transparent;
+  -fx-padding: 0 2 0 0;
+}
+.filter-menu > .arrow-button {
+  -fx-padding: 4 4 4 2;
+}
+.filter-button {
+  -fx-font-size: 11px;
+  -fx-font-weight: normal;
+  -fx-alignment: center-left;
   -fx-padding: 4 6 4 6;
+  -fx-pref-height: 26;
+  -fx-min-height: 26;
+  -fx-background-radius: 4;
 }
-.filter-combo {
-  -fx-min-width: 85px;
-  -fx-padding: 4 8 4 8;
+.filter-button:active {
+  -fx-background-color: #4c6f76, derive(#d3e8eb, 40%);
+  -fx-background-insets: 0, 1;
+  -fx-text-fill: #2a3a3e;
+}
+
+/* Popovers of the options and range filters */
+.filter-popover {
+  -fx-background-color: -fx-box-border, -fx-control-inner-background;
+  -fx-background-insets: 0, 1;
+  -fx-background-radius: 6, 5;
+  -fx-padding: 10;
+  -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 12, 0, 0, 3);
+}
+/* A popover takes the styles of its owner, here a column header: its labels must not look
+   like header titles. */
+.filter-popover .label,
+.table-view .column-header .filter-popover .label {
+  -fx-font-size: 12px;
+  -fx-font-weight: normal;
+  -fx-text-fill: -fx-text-base-color;
+}
+.table-view .column-header .filter-popover .filter-popover-title,
+.filter-popover-title {
+  -fx-font-weight: bold;
+  -fx-text-fill: #4c6f76;
+}
+.filter-options-list .list-cell {
+  -fx-padding: 2 6 2 4;
+}
+.filter-options-list .list-cell:zero .check-box {
+  -fx-opacity: 0.5;
+}
+.table-view .column-header .filter-popover .filter-count,
+.table-view .column-header .filter-popover .filter-hint,
+.filter-count, .filter-hint {
+  -fx-text-fill: #66767a;
   -fx-font-size: 11px;
 }
-.filter-combo .list-cell {
-  -fx-padding: 4 8 4 8;
-  -fx-min-width: 55px;
+.filter-only {
+  -fx-font-size: 11px;
+  -fx-padding: 0 2 0 2;
 }
-/* Réduire la zone de la flèche pour libérer de l'espace pour le texte */
-.filter-combo .arrow-button {
-  -fx-padding: 0 6 0 4;
-  -fx-min-width: 22px;
-  -fx-pref-width: 22px;
+.filter-histogram {
+  -fx-padding: 0 0 2 0;
+  -fx-border-color: transparent transparent #c9d3d5 transparent;
+  -fx-cursor: crosshair;
+}
+.filter-bar {
+  -fx-background-color: #b5c7cb;
+  -fx-background-radius: 2 2 0 0;
+}
+.filter-bar:hover {
+  -fx-background-color: #8fa9af;
+}
+.filter-bar:selected {
+  -fx-background-color: #4c6f76;
+}
+.filter-range-field:error {
+  -fx-text-box-border: #c0392b;
+  -fx-focus-color: #c0392b;
+}
+.filter-date-picker {
+  -fx-background-color: transparent;
+  -fx-padding: 0;
+}
+.filter-date-picker > .arrow-button {
+  -fx-padding: 5 7 5 7;
+  -fx-background-radius: 4;
+}
+
+/* Column chooser */
+.column-chooser-heading {
+  -fx-text-fill: #66767a;
+  -fx-font-size: 11px;
+  -fx-font-weight: bold;
+}
+.column-chooser-handle {
+  -fx-text-fill: #9aa8ab;
+  -fx-cursor: move;
+}
+.column-chooser-editable {
+  -fx-text-fill: #9aa8ab;
+}
+.language-chip {
+  -fx-font-size: 11px;
+  -fx-padding: 1 7 1 7;
+  -fx-background-radius: 10;
+  -fx-background-color: -fx-box-border, -fx-control-inner-background;
+  -fx-background-insets: 0, 1;
+  -fx-text-fill: #9aa8ab;
+}
+.language-chip:selected {
+  -fx-background-color: #4c6f76;
+  -fx-background-insets: 0;
+  -fx-text-fill: white;
+}
+.column-chooser-add {
+  -fx-font-size: 11px;
+  -fx-padding: 2 8 2 8;
+  -fx-background-radius: 10;
+}
+.columns-button:custom {
+  -fx-background-color: #4c6f76, derive(#d3e8eb, 40%);
+  -fx-background-insets: 0, 1;
+}
+
+/* Toolbar above a table: Columns button, filter chips, Clear all */
+.table-toolbar {
+  -fx-min-height: 30;
+}
+.filter-chips-label {
+  -fx-text-fill: #66767a;
+  -fx-font-size: 12px;
+}
+.filter-chip {
+  -fx-background-color: #d3e8eb;
+  -fx-background-radius: 12;
+  -fx-padding: 0 2 0 8;
+}
+.filter-chip-text {
+  -fx-text-fill: #2a3a3e;
+  -fx-font-size: 12px;
+  -fx-padding: 2 0 2 0;
+  -fx-border-color: transparent;
+}
+.filter-chip-remove {
+  -fx-background-color: transparent;
+  -fx-font-size: 10px;
+  -fx-padding: 2 6 2 6;
+  -fx-text-fill: #4c6f76;
+}
+.filter-chip-remove:hover {
+  -fx-background-color: rgba(76,111,118,0.2);
+  -fx-background-radius: 10;
+}
+.filter-notice {
+  -fx-background-color: #fff4d6;
+  -fx-background-radius: 4;
+  -fx-padding: 1 6 1 6;
+}
+.filter-count-label {
+  -fx-text-fill: #66767a;
+  -fx-font-size: 12px;
+}
+
+/* Cells */
+.table-view .number-cell {
+  -fx-alignment: center-right;
+}
+/* Empty cells of text columns (View ▸ Mark empty cells) */
+.table-view .table-cell:empty-value {
+  -fx-background-color: linear-gradient(from 0px 0px to 6px 6px, repeat, rgba(76,111,118,0.10) 0%, rgba(76,111,118,0.10) 30%, transparent 30%, transparent 100%);
+}
+.table-view .table-row-cell:selected .table-cell:empty-value {
+  -fx-background-color: transparent;
 }
 
 /* ─── Table views ─── */
