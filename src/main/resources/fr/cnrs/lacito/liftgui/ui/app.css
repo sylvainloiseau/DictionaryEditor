@@ -562,3 +562,23 @@
 .table-row-cell.undeclared:selected .table-cell {
   -fx-text-fill: #d9dfe0;
 }
+
+/* ─── The error shown when a file cannot be opened ─── */
+.open-error-position {
+    -fx-font-weight: bold;
+}
+.open-error-excerpt {
+    -fx-font-family: "Menlo", "Consolas", "DejaVu Sans Mono", monospace;
+    -fx-padding: 6 8;
+    -fx-background-color: derive(-fx-control-inner-background, -4%);
+    -fx-border-color: derive(-fx-control-inner-background, -20%);
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+}
+.open-error-path {
+    -fx-text-fill: derive(-fx-text-base-color, 40%);
+    -fx-font-size: 0.9em;
+}
+.open-error-details {
+    -fx-font-family: "Menlo", "Consolas", "DejaVu Sans Mono", monospace;
+}

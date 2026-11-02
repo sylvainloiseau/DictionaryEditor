@@ -2,18 +2,17 @@ package fr.cnrs.lacito.liftgui.core;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.LiftDocumentLoadingException;
+import fr.cnrs.lacito.liftgui.core.LiftOpenException.Reason;
 import fr.cnrs.lacito.liftgui.ui.I18n;
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.xml.sax.SAXParseException;
 
 /**
  * Loading of dictionaries: LIFT files chosen by the user and the bundled demo.
@@ -25,105 +24,66 @@ public final class DictionaryService {
     );
 
     /**
-     * Charge un dictionnaire LIFT a partir d'un fichier {@code .lift} via {@code lift-api}.
-     *
-     * Contraintes:
-     * - ne re-implemente pas le parsing XML (delegue a {@code lift-api})
-     * - retourne un dictionnaire en memoire
-     * - gere des erreurs simples (fichier absent, format invalide)
+     * Loads a LIFT dictionary from a file, through lift-api. The file may have any name: its
+     * content is checked ({@link LiftFileCheck}), and every reason it cannot be opened is
+     * reported as a {@link LiftOpenException} explaining it to the user.
      */
-    public LiftDictionary loadFromFile(File file)
-        throws IOException, LiftOpenException {
+    public LiftDictionary loadFromFile(File file) throws LiftOpenException {
         if (file == null) {
             throw new IllegalArgumentException("file is null");
         }
-
-        if (!file.exists() || !file.isFile()) {
-            throw new FileNotFoundException(
-                I18n.get("service.fileNotFound", file.getAbsolutePath())
-            );
+        if (!file.isFile()) {
+            throw new LiftOpenException(Reason.NOT_FOUND, file, I18n.get("open.error.notFound", file.getAbsolutePath()), null);
         }
-
         if (!Files.isReadable(file.toPath())) {
-            throw new IOException(
-                I18n.get("service.fileNotReadable", file.getAbsolutePath())
-            );
+            throw new LiftOpenException(Reason.NOT_READABLE, file, I18n.get("open.error.notReadable", file.getAbsolutePath()), null);
         }
-
-        String name = file.getName().toLowerCase();
-        if (!name.endsWith(".lift")) {
-            throw new LiftOpenException(
-                I18n.get("service.notLiftExtension")
-            );
-        }
-
-        // Heuristique legere pour reperer un fichier qui ne ressemble pas du tout a du LIFT.
-        // (Sans refaire de parsing XML.)
-        if (!looksLikeLift(file)) {
-            throw new LiftOpenException(
-                I18n.get("service.notLiftDocument")
-            );
-        }
-
+        LiftFileCheck.check(file);
         try {
             return LiftDictionary.loadDictionaryFromFile(file);
-        } catch (LiftDocumentLoadingException e) {
-            LOGGER.log(
-                Level.SEVERE,
-                "Impossible de charger le fichier LIFT: " +
-                    file.getAbsolutePath(),
-                e
-            );
-            throw new LiftOpenException(
-                I18n.get("service.cannotLoad", describeThrowable(e)),
-                e
-            );
-        } catch (RuntimeException e) {
-            // Le parser SAX peut jeter des IllegalStateException si le XML ne correspond pas a la grammaire attendue.
-            LOGGER.log(
-                Level.SEVERE,
-                "Format invalide lors de la lecture du LIFT: " +
-                    file.getAbsolutePath(),
-                e
-            );
-            throw new LiftOpenException(
-                I18n.get("service.invalidFormat", describeThrowable(e)),
-                e
-            );
+        } catch (LiftDocumentLoadingException | RuntimeException e) {
+            LOGGER.log(Level.SEVERE, "Impossible de charger le fichier LIFT: " + file.getAbsolutePath(), e);
+            throw refused(file, e);
         }
     }
 
-    private static boolean looksLikeLift(File file) throws IOException {
-        try (
-            BufferedReader reader = Files.newBufferedReader(
-                file.toPath(),
-                StandardCharsets.UTF_8
-            )
-        ) {
-            String line;
-            int linesRead = 0;
-            while ((line = reader.readLine()) != null && linesRead < 50) {
-                linesRead++;
-                String trimmed = line.trim();
-                if (trimmed.isEmpty()) continue;
-                if (trimmed.startsWith("<?xml")) continue;
-                if (trimmed.startsWith("<!--")) continue;
-                return trimmed.contains("<lift") || trimmed.startsWith("<lift");
+    /**
+     * What lift-api's failure means for the user. A {@link SAXParseException} reported by
+     * the parser itself is an XML error; one wrapping an exception of lift-api (which gives
+     * the position of the element it could not build) is LIFT content refused.
+     */
+    private static LiftOpenException refused(File file, Exception e) {
+        SAXParseException parse = null;
+        for (Throwable t = e; t != null && parse == null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof SAXParseException p) parse = p;
+        }
+        if (parse != null) {
+            int line = parse.getLineNumber() < 1 ? -1 : parse.getLineNumber();
+            int column = parse.getColumnNumber() < 1 ? -1 : parse.getColumnNumber();
+            if (parse.getException() == null) {
+                return LiftFileCheck.malformed(file, I18n.get("open.error.malformed", parse.getMessage()), e, line, column);
             }
+            // An error in the ranges file is placed in that file: no excerpt of this one.
+            boolean here = parse.getSystemId() == null || parse.getSystemId().endsWith(file.getName());
+            return new LiftOpenException(Reason.INVALID_LIFT, file, I18n.get("open.error.invalid", parse.getException().getMessage()),
+                e, line, column, here ? LiftFileCheck.excerpt(file, line, column) : null);
         }
-        return false;
+        if (e instanceof LiftDocumentLoadingException && e.getCause() instanceof IOException io) {
+            return LiftFileCheck.io(file, io);
+        }
+        // lift-api's own exceptions (a duplicate id, an unsupported version) say what is wrong.
+        String message = e instanceof RuntimeException && e.getMessage() != null ? e.getMessage() : describeThrowable(e);
+        return new LiftOpenException(Reason.INVALID_LIFT, file, I18n.get("open.error.invalid", message), e);
     }
 
+    /** The message of the root cause, or its class name when it has none. */
     private static String describeThrowable(Throwable throwable) {
         Throwable current = throwable;
         while (current.getCause() != null && current.getCause() != current) {
             current = current.getCause();
         }
         String message = current.getMessage();
-        if (message == null || message.isBlank()) {
-            return current.getClass().getSimpleName();
-        }
-        return current.getClass().getSimpleName() + ": " + message;
+        return message == null || message.isBlank() ? current.getClass().getSimpleName() : message;
     }
 
     /**

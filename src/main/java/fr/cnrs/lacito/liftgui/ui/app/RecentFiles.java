@@ -45,6 +45,17 @@ public final class RecentFiles {
         List<String> paths = paths();
         paths.remove(f.getAbsolutePath());
         paths.add(0, f.getAbsolutePath());
+        store(paths);
+    }
+
+    /** Takes a file out of the list (e.g. one that cannot be opened any more). */
+    public void remove(File f) {
+        List<String> paths = paths();
+        paths.remove(f.getAbsolutePath());
+        store(paths);
+    }
+
+    private void store(List<String> paths) {
         for (int i = 0; i < MAX; i++) {
             if (i < paths.size()) prefs.put(KEY_PREFIX + i, paths.get(i));
             else prefs.remove(KEY_PREFIX + i);

@@ -1,5 +1,3 @@
-## Parameters for table
-
 ## merge entries
 
 ## Check that external file exist and offer to import range, trait and field definition into internal header
@@ -31,3 +29,7 @@ I would like harmonization regarding the following aspects:
 - Not all components can be deleted: for instance Field can not be deleted. Some components have a small delete button on the top: please use this pattern on all components when the component can be deleted.
 
 Please make a plan for a good user experience, using modern GUI design and efficient data input. Ask question or suggest improvements if usefull.
+
+## Column configuration + filter
+
+Could you make a plan to make column configurable for each component tables. The configuration should be done in the settings dialog but also through a button on the table header : please select a modern and efficient gui design for this. In addition to existing columns, that should be th default, columns configuration should offer to display any field existing on the component type, together with count of the various subcomponents and property of the parent and ancestor. Field that are multitext should generate as many column as languages. Please also include in the plan a redesign of the filtering widgets above each column. They tend not to follow the width of the column when they are resized. For different column type, different filtering tools should be provided: text (with ignore case and regexp) for multitext, drop down with selectable option for fixed-value column, min-max range for date and number (including those resulting from a count of subcomponents). Please elaborate a clean and future proof design and a modern and efficient gui  design. Ask question when needed and suggest improvements if relevant.

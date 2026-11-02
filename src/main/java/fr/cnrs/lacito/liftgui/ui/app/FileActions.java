@@ -2,6 +2,7 @@ package fr.cnrs.lacito.liftgui.ui.app;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftgui.core.DictionaryService;
+import fr.cnrs.lacito.liftgui.core.LiftOpenException;
 import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
@@ -64,6 +65,9 @@ public final class FileActions {
         File lastFile = new File(recents.get(0));
         try {
             document.load(service.loadFromFile(lastFile), lastFile, false);
+        } catch (LiftOpenException e) {
+            document.load(null, null, false);
+            Platform.runLater(() -> OpenErrorDialog.show(e, true, () -> recentFiles.remove(lastFile)));
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Ouverture du dernier fichier LIFT", e);
             document.load(null, null, false);
@@ -118,6 +122,9 @@ public final class FileActions {
             if (!warnings.isEmpty()) {
                 Dialogs.warnings(I18n.get("loadWarnings.title"), I18n.get("loadWarnings.header", warnings.size()), warnings);
             }
+        } catch (LiftOpenException e) {
+            boolean recent = recentFiles != null && recentFiles.paths().contains(f.getAbsolutePath());
+            OpenErrorDialog.show(e, false, recent ? () -> recentFiles.remove(f) : null);
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Ouverture du fichier LIFT", e);
             Dialogs.error(I18n.get(Keys.ERROR_OPEN), I18n.formatErrorMessage("error.open.detail", e));
