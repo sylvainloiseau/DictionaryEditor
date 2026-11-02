@@ -1,5 +1,5 @@
 .root {
-  -fx-font-family: "Segoe UI";
+  -fx-font-family: "System";
   -fx-background-color: #f4f6f7;
 }
 
@@ -25,45 +25,223 @@
   -fx-text-fill: black;
 }
 
-/* ─── Left navigation panel ─── */
-.left-nav {
-  -fx-background-color: #4c6f76;
-  -fx-min-width: 200px;
+/* ─── Navigation panel ─── */
+/* Colour tokens: the dark theme redefines them only (see .root.dark). */
+.root {
+  -nav-bg: #eef2f3;
+  -nav-fg: #1f2d30;
+  -nav-muted: #5a6a6e;
+  -nav-icon: #4f6468;
+  -nav-hover: rgba(76, 111, 118, 0.08);
+  -nav-selected-bg: rgba(76, 111, 118, 0.13);
+  -nav-selected-focused-bg: rgba(76, 111, 118, 0.20);
+  -nav-accent: #4c6f76;
+  -nav-border: #d5dee0;
+  -nav-count-bg: rgba(31, 45, 48, 0.06);
+  -nav-input-bg: #ffffff;
+}
+.root.dark {
+  -nav-bg: #26292b;
+  -nav-fg: #e3e8e9;
+  -nav-muted: #9aa8ab;
+  -nav-icon: #a9b9bc;
+  -nav-hover: rgba(255, 255, 255, 0.06);
+  -nav-selected-bg: rgba(127, 176, 184, 0.18);
+  -nav-selected-focused-bg: rgba(127, 176, 184, 0.28);
+  -nav-accent: #7fb0b8;
+  -nav-border: #3a3f41;
+  -nav-count-bg: rgba(255, 255, 255, 0.08);
+  -nav-input-bg: #1d2021;
 }
 
-.section-title {
-  -fx-text-fill: white;
-  -fx-font-size: 20px;
-  -fx-font-weight: bold;
-  -fx-alignment: CENTER_LEFT;
-  -fx-max-width: infinity;
-  -fx-padding: 8 10 4 10;
+.nav-split {
+  -fx-background-color: -nav-bg;
+  -fx-background-insets: 0;
+  -fx-padding: 0;
+}
+.nav-split > .split-pane-divider {
+  -fx-background-color: -nav-border;
+  -fx-padding: 0 0.5 0 0.5;
+}
+.nav-panel {
+  -fx-background-color: -nav-bg;
+  -fx-padding: 10 6 8 6;
+  -fx-spacing: 8;
 }
 
-/* TreeView in left panel */
-.nav-tree {
-  -fx-background-color: #4c6f76;
-  -fx-border-color: transparent;
+.nav-filter {
+  -fx-background-color: -nav-border, -nav-input-bg;
+  -fx-background-insets: 0, 1;
+  -fx-background-radius: 7, 6;
+  -fx-padding: 5 9 5 9;
+  -fx-text-fill: -nav-fg;
+  -fx-prompt-text-fill: -nav-muted;
+}
+.nav-filter:focused {
+  -fx-background-color: -nav-accent, -nav-input-bg;
+  -fx-background-insets: 0, 1.5;
+}
+
+.nav-tree,
+.nav-tree:focused {
+  -fx-background-color: transparent;
+  -fx-background-insets: 0;
+  -fx-padding: 0;
 }
 .nav-tree .tree-cell {
   -fx-background-color: transparent;
-  -fx-text-fill: white;
-  -fx-font-size: 14px;
-  -fx-padding: 4 6 4 6;
+  -fx-padding: 1 7 1 7;
+  -fx-indent: 0;
 }
-.nav-tree .tree-cell:selected {
-  -fx-background-color: rgba(255, 255, 255, 0.22);
-  -fx-text-fill: white;
+/* The groups draw their own chevron, on the right. */
+.nav-tree .tree-cell > .tree-disclosure-node,
+.nav-tree .tree-cell > .tree-disclosure-node > .arrow {
+  -fx-padding: 0;
+  -fx-min-width: 0;
+  -fx-pref-width: 0;
+  -fx-shape: null;
+  -fx-background-color: transparent;
 }
-.nav-tree .tree-cell:hover {
-  -fx-background-color: rgba(255, 255, 255, 0.12);
+.nav-tree > .virtual-flow > .scroll-bar {
+  -fx-background-color: transparent;
+  -fx-padding: 0 1 0 1;
 }
-.nav-tree .tree-disclosure-node .arrow {
-  -fx-background-color: white;
+.nav-tree > .virtual-flow > .scroll-bar > .increment-button,
+.nav-tree > .virtual-flow > .scroll-bar > .decrement-button {
+  -fx-padding: 0;
 }
-.nav-tree > .virtual-flow > .scroll-bar,
-.nav-tree > .virtual-flow > .scroll-bar .thumb {
-  -fx-background-color: #4c6f76;
+.nav-tree > .virtual-flow > .scroll-bar > .increment-button > .increment-arrow,
+.nav-tree > .virtual-flow > .scroll-bar > .decrement-button > .decrement-arrow {
+  -fx-shape: null;
+  -fx-padding: 0;
+}
+.nav-tree > .virtual-flow > .scroll-bar > .track {
+  -fx-background-color: transparent;
+  -fx-border-color: transparent;
+}
+.nav-tree > .virtual-flow > .scroll-bar > .thumb {
+  -fx-background-color: -nav-border;
+  -fx-background-insets: 0 1 0 1;
+  -fx-background-radius: 4;
+}
+.nav-tree > .virtual-flow > .scroll-bar > .thumb:hover {
+  -fx-background-color: -nav-muted;
+}
+.nav-tree > .virtual-flow > .corner {
+  -fx-background-color: transparent;
+}
+
+.nav-row {
+  -fx-padding: 4 8 4 4;
+  -fx-min-height: 28px;
+  -fx-background-radius: 6;
+}
+.nav-tree .tree-cell:hover .nav-row {
+  -fx-background-color: -nav-hover;
+}
+.nav-tree .tree-cell:selected .nav-row {
+  -fx-background-color: -nav-selected-bg;
+}
+.nav-tree:focused .tree-cell:selected .nav-row {
+  -fx-background-color: -nav-selected-focused-bg;
+}
+.nav-bar {
+  -fx-min-width: 3px;
+  -fx-pref-width: 3px;
+  -fx-max-width: 3px;
+  -fx-min-height: 16px;
+  -fx-background-radius: 2;
+  -fx-background-color: transparent;
+}
+.nav-tree .tree-cell:selected .nav-bar {
+  -fx-background-color: -nav-accent;
+}
+.nav-icon {
+  -fx-min-width: 16px;
+  -fx-pref-width: 16px;
+  -fx-max-width: 16px;
+  -fx-min-height: 16px;
+  -fx-pref-height: 16px;
+  -fx-max-height: 16px;
+  -fx-scale-shape: true;
+  -fx-background-color: -nav-icon;
+}
+.nav-tree .tree-cell:selected .nav-icon {
+  -fx-background-color: -nav-accent;
+}
+.nav-label {
+  -fx-text-fill: -nav-fg;
+}
+.nav-tree .tree-cell:selected .nav-label {
+  -fx-font-weight: bold;
+}
+.nav-label-text {
+  -fx-fill: -nav-fg;
+}
+.nav-match {
+  -fx-fill: -nav-accent;
+  -fx-font-weight: bold;
+  -fx-underline: true;
+}
+.nav-count {
+  -fx-text-fill: -nav-muted;
+  -fx-font-size: 0.85em;
+  -fx-padding: 0 6 0 6;
+  -fx-background-color: -nav-count-bg;
+  -fx-background-radius: 8;
+}
+.nav-chevron {
+  -fx-min-width: 12px;
+  -fx-pref-width: 12px;
+  -fx-max-width: 12px;
+  -fx-min-height: 12px;
+  -fx-pref-height: 12px;
+  -fx-max-height: 12px;
+  -fx-scale-shape: true;
+  -fx-background-color: -nav-muted;
+  -fx-opacity: 0;
+}
+.nav-tree .tree-cell:hover .nav-chevron,
+.nav-tree .tree-cell:folded .nav-chevron,
+.nav-tree .tree-cell:nested-group .nav-chevron {
+  -fx-opacity: 1;
+}
+.nav-tree .tree-cell:folded .nav-chevron {
+  -fx-rotate: -90;
+}
+
+/* Section headings: small, muted, not selectable. */
+.nav-tree .tree-cell:heading .nav-row {
+  -fx-padding: 12 8 3 4;
+  -fx-min-height: 0;
+  -fx-background-color: transparent;
+}
+.nav-tree .tree-cell:heading .nav-label {
+  -fx-text-fill: -nav-muted;
+  -fx-font-size: 0.78em;
+  -fx-font-weight: bold;
+}
+
+/* The ranges, under their group. */
+.nav-tree .tree-cell:range .nav-row {
+  -fx-padding: 3 8 3 28;
+  -fx-min-height: 24px;
+}
+.nav-tree .tree-cell:undeclared .nav-label {
+  -fx-text-fill: -nav-muted;
+  -fx-font-style: italic;
+}
+.nav-tree .tree-cell:undeclared .nav-label-text {
+  -fx-fill: -nav-muted;
+  -fx-font-style: italic;
+}
+
+/* Quick entry: an action, apart from the lists. */
+.nav-tree .tree-cell:action {
+  -fx-border-color: -nav-border transparent transparent transparent;
+  -fx-border-width: 1 0 0 0;
+  -fx-border-insets: 8 4 0 4;
+  -fx-padding: 13 7 1 7;
 }
 
 /* ─── Center panel ─── */

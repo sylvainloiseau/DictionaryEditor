@@ -177,6 +177,8 @@ public final class Commands {
         d.put("help.shortcuts", new KeyCodeCombination(KeyCode.SLASH, SC));
         d.put("view.columns", new KeyCodeCombination(KeyCode.K, SC, SHIFT));
         d.put("view.focusFilter", new KeyCodeCombination(KeyCode.F, SC, SHIFT));
+        d.put("view.showNavigation", new KeyCodeCombination(KeyCode.DIGIT0, SC));
+        d.put("view.filterNavigation", new KeyCodeCombination(KeyCode.K, SC));
         return d;
     }
 

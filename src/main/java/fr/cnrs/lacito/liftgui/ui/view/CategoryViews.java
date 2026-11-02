@@ -80,13 +80,56 @@ public final class CategoryViews {
         return m;
     }
 
+    /* ─── Rows ─── */
+
+    private static List<CategoryRow> gramInfoRows(LiftDictionaryRegistry reg) {
+        return count(reg.getSenses().stream().filter(s -> s.getGrammaticalInfo().isPresent()),
+            s -> new CategoryRow("", "", s.getGrammaticalInfo().get().getGramInfoValue().getId(), 0));
+    }
+
+    private static List<CategoryRow> translationTypeRows(LiftDictionaryRegistry reg) {
+        return count(reg.getExamples().stream().flatMap(ex -> ex.getTranslations().keySet().stream()),
+            f -> new CategoryRow("", "", DictionaryQueries.featureId(f), 0));
+    }
+
+    private static List<CategoryRow> relationTypeRows(LiftDictionaryRegistry reg) {
+        return count(reg.getRelations().stream(),
+            rel -> new CategoryRow("", "", DictionaryQueries.featureId(rel.getType()), 0));
+    }
+
+    private static List<CategoryRow> fieldTypeRows(LiftDictionaryRegistry reg) {
+        return count(reg.getFields().stream(), f -> new CategoryRow("", "", f.getName(), 0));
+    }
+
+    private static List<CategoryRow> noteTypeRows(LiftDictionaryRegistry reg) {
+        return count(reg.getNotes().stream(),
+            n -> new CategoryRow(ObjectLabels.describeParentType(n.getParent()), "", DictionaryQueries.featureId(n.getType()), 0));
+    }
+
+    private static List<CategoryRow> traitRows(LiftDictionaryRegistry reg) {
+        return count(reg.getTraits().stream(),
+            t -> new CategoryRow(ObjectLabels.describeParentType(t.getParent()), t.getName(),
+                Objects.toString(t.getValue(), ""), 0));
+    }
+
+    /** The number of rows of a category view (as the navigation shows it); -1 for another view. */
+    public static int rowCount(ViewKey key, LiftDictionaryRegistry reg) {
+        return switch (key) {
+            case GRAM_INFO -> gramInfoRows(reg).size();
+            case TRAIT_VALUES -> traitRows(reg).size();
+            case TRANSLATION_TYPES -> translationTypeRows(reg).size();
+            case NOTE_TYPES -> noteTypeRows(reg).size();
+            case RELATION_TYPES -> relationTypeRows(reg).size();
+            case FIELD_TYPES -> fieldTypeRows(reg).size();
+            default -> -1;
+        };
+    }
+
     /* ─── Views ─── */
 
     public static DictionaryView gramInfo(EditorContext ctx) {
         String title = I18n.get("nav.gramInfo");
-        List<CategoryRow> rows = count(
-            reg(ctx).getSenses().stream().filter(s -> s.getGrammaticalInfo().isPresent()),
-            s -> new CategoryRow("", "", s.getGrammaticalInfo().get().getGramInfoValue().getId(), 0));
+        List<CategoryRow> rows = gramInfoRows(reg(ctx));
         return view(ctx, rows, valueColumns(I18n.get("col.value")), "placeholder.noData", r -> {
             List<LiftSense> senses = reg(ctx).getSenses().stream()
                 .filter(s -> s.getGrammaticalInfo().map(g -> r.value().equals(g.getGramInfoValue().getId())).orElse(false))
@@ -98,9 +141,7 @@ public final class CategoryViews {
 
     public static DictionaryView translationTypes(EditorContext ctx) {
         String title = I18n.get("nav.transTypes");
-        List<CategoryRow> rows = count(
-            reg(ctx).getExamples().stream().flatMap(ex -> ex.getTranslations().keySet().stream()),
-            f -> new CategoryRow("", "", DictionaryQueries.featureId(f), 0));
+        List<CategoryRow> rows = translationTypeRows(reg(ctx));
         return view(ctx, rows, valueColumns(I18n.get("col.type")), "placeholder.noData", r -> {
             List<LiftExample> examples = reg(ctx).getExamples().stream()
                 .filter(ex -> DictionaryQueries.translationOfType(ex, r.value()) != null)
@@ -112,8 +153,7 @@ public final class CategoryViews {
 
     public static DictionaryView relationTypes(EditorContext ctx) {
         String title = I18n.get("nav.relationTypes");
-        List<CategoryRow> rows = count(reg(ctx).getRelations().stream(),
-            rel -> new CategoryRow("", "", DictionaryQueries.featureId(rel.getType()), 0));
+        List<CategoryRow> rows = relationTypeRows(reg(ctx));
         return view(ctx, rows, valueColumns(I18n.get("col.type")), "placeholder.noData", r -> {
             List<LiftRelation> relations = reg(ctx).getRelations().stream()
                 .filter(rel -> r.value().equals(DictionaryQueries.featureId(rel.getType())))
@@ -125,8 +165,7 @@ public final class CategoryViews {
 
     public static DictionaryView fieldTypes(EditorContext ctx) {
         String title = I18n.get("nav.fieldTypes");
-        List<CategoryRow> rows = count(reg(ctx).getFields().stream(),
-            f -> new CategoryRow("", "", f.getName(), 0));
+        List<CategoryRow> rows = fieldTypeRows(reg(ctx));
         return view(ctx, rows, valueColumns(I18n.get("col.type")), "placeholder.noField", r -> {
             List<LiftField> fields = reg(ctx).getFields().stream()
                 .filter(f -> r.value().equals(f.getName()))
@@ -138,8 +177,7 @@ public final class CategoryViews {
 
     public static DictionaryView noteTypes(EditorContext ctx) {
         String title = I18n.get("nav.noteTypes");
-        List<CategoryRow> rows = count(reg(ctx).getNotes().stream(),
-            n -> new CategoryRow(ObjectLabels.describeParentType(n.getParent()), "", DictionaryQueries.featureId(n.getType()), 0));
+        List<CategoryRow> rows = noteTypeRows(reg(ctx));
         List<ColumnSpec<CategoryRow>> columns = List.of(
             Columns.<CategoryRow>text("category.value", I18n.get("col.type"), CategoryRow::value).option(),
             Columns.<CategoryRow>text("category.parentType", I18n.get("col.parentType"), CategoryRow::parentType).option(),
@@ -159,9 +197,7 @@ public final class CategoryViews {
     /** Traits, counted by kind of object, name and value; the objects are opened through their entries. */
     public static DictionaryView traits(EditorContext ctx) {
         String title = I18n.get("nav.traitValues");
-        List<CategoryRow> rows = count(reg(ctx).getTraits().stream(),
-            t -> new CategoryRow(ObjectLabels.describeParentType(t.getParent()), t.getName(),
-                Objects.toString(t.getValue(), ""), 0));
+        List<CategoryRow> rows = traitRows(reg(ctx));
         List<ColumnSpec<CategoryRow>> columns = List.of(
             Columns.<CategoryRow>text("trait.parentType", I18n.get(Keys.COL_PARENT_TYPE), CategoryRow::parentType).option(),
             Columns.<CategoryRow>text("trait.name", I18n.get(Keys.COL_NAME), CategoryRow::name).option(),

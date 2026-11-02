@@ -18,6 +18,7 @@ import fr.cnrs.lacito.liftgui.ui.controls.ComponentSection;
 import fr.cnrs.lacito.liftgui.ui.editor.AddCommands;
 import fr.cnrs.lacito.liftgui.ui.editor.EditorContext;
 import fr.cnrs.lacito.liftgui.ui.editor.EditorPanel;
+import fr.cnrs.lacito.liftgui.ui.nav.NavNode;
 import fr.cnrs.lacito.liftgui.ui.nav.NavigationTree;
 import fr.cnrs.lacito.liftgui.ui.nav.Navigator;
 import fr.cnrs.lacito.liftgui.ui.nav.ViewKey;
@@ -81,7 +82,11 @@ public final class MainController {
     private static final double MIN_RIGHT_WIDTH = 300;
 
     /* ─── FXML nodes ─── */
-    @FXML private TreeView<String> navTree;
+    @FXML private TreeView<NavNode> navTree;
+    @FXML private TextField navFilter;
+    @FXML private VBox navPanel;
+    @FXML private SplitPane navSplit;
+    @FXML private CheckMenuItem showNavigationItem;
     @FXML private StackPane tableContainer;
     @FXML private TextField searchField;
     @FXML private Label viewTitle;
@@ -126,7 +131,9 @@ public final class MainController {
         ctx = new EditorContext(document, panel, navigator, searchField.textProperty(), this::updateCountLabel);
         ctx.setColumnLayouts(new ColumnLayoutStore(prefs::columnLayout, prefs::setColumnLayout,
             prefs::columnWidths, prefs::setColumnWidths));
-        navigation = new NavigationTree(navTree, navigator::go, this::onCreateNewObject);
+        navigation = new NavigationTree(navTree, navFilter, navigator::go, this::onNewEntry,
+            key -> commands.keys("view." + key.i18nKey().substring("nav.".length())),
+            prefs.navFolded(), prefs::setNavFolded);
 
         // The history records every change lift-api reports; an entry it closes dates the
         // dictionary entries it touched, inside the same undo step.
@@ -134,12 +141,13 @@ public final class MainController {
         history.setLabeler(ChangeLabels::label);
         history.setFinisher(e -> ModificationDates.touch(e, ModificationDates::now));
         history.setLimit(prefs.historyLimit());
+        history.revisionProperty().addListener(o -> navigation.dictionaryChanged());
 
         // A new dictionary (opened, created, or handed over): its ranges in the navigation
         // tree, and the entries view. The document gives it a fresh history.
         document.dictionaryProperty().addListener((obs, o, d) -> {
             ctx.filterSessions().clear();
-            navigation.setRanges(d == null ? null : d.getHeader());
+            navigation.setDictionary(d);
             navigator.go(ViewKey.ENTRIES);
         });
 
@@ -172,10 +180,19 @@ public final class MainController {
             TableFactory.MARK_EMPTY.set(mark);
         });
 
+        // View ▸ Show navigation, remembered.
+        showNavigationItem.setId("view.showNavigation");
+        showNavigationItem.setSelected(prefs.navShown());
+        showNavigationItem.selectedProperty().addListener((obs, o, shown) -> {
+            prefs.setNavShown(shown);
+            setNavigationShown(shown);
+        });
+
         // Every menu item with an id is a command, with its keyboard shortcut.
         commands.register(menuBar);
 
         setupSplitPane();
+        setupNavigationPanel();
         setupMenuHover();
         setupUndoRedo();
         setupWindow();
@@ -256,6 +273,70 @@ public final class MainController {
             double clamped = Math.max(MIN_LEFT_WIDTH / total, Math.min(1.0 - MIN_RIGHT_WIDTH / total, newPos.doubleValue()));
             if (Math.abs(clamped - newPos.doubleValue()) > 0.001) Platform.runLater(() -> divider.setPosition(clamped));
         });
+    }
+
+    /**
+     * The navigation panel keeps its width when the window is resized; its width, set by
+     * the user with the divider, is remembered.
+     */
+    private void setupNavigationPanel() {
+        SplitPane.setResizableWithParent(navPanel, false);
+        navPanel.widthProperty().addListener((obs, o, w) -> {
+            if (navSplit.getItems().contains(navPanel) && w.doubleValue() > 0 && navSplit.getWidth() > 0) {
+                prefs.setNavWidth(w.doubleValue());
+            }
+        });
+        // The width is restored once the split pane has its own.
+        navSplit.widthProperty().addListener(new javafx.beans.value.ChangeListener<>() {
+            @Override
+            public void changed(javafx.beans.value.ObservableValue<? extends Number> obs, Number o, Number w) {
+                if (w.doubleValue() <= 0) return;
+                navSplit.widthProperty().removeListener(this);
+                restoreNavigationWidth();
+            }
+        });
+        if (!prefs.navShown()) setNavigationShown(false);
+    }
+
+    private void restoreNavigationWidth() {
+        double total = navSplit.getWidth();
+        if (total > 0 && navSplit.getItems().contains(navPanel) && !navSplit.getDividers().isEmpty()) {
+            navSplit.setDividerPosition(0, Math.min(0.5, prefs.navWidth() / total));
+        }
+    }
+
+    /** View ▸ Show navigation: takes the panel out of the window, or puts it back at its width. */
+    private void setNavigationShown(boolean shown) {
+        if (shown == navSplit.getItems().contains(navPanel)) return;
+        if (shown) {
+            navSplit.getItems().add(0, navPanel);
+            restoreNavigationWidth();
+        } else {
+            boolean hadFocus = navPanel.getScene() != null && isInside(navPanel.getScene().getFocusOwner(), navPanel);
+            navSplit.getItems().remove(navPanel);
+            if (hadFocus) tableContainer.requestFocus();
+        }
+    }
+
+    private static boolean isInside(Node n, Node ancestor) {
+        for (Node p = n; p != null; p = p.getParent()) {
+            if (p == ancestor) return true;
+        }
+        return false;
+    }
+
+    /** View ▸ Filter the navigation: shows the panel and focuses its filter field. */
+    @FXML
+    private void onFilterNavigation() {
+        if (!showNavigationItem.isSelected()) showNavigationItem.setSelected(true);
+        navFilter.requestFocus();
+        navFilter.selectAll();
+    }
+
+    /** "New entry" in the navigation's context menu: the entries, then a new one. */
+    private void onNewEntry() {
+        navigator.go(ViewKey.ENTRIES);
+        onCreateNewObject();
     }
 
     private void setEditorPanelVisible(boolean visible) {

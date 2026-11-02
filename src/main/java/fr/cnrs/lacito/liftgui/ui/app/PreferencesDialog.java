@@ -73,7 +73,13 @@ public final class PreferencesDialog {
         lightBtn.setToggleGroup(themeGroup);
         RadioButton darkBtn = new RadioButton(I18n.get("prefs.themeDark"));
         darkBtn.setToggleGroup(themeGroup);
-        (prefs.darkTheme() ? darkBtn : lightBtn).setSelected(true);
+        RadioButton systemBtn = new RadioButton(I18n.get("prefs.themeSystem"));
+        systemBtn.setToggleGroup(themeGroup);
+        (switch (prefs.theme()) {
+            case "dark" -> darkBtn;
+            case "system" -> systemBtn;
+            default -> lightBtn;
+        }).setSelected(true);
 
         TextField pathField = new TextField(prefs.defaultPath());
         pathField.setPromptText(System.getProperty("user.home"));
@@ -97,7 +103,7 @@ public final class PreferencesDialog {
         grid.setPadding(new Insets(16));
         grid.addRow(0, new Label(I18n.get("prefs.language")), langCombo);
         grid.addRow(1, new Label(I18n.get("prefs.fontSize")), fontBox);
-        grid.addRow(2, new Label(I18n.get("prefs.theme")), new HBox(12, lightBtn, darkBtn));
+        grid.addRow(2, new Label(I18n.get("prefs.theme")), new HBox(12, lightBtn, darkBtn, systemBtn));
         grid.addRow(3, new Label(I18n.get("prefs.defaultPath")), pathBox);
         grid.addRow(4, new Label(I18n.get("prefs.historyLimit")), historySpinner);
         if (onShortcuts != null) {
@@ -127,7 +133,7 @@ public final class PreferencesDialog {
             if (bt != ButtonType.OK) return null;
             if (page != null) page.apply();
             prefs.setFontSize((int) fontSlider.getValue());
-            prefs.setDarkTheme(darkBtn.isSelected());
+            prefs.setTheme(darkBtn.isSelected() ? "dark" : systemBtn.isSelected() ? "system" : "light");
             prefs.setDefaultPath(pathField.getText().trim());
             prefs.setHistoryLimit(historySpinner.getValue());
             prefs.applyAppearance(scene);

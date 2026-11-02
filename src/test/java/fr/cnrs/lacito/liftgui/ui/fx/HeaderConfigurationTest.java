@@ -110,11 +110,12 @@ class HeaderConfigurationTest extends MainWindowTest {
     @Test
     void aRangeElementCanBeAdded() {
         openView("nav.cfgManageNoteTypes"); // any view, to reach the ranges node
-        TreeItem<String> rangeItem = navLeaves().stream()
-            .filter(i -> i.getParent() != null && I18n.get("nav.cfgRanges").equals(i.getParent().getValue()))
+        var rangeItem = navLeaves().stream()
+            .filter(i -> i.getValue() instanceof fr.cnrs.lacito.liftgui.ui.nav.NavNode.Range)
             .findFirst().orElseThrow();
-        makeInternal(dictionary().getHeader().getFeatureSet(rangeItem.getValue()));
-        openNavItem(rangeItem.getValue());
+        var range0 = ((fr.cnrs.lacito.liftgui.ui.nav.NavNode.Range) rangeItem.getValue()).range();
+        makeInternal(dictionary().getHeader().getFeatureSet(range0.getId()));
+        openNavItem(rangeItem.getValue().label());
         String rangeId = viewTitle();
         FeatureSet range = dictionary().getHeader().getFeatureSet(rangeId);
         int before = range.getFeatures().size();

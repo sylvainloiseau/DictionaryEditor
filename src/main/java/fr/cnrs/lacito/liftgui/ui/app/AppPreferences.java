@@ -4,6 +4,8 @@ import fr.cnrs.lacito.liftgui.ui.I18n;
 import java.io.File;
 import fr.cnrs.lacito.liftgui.undo.History;
 import java.util.prefs.Preferences;
+import javafx.application.ColorScheme;
+import javafx.application.Platform;
 import javafx.scene.Scene;
 
 /**
@@ -21,6 +23,8 @@ public final class AppPreferences {
     private static final String DARK_CSS = "/fr/cnrs/lacito/liftgui/ui/dark.css";
 
     private final Preferences prefs;
+    /** The scenes whose appearance follows the system's colours. */
+    private final java.util.Set<Scene> followsSystem = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
 
     public AppPreferences() {
         this(Preferences.userNodeForPackage(I18n.class));
@@ -60,12 +64,31 @@ public final class AppPreferences {
         prefs.put(HISTORY_LIMIT, String.valueOf(Math.max(1, limit)));
     }
 
-    public boolean darkTheme() {
-        return "dark".equals(prefs.get(THEME, "light"));
+    /** The theme chosen: {@code light}, {@code dark}, or {@code system} (that of the operating system). */
+    public String theme() {
+        String theme = prefs.get(THEME, "light");
+        return theme.equals("dark") || theme.equals("system") ? theme : "light";
     }
 
-    public void setDarkTheme(boolean dark) {
-        prefs.put(THEME, dark ? "dark" : "light");
+    public void setTheme(String theme) {
+        prefs.put(THEME, theme);
+    }
+
+    /** Whether the interface is dark: chosen so, or following a dark system. */
+    public boolean darkTheme() {
+        return switch (theme()) {
+            case "dark" -> true;
+            case "system" -> systemIsDark();
+            default -> false;
+        };
+    }
+
+    private static boolean systemIsDark() {
+        try {
+            return Platform.getPreferences().getColorScheme() == ColorScheme.DARK;
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     public String defaultPath() {
@@ -115,6 +138,38 @@ public final class AppPreferences {
     private static final String TABLE_COLUMNS = "table.columns.";
     private static final String TABLE_WIDTHS = "table.widths.";
     private static final String MARK_EMPTY_CELLS = "ui.markEmptyCells";
+    private static final String NAV_WIDTH = "ui.nav.width";
+    private static final String NAV_SHOWN = "ui.nav.shown";
+    private static final String NAV_FOLDED = "ui.nav.folded";
+
+    /** The width of the navigation panel, in pixels. */
+    public double navWidth() {
+        return Math.max(180, prefs.getDouble(NAV_WIDTH, 270));
+    }
+
+    public void setNavWidth(double width) {
+        prefs.putDouble(NAV_WIDTH, Math.round(width));
+    }
+
+    /** Whether the navigation panel is shown (View ▸ Show navigation). */
+    public boolean navShown() {
+        return prefs.getBoolean(NAV_SHOWN, true);
+    }
+
+    public void setNavShown(boolean shown) {
+        prefs.putBoolean(NAV_SHOWN, shown);
+    }
+
+    /** The ids of the folded groups of the navigation; at first, only the ranges. */
+    public java.util.Set<String> navFolded() {
+        String v = prefs.get(NAV_FOLDED, null);
+        if (v == null) return java.util.Set.of("ranges");
+        return java.util.Arrays.stream(v.split(",")).filter(x -> !x.isBlank()).collect(java.util.stream.Collectors.toSet());
+    }
+
+    public void setNavFolded(java.util.Set<String> ids) {
+        prefs.put(NAV_FOLDED, String.join(",", new java.util.TreeSet<>(ids)));
+    }
 
     /** The columns chosen for a table (the text form of a {@code ColumnLayout}); null for the default ones. */
     public String columnLayout(String table) {
@@ -222,6 +277,19 @@ public final class AppPreferences {
     /** Applies the font size and the theme to a scene. */
     public void applyAppearance(Scene scene) {
         if (scene == null) return;
+        if (!followsSystem.contains(scene)) {
+            // A change of the system's colours is applied at once when the theme follows it.
+            followsSystem.add(scene);
+            try {
+                Platform.getPreferences().colorSchemeProperty().addListener((obs, o, n) -> {
+                    if ("system".equals(theme())) applyAppearance(scene);
+                });
+            } catch (RuntimeException e) {
+                // No platform preferences (e.g. some headless toolkits).
+            }
+        }
+        scene.getRoot().getStyleClass().remove("dark");
+        if (darkTheme()) scene.getRoot().getStyleClass().add("dark");
         var sheets = scene.getStylesheets();
         sheets.removeIf(s -> s.endsWith("/dark.css"));
         String rootStyle = "-fx-font-size: " + fontSize() + "px;";

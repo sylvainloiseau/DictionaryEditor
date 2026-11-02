@@ -3,8 +3,6 @@
 .vscode/
 
 # local files
-*.lift
-*.lift-ranges
 
 # build
 target/

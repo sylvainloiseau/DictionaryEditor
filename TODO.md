@@ -1,3 +1,13 @@
+## Automatically create screenshot of the app
+
+You will create a script for automatically create snapshot of the App for the documentation.
+
+The script will be in the Doc directory. It will be runned by maven during the appropriate maven phase.
+
+## Documentation
+
+Translate into english and improve the documentation. Complete documentation. Move the makeup to markdown.
+
 ## merge entries
 
 ## Check that external file exist and offer to import range, trait and field definition into internal header

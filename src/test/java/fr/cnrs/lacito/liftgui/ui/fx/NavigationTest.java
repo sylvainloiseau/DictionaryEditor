@@ -3,6 +3,7 @@ package fr.cnrs.lacito.liftgui.ui.fx;
 import static org.junit.jupiter.api.Assertions.*;
 
 import fr.cnrs.lacito.liftgui.ui.I18n;
+import fr.cnrs.lacito.liftgui.ui.nav.NavNode;
 import fr.cnrs.lacito.liftgui.ui.nav.ViewKey;
 import java.util.Arrays;
 import java.util.Set;
@@ -17,13 +18,15 @@ class NavigationTest extends MainWindowTest {
     @Test
     void everyNavigationItemOpensItsView() {
         Set<String> viewNames = Arrays.stream(ViewKey.values()).map(k -> I18n.get(k.i18nKey())).collect(Collectors.toSet());
-        for (TreeItem<String> leaf : navLeaves()) {
-            openNavItem(leaf.getValue());
-            if (viewNames.contains(leaf.getValue())) {
-                assertEquals(leaf.getValue(), viewTitle(), "title of the view " + leaf.getValue());
+        for (TreeItem<NavNode> leaf : navLeaves()) {
+            String label = leaf.getValue().label();
+            openNavItem(label);
+            if (leaf.getValue() instanceof NavNode.View) {
+                assertTrue(viewNames.contains(label), label);
+                assertEquals(label, viewTitle(), "title of the view " + label);
             } else {
                 // A header range: the title is the range id.
-                assertFalse(viewTitle().isBlank(), "title of the range " + leaf.getValue());
+                assertFalse(viewTitle().isBlank(), "title of the range " + label);
             }
             assertSame(leaf, navTree().getSelectionModel().getSelectedItem(), "the item stays selected");
         }
@@ -45,7 +48,7 @@ class NavigationTest extends MainWindowTest {
     void theViewMenuOpensViews() {
         fireMenu("menu.view", "menu.view.objects", "nav.senses");
         assertEquals(I18n.get("nav.senses"), viewTitle());
-        assertEquals(I18n.get("nav.senses"), navTree().getSelectionModel().getSelectedItem().getValue());
+        assertEquals(I18n.get("nav.senses"), navTree().getSelectionModel().getSelectedItem().getValue().label());
         fireMenu("menu.view", "menu.view.categories", "nav.gramInfo");
         assertEquals(I18n.get("nav.gramInfo"), viewTitle());
     }

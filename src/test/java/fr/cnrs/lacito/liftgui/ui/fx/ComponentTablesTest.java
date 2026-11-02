@@ -102,10 +102,10 @@ class ComponentTablesTest extends MainWindowTest {
 
     @Test
     void theObjectsSubtreeListsEveryComponentTable() {
-        TreeItem<String> objects = navTree().getRoot().getChildren().stream()
-            .filter(i -> I18n.get("nav.objects").equals(i.getValue())).findFirst().orElseThrow();
+        TreeItem<fr.cnrs.lacito.liftgui.ui.nav.NavNode> objects = navTree().getRoot().getChildren().stream()
+            .filter(i -> I18n.get("nav.objects").equals(i.getValue().label())).findFirst().orElseThrow();
         List<String> expected = ComponentKinds.all().stream().map(k -> I18n.get(k.key().i18nKey())).toList();
-        assertEquals(expected, objects.getChildren().stream().map(TreeItem::getValue).toList());
+        assertEquals(expected, objects.getChildren().stream().map(i -> i.getValue().label()).toList());
         for (String kind : List.of("nav.translations", "nav.pronunciations", "nav.media", "nav.reversals",
                 "nav.illustrations", "nav.traits", "nav.annotations")) {
             assertTrue(expected.contains(I18n.get(kind)), kind);

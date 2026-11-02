@@ -74,6 +74,9 @@
               </items>
             </Menu>
             <SeparatorMenuItem/>
+            <CheckMenuItem fx:id="showNavigationItem" text="%menu.view.showNavigation"/>
+            <MenuItem id="view.filterNavigation" text="%menu.view.filterNavigation" onAction="#onFilterNavigation"/>
+            <SeparatorMenuItem/>
             <CheckMenuItem fx:id="hideEmptySectionsItem" text="%menu.view.hideEmptySections"/>
             <SeparatorMenuItem/>
             <MenuItem id="view.columns" text="%menu.view.columns" onAction="#onColumns"/>
@@ -97,18 +100,14 @@
     </MenuBar>
   </top>
 
-  <left>
-    <VBox spacing="6" BorderPane.alignment="CENTER" styleClass="left-nav" prefWidth="260" minWidth="240">
-      <padding>
-        <Insets top="10" right="6" bottom="10" left="6"/>
-      </padding>
-      <Label text="%panel.navigation" styleClass="section-title"/>
-      <TreeView fx:id="navTree" VBox.vgrow="ALWAYS" styleClass="nav-tree"/>
-    </VBox>
-  </left>
 
   <center>
-    <SplitPane fx:id="mainSplit" dividerPositions="0.58" BorderPane.alignment="CENTER">
+    <SplitPane fx:id="navSplit" styleClass="nav-split" BorderPane.alignment="CENTER">
+    <VBox fx:id="navPanel" styleClass="nav-panel" minWidth="180">
+      <TextField fx:id="navFilter" promptText="%nav.filter.prompt" styleClass="nav-filter"/>
+      <TreeView fx:id="navTree" VBox.vgrow="ALWAYS" styleClass="nav-tree"/>
+    </VBox>
+    <SplitPane fx:id="mainSplit" dividerPositions="0.58">
 
       <VBox spacing="8" styleClass="center" minWidth="300.0">
         <padding>
@@ -141,6 +140,7 @@
         </content>
       </ScrollPane>
 
+    </SplitPane>
     </SplitPane>
   </center>
 

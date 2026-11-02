@@ -12,6 +12,7 @@ import fr.cnrs.lacito.liftgui.testsupport.InMemoryPreferences;
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.app.DictionaryDocument;
+import fr.cnrs.lacito.liftgui.ui.nav.NavNode;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
@@ -135,7 +136,7 @@ public abstract class MainWindowTest extends ApplicationTest {
     /* ─── Parts of the main window ─── */
 
     @SuppressWarnings("unchecked")
-    protected TreeView<String> navTree() {
+    protected TreeView<NavNode> navTree() {
         return lookup("#navTree").queryAs(TreeView.class);
     }
 
@@ -175,32 +176,33 @@ public abstract class MainWindowTest extends ApplicationTest {
     }
 
     protected void openNavItem(String label) {
-        TreeItem<String> item = findItem(navTree().getRoot(), label);
+        TreeItem<NavNode> item = findItem(navTree().getRoot(), label);
         if (item == null) throw new AssertionError("no navigation item " + label);
         interact(() -> navTree().getSelectionModel().select(item));
         WaitForAsyncUtils.waitForFxEvents();
     }
 
-    private static TreeItem<String> findItem(TreeItem<String> item, String label) {
-        for (TreeItem<String> child : item.getChildren()) {
-            if (child.isLeaf() && label.equals(child.getValue())) return child;
-            TreeItem<String> found = findItem(child, label);
+    /** The item opening a view with this label, folded groups included. */
+    private static TreeItem<NavNode> findItem(TreeItem<NavNode> item, String label) {
+        for (TreeItem<NavNode> child : item.getChildren()) {
+            if (child.getValue().request() != null && label.equals(child.getValue().label())) return child;
+            TreeItem<NavNode> found = findItem(child, label);
             if (found != null) return found;
         }
         return null;
     }
 
-    /** The leaf items of the navigation tree. */
-    protected List<TreeItem<String>> navLeaves() {
-        List<TreeItem<String>> leaves = new ArrayList<>();
+    /** The items of the navigation tree that open a view. */
+    protected List<TreeItem<NavNode>> navLeaves() {
+        List<TreeItem<NavNode>> leaves = new ArrayList<>();
         collect(navTree().getRoot(), leaves);
         return leaves;
     }
 
-    private static void collect(TreeItem<String> item, List<TreeItem<String>> acc) {
-        for (TreeItem<String> c : item.getChildren()) {
-            if (c.isLeaf()) acc.add(c);
-            else collect(c, acc);
+    private static void collect(TreeItem<NavNode> item, List<TreeItem<NavNode>> acc) {
+        for (TreeItem<NavNode> c : item.getChildren()) {
+            if (c.getValue().request() != null) acc.add(c);
+            collect(c, acc);
         }
     }
 

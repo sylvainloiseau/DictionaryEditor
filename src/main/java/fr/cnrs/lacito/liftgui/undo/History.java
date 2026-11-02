@@ -12,6 +12,8 @@ import fr.cnrs.lacito.liftapi.change.ModelChange;
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.ReadOnlyBooleanWrapper;
+import javafx.beans.property.ReadOnlyIntegerProperty;
+import javafx.beans.property.ReadOnlyIntegerWrapper;
 import javafx.beans.property.ReadOnlyStringProperty;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.util.Subscription;
@@ -84,6 +86,8 @@ public final class History {
     private final ReadOnlyBooleanWrapper canRedo = new ReadOnlyBooleanWrapper(this, "canRedo", false);
     private final ReadOnlyStringWrapper undoLabel = new ReadOnlyStringWrapper(this, "undoLabel");
     private final ReadOnlyStringWrapper redoLabel = new ReadOnlyStringWrapper(this, "redoLabel");
+    /** Increases at every change of the dictionary, undo or redo: a signal for what shows counts. */
+    private final ReadOnlyIntegerWrapper revision = new ReadOnlyIntegerWrapper(this, "revision", 0);
 
     /** A history whose change entries close at the end of the current JavaFX event. */
     public History() {
@@ -400,7 +404,13 @@ public final class History {
         return redoLabel.getReadOnlyProperty();
     }
 
+    /** Increases at every change of the dictionary, undo or redo, and when a dictionary is attached. */
+    public ReadOnlyIntegerProperty revisionProperty() {
+        return revision.getReadOnlyProperty();
+    }
+
     private void update() {
+        revision.set(revision.get() + 1);
         atSavePoint.set(cursor == savePoint);
         canUndo.set(cursor > 0);
         canRedo.set(cursor < entries.size());
