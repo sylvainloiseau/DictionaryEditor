@@ -3,6 +3,7 @@ package fr.cnrs.lacito.liftgui.ui.fx;
 import static org.junit.jupiter.api.Assertions.*;
 
 import fr.cnrs.lacito.liftapi.model.LiftEntry;
+import fr.cnrs.lacito.liftapi.model.LiftMedia;
 import fr.cnrs.lacito.liftapi.model.LiftPronunciation;
 import fr.cnrs.lacito.liftgui.core.DictionaryQueries;
 import fr.cnrs.lacito.liftgui.ui.I18n;
@@ -117,6 +118,10 @@ class SearchAndFilterTest extends MainWindowTest {
 
     @Test
     void aRangeFilterKeepsTheCountsInTheRange() {
+        // The demo's pronunciations have no media: give one of them a media to keep.
+        LiftPronunciation withMedia = dictionary().getLiftDictionaryRegistry().getEntries().stream()
+            .flatMap(e -> e.getPronunciations().stream()).findFirst().orElseThrow();
+        interact(() -> withMedia.addMedia(new LiftMedia("audio/word.wav")));
         openView("nav.pronunciations");
         TableView<LiftPronunciation> pt = table();
         interact(() -> pt.scrollToColumn(leafColumn(pt, "pronunciation.mediaCount")));
