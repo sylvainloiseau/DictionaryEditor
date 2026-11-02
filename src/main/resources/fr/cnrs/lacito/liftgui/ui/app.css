@@ -736,8 +736,9 @@
 .table-row-cell.undeclared .table-cell {
   -fx-text-fill: #9aa5a8;
 }
-.tree-cell.undeclared:selected,
-.table-row-cell.undeclared:selected .table-cell {
+/* On the dark selection of a focused list; an unfocused selection is light: the grey stays. */
+.tree-view:focused .tree-cell.undeclared:selected,
+.table-view:focused .table-row-cell.undeclared:selected .table-cell {
   -fx-text-fill: #d9dfe0;
 }
 

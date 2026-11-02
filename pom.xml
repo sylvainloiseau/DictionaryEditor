@@ -148,6 +148,110 @@
     </plugins>
   </build>
   <profiles>
+    <!--
+      The screenshots of the documentation: mvn -Pscreenshots verify
+      Doc/screenshots/java holds a headless TestFX program (run as an integration test by
+      failsafe) that opens src/main/resources/lift/20260302.lift, shows views and saves the
+      window in target/screenshots; post-integration-test copies the images to Doc/img.
+      -DskipUnitTests skips the unit tests on the way.
+    -->
+    <profile>
+      <id>screenshots</id>
+      <properties>
+        <skipUnitTests>false</skipUnitTests>
+        <screenshots.dir>${project.build.directory}/screenshots</screenshots.dir>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <version>3.6.1</version>
+            <executions>
+              <execution>
+                <id>add-screenshot-sources</id>
+                <phase>generate-test-sources</phase>
+                <goals>
+                  <goal>add-test-source</goal>
+                </goals>
+                <configuration>
+                  <sources>
+                    <source>${project.basedir}/Doc/screenshots/java</source>
+                  </sources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <skipTests>${skipUnitTests}</skipTests>
+            </configuration>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <version>3.5.4</version>
+            <configuration>
+              <includes>
+                <include>**/DocumentationScreenshotsIT.java</include>
+              </includes>
+              <useModulePath>false</useModulePath>
+              <!-- The same headless set-up as the UI tests (surefire, above). -->
+              <systemPropertyVariables>
+                <java.util.prefs.PreferencesFactory>fr.cnrs.lacito.liftgui.testsupport.InMemoryPreferences$Factory</java.util.prefs.PreferencesFactory>
+                <testfx.robot>glass</testfx.robot>
+                <testfx.headless>${headless}</testfx.headless>
+                <glass.platform>${glass.platform}</glass.platform>
+                <monocle.platform>Headless</monocle.platform>
+                <headless.geometry>1920x1200-32</headless.geometry>
+                <prism.order>sw</prism.order>
+                <prism.text>t2k</prism.text>
+                <java.awt.headless>true</java.awt.headless>
+                <screenshots.dir>${screenshots.dir}</screenshots.dir>
+                <screenshots.dictionary>${project.basedir}/src/main/resources/lift/20260302.lift</screenshots.dictionary>
+              </systemPropertyVariables>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>integration-test</goal>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-resources-plugin</artifactId>
+            <version>3.3.1</version>
+            <executions>
+              <execution>
+                <id>copy-screenshots</id>
+                <phase>post-integration-test</phase>
+                <goals>
+                  <goal>copy-resources</goal>
+                </goals>
+                <configuration>
+                  <outputDirectory>${project.basedir}/Doc/img</outputDirectory>
+                  <overwrite>true</overwrite>
+                  <resources>
+                    <resource>
+                      <directory>${screenshots.dir}</directory>
+                      <includes>
+                        <include>*.png</include>
+                      </includes>
+                      <filtering>false</filtering>
+                    </resource>
+                  </resources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
     <!-- The installer icon in the format each system expects (see jpackage.icon). -->
     <profile>
       <id>os-mac</id>

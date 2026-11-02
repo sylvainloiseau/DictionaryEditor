@@ -1,8 +1,4 @@
-## Automatically create screenshot of the app
-
-You will create a script for automatically create snapshot of the App for the documentation.
-
-The script will be in the Doc directory. It will be runned by maven during the appropriate maven phase.
+# TODO
 
 ## Documentation
 
@@ -43,3 +39,21 @@ Please make a plan for a good user experience, using modern GUI design and effic
 ## Column configuration + filter
 
 Could you make a plan to make column configurable for each component tables. The configuration should be done in the settings dialog but also through a button on the table header : please select a modern and efficient gui design for this. In addition to existing columns, that should be th default, columns configuration should offer to display any field existing on the component type, together with count of the various subcomponents and property of the parent and ancestor. Field that are multitext should generate as many column as languages. Please also include in the plan a redesign of the filtering widgets above each column. They tend not to follow the width of the column when they are resized. For different column type, different filtering tools should be provided: text (with ignore case and regexp) for multitext, drop down with selectable option for fixed-value column, min-max range for date and number (including those resulting from a count of subcomponents). Please elaborate a clean and future proof design and a modern and efficient gui  design. Ask question when needed and suggest improvements if relevant.
+
+## Automatically create screenshot of the app
+
+You will create a small program for automatically create screenshots of the App for the documentation.
+
+The program will be in the Doc directory. It will be runned by maven during the appropriate maven phase.
+
+The program will run the app, open the 20260302.lift dictionary, and then take various screenshots. All are png files:
+
+- open the "Entry" table, select the first row, and take a screenshot. The screenshot will be named "entries.png".
+- open the "Sense" table, select the first row, and take a snapshot.  The screenshot will be named "Sense.png".
+- open the "Meta-language" table, select the first row, and take a snapshot.  The screenshot will be named "MetaLanguages.png".
+- open the "grammatical-info" table under "Ranges", select the second row, and take a snapshot.  The screenshot will be named "GramInfo.png".
+- open the "Note types" table under "Category browsers", select the first row, and take a snapshot.  The screenshot will be named "BrowseNoteType.png".
+
+Then move all screenshots into `Doc/img/` directory.
+
+Please look for modern and standard way to manage such a task. Provide a clean and future-proof solution. Select the technology accordingly.
