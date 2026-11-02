@@ -132,6 +132,17 @@
           <artifactId>jpackage-maven-plugin</artifactId>
           <version>${jpackage-maven-plugin.version}</version>
         </plugin>
+        <!-- The documentation: mvn site builds src/site (Markdown pages, site.xml) into target/site. -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-site-plugin</artifactId>
+          <version>3.21.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-project-info-reports-plugin</artifactId>
+          <version>3.9.0</version>
+        </plugin>
       </plugins>
     </pluginManagement>
 
@@ -150,10 +161,10 @@
   <profiles>
     <!--
       The screenshots of the documentation: mvn -Pscreenshots verify
-      Doc/screenshots/java holds a headless TestFX program (run as an integration test by
-      failsafe) that opens src/main/resources/lift/20260302.lift, shows views and saves the
-      window in target/screenshots; post-integration-test copies the images to Doc/img.
-      -DskipUnitTests skips the unit tests on the way.
+      DocumentationScreenshotsIT (src/test/java, run as an integration test by failsafe) is a
+      headless TestFX program that opens src/main/resources/lift/20260302.lift, shows views
+      and saves the window in target/screenshots; post-integration-test copies the images to
+      src/site/resources/images. -DskipUnitTests skips the unit tests on the way.
     -->
     <profile>
       <id>screenshots</id>
@@ -163,25 +174,6 @@
       </properties>
       <build>
         <plugins>
-          <plugin>
-            <groupId>org.codehaus.mojo</groupId>
-            <artifactId>build-helper-maven-plugin</artifactId>
-            <version>3.6.1</version>
-            <executions>
-              <execution>
-                <id>add-screenshot-sources</id>
-                <phase>generate-test-sources</phase>
-                <goals>
-                  <goal>add-test-source</goal>
-                </goals>
-                <configuration>
-                  <sources>
-                    <source>${project.basedir}/Doc/screenshots/java</source>
-                  </sources>
-                </configuration>
-              </execution>
-            </executions>
-          </plugin>
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-surefire-plugin</artifactId>
@@ -234,7 +226,7 @@
                   <goal>copy-resources</goal>
                 </goals>
                 <configuration>
-                  <outputDirectory>${project.basedir}/Doc/img</outputDirectory>
+                  <outputDirectory>${project.basedir}/src/site/resources/images</outputDirectory>
                   <overwrite>true</overwrite>
                   <resources>
                     <resource>

@@ -1,5 +1,11 @@
 # TODO
 
+## dark mode : follow system
+
+## check LIFT
+
+Move the lift verification to lift-api (once done there): remove the stax parser here.
+
 ## Documentation
 
 Translate into english and improve the documentation. Complete documentation. Move the makeup to markdown.
@@ -23,7 +29,7 @@ plan for adding common shortcut. save, save as. Including shifting between brows
 
 The scan is from the Smithsonian Libraries copy, digitised by the [Biodiversity Heritage Library](https://www.biodiversitylibrary.org/page/40634945). The file used is [Histoire naturelle des oiseaux de paradis et des rolliers (No. 1) (8112348391).jpg](https://commons.wikimedia.org/wiki/File:Histoire_naturelle_des_oiseaux_de_paradis_et_des_rolliers_(No._1)_(8112348391).jpg) on Wikimedia Commons. The illustration is in the public domain.
 
-The previous icon, made the same way from plate 1 (« Le grand Oiseau de Paradis, émeraude, mâle », the greater bird-of-paradise, *Paradisaea apoda*, male; [Commons file](https://commons.wikimedia.org/wiki/File:Histoire_naturelle_des_oiseaux_de_paradis_et_des_rolliers_(No._1)_(8112348391).jpg), [BHL page](https://www.biodiversitylibrary.org/page/40634945)), is kept in `Doc/icon/plate-01/`.
+The previous icon, made the same way from plate 1 (« Le grand Oiseau de Paradis, émeraude, mâle », the greater bird-of-paradise, *Paradisaea apoda*, male; [Commons file](https://commons.wikimedia.org/wiki/File:Histoire_naturelle_des_oiseaux_de_paradis_et_des_rolliers_(No._1)_(8112348391).jpg), [BHL page](https://www.biodiversitylibrary.org/page/40634945)), is kept in `src/site/resources/icon/plate-01/`.
 
 # Done
 

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The site descriptor: the menu of the documentation built by mvn site (target/site). -->
+<site xmlns="http://maven.apache.org/SITE/2.0.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://maven.apache.org/SITE/2.0.0 https://maven.apache.org/xsd/site-2.0.0.xsd"
+      name="Multilingual Dictionary Editor">
+  <skin>
+    <groupId>org.apache.maven.skins</groupId>
+    <artifactId>maven-fluido-skin</artifactId>
+    <version>2.1.0</version>
+  </skin>
+  <body>
+    <links>
+      <item name="GitHub" href="https://github.com/sylvainloiseau/DictionaryEditor"/>
+      <item name="LIFT standard" href="https://github.com/sillsdev/lift-standard"/>
+    </links>
+    <menu name="Documentation">
+      <item name="Home" href="index.html"/>
+      <item name="Introduction" href="introduction.html"/>
+      <item name="Getting started" href="getting-started.html"/>
+      <item name="Installation" href="installation.html"/>
+      <item name="Features" href="features.html"/>
+      <item name="Category browser" href="category-browser.html"/>
+      <item name="Configuration" href="configuration.html"/>
+      <item name="LIFT format" href="lift-format.html"/>
+      <item name="Glossary" href="glossary.html"/>
+    </menu>
+    <menu name="Development">
+      <item name="Architecture" href="architecture.html"/>
+      <item name="Screenshots" href="screenshots.html"/>
+    </menu>
+  </body>
+</site>

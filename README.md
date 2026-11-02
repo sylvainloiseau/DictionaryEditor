@@ -22,23 +22,23 @@ Pick an installer for your plateform from the [github release page](https://gith
 
 ### Listing entries
 
-![Listing entity](Doc/img/entries.png)
+![Listing entity](src/site/resources/images/entries.png)
 
 ### Listing Senses
 
-![Listing sense](Doc/img/Sense.png)
+![Listing sense](src/site/resources/images/Sense.png)
 
 ### Listing all metalanguage forms
 
-![Listing metalanguage](Doc/img/MetaLanguages.png)
+![Listing metalanguage](src/site/resources/images/MetaLanguages.png)
 
 ### Browse note type
 
-![Browse note type](Doc/img/BrowseNoteType.png)
+![Browse note type](src/site/resources/images/BrowseNoteType.png)
 
 ### Managing part of speech
 
-![Managing part of speech](Doc/img/GramInfo.png)
+![Managing part of speech](src/site/resources/images/GramInfo.png)
 
 ## Installation from sources
 
@@ -58,6 +58,12 @@ Tests :
 
 ```bash
 mvn test
+```
+
+Documentation (the Markdown pages of `src/site/markdown`, built into `target/site`):
+
+```bash
+mvn site
 ```
 
 ### Create a standalone app for all platforms (Windows, Linux, macOS)
