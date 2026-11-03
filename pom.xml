@@ -21,6 +21,8 @@
     <jpackage.type>DEB</jpackage.type>
     <jpackage.destSuffix />
     <app.jpackage.name>DictionaryEditor</app.jpackage.name>
+    <!-- Installer version; the release workflow passes the tag (-Dapp.version=1.2.3). -->
+    <app.version>1.0.0</app.version>
     <!-- Installer icon; the os-mac and os-windows profiles switch to .icns and .ico. -->
     <jpackage.icon>${project.basedir}/src/main/jpackage/DictionaryEditor.png</jpackage.icon>
     <!-- UI tests: headless (Monocle) by default; -Dheadless=false -Dglass.platform= shows the windows. -->
@@ -301,7 +303,7 @@
             <artifactId>jpackage-maven-plugin</artifactId>
             <configuration>
               <name>${app.jpackage.name}</name>
-              <appVersion>1.0.0</appVersion>
+              <appVersion>${app.version}</appVersion>
               <vendor>CNRS LACITO</vendor>
               <icon>${jpackage.icon}</icon>
               <destination

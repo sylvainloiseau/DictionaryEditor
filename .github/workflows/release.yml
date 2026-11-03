@@ -1,5 +1,6 @@
 # Create native installers (jlink + jpackage) on push of semantic tags (e.g., v1.0.0).
 # Each OS builds in parallel and attaches its binaries to the GitHub release of the tag.
+# The installers take their version from the tag (v1.2.3 -> 1.2.3).
 
 name: Release
 
@@ -24,10 +25,20 @@ jobs:
         include:
           - runner: ubuntu-latest
             javafx: linux
+            appimage_arch: x86_64
+            appimagetool_sha256: ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+          - runner: ubuntu-24.04-arm
+            javafx: linux-aarch64
+            appimage_arch: aarch64
+            appimagetool_sha256: f0837e7448a0c1e4e650a93bb3e85802546e60654ef287576f46c71c126a9158
           - runner: windows-latest
             javafx: win
           - runner: macos-latest
             javafx: mac-aarch64
+            mac_label: apple-silicon
+          - runner: macos-26-intel
+            javafx: mac
+            mac_label: intel
 
     runs-on: ${{ matrix.runner }}
 
@@ -59,7 +70,63 @@ jobs:
         run: |
           mvn -B -ntp clean package -Pdist -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
+            "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=DEB -Djpackage.destSuffix=-deb
+
+      - name: App image (jpackage) (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mvn -B -ntp -Pdist jpackage:jpackage -DskipTests \
+            "-Djavafx.platform=${{ matrix.javafx }}" \
+            "-Dapp.version=${GITHUB_REF_NAME#v}" \
+            -Djpackage.type=APP_IMAGE -Djpackage.destSuffix=-appimage
+
+      - name: AppImage (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          ARCH: ${{ matrix.appimage_arch }}
+          APPIMAGETOOL_VERSION: 1.9.1
+          APPIMAGETOOL_SHA256: ${{ matrix.appimagetool_sha256 }}
+          # The runner has no FUSE: let the tool extract itself instead of mounting.
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          APPDIR=target/DictionaryEditor.AppDir
+
+          # Move the jpackage image out of target/jpackage-appimage so that the
+          # release glob (target/jpackage*/**/*) only uploads the .AppImage file.
+          mv target/jpackage-appimage/DictionaryEditor "$APPDIR"
+
+          cat > "$APPDIR/AppRun" <<'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/bin/DictionaryEditor" "$@"
+          EOF
+          chmod +x "$APPDIR/AppRun"
+
+          cat > "$APPDIR/DictionaryEditor.desktop" <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=DictionaryEditor
+          Comment=Editor for LIFT dictionaries
+          Exec=DictionaryEditor %f
+          Icon=DictionaryEditor
+          Categories=Office;
+          Terminal=false
+          EOF
+
+          cp src/main/jpackage/DictionaryEditor.png "$APPDIR/DictionaryEditor.png"
+          ln -s DictionaryEditor.png "$APPDIR/.DirIcon"
+
+          curl -fsSL -o /tmp/appimagetool \
+            "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-${ARCH}.AppImage"
+          echo "${APPIMAGETOOL_SHA256}  /tmp/appimagetool" | sha256sum -c -
+          chmod +x /tmp/appimagetool
+          /tmp/appimagetool "$APPDIR" \
+            "target/jpackage-appimage/DictionaryEditor-${VERSION}-${ARCH}.AppImage"
 
       - name: Image jlink + installer MSI (Windows)
         if: runner.os == 'Windows'
@@ -67,6 +134,7 @@ jobs:
         run: |
           mvn -B -ntp clean package -Pdist -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
+            "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=MSI -Djpackage.destSuffix=-msi
 
       - name: Installer EXE (Windows)
@@ -75,6 +143,7 @@ jobs:
         run: |
           mvn -B -ntp -Pdist jpackage:jpackage -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
+            "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=EXE -Djpackage.destSuffix=-exe
 
       - name: Image jlink + installer DMG (macOS)
@@ -83,7 +152,16 @@ jobs:
         run: |
           mvn -B -ntp clean package -Pdist -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
+            "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=DMG
+
+      - name: Name the DMG after its architecture (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          for f in target/jpackage/*.dmg; do
+            mv "$f" "${f%.dmg}-${{ matrix.mac_label }}.dmg"
+          done
 
       - name: Publish artifacts on the GitHub release
         uses: softprops/action-gh-release@v2
