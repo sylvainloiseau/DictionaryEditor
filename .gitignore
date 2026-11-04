@@ -3,6 +3,9 @@
 .vscode/
 
 # local files
+.claude/
+Agent.md
+TODO.md
 
 # build
 target/
