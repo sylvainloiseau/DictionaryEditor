@@ -86,7 +86,9 @@ class OpenErrorTest extends MainWindowTest {
 
         DialogPane pane = dialog();
         assertEquals(I18n.get("open.error.notLift.header", f.getName()), pane.getHeaderText());
-        assertEquals(I18n.get("open.error.notLift", "html"), text(this, pane, "open-error-message"));
+        String message = text(this, pane, "open-error-message");
+        assertTrue(message.startsWith(I18n.get("open.error.notLift", "")), message);
+        assertTrue(message.contains("<html>"), message);
         assertTrue(button(this, pane, I18n.get("open.error.removeRecent")).isEmpty(), "not a recent file");
         pressDialogButton(ButtonType.OK);
     }

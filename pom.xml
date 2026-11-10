@@ -30,7 +30,7 @@
     <glass.platform>Monocle</glass.platform>
     <!-- The release of lift-api on Maven Central. To build against a lift-api installed
          locally (mvn install in lift-api): -Dlift-api.version=0.1-SNAPSHOT -->
-    <lift-api.version>0.1.0</lift-api.version>
+    <lift-api.version>0.1.1</lift-api.version>
   </properties>
 
   <dependencies>

@@ -158,7 +158,7 @@ class DictionaryServiceTest {
     void anExcerptOfALongLineIsCutAroundTheColumn() throws Exception {
         String line = "x".repeat(200) + "!" + "y".repeat(200);
         File f = file("long.txt", "first\n" + line + "\n");
-        String excerpt = LiftFileCheck.excerpt(f, 2, 201);
+        String excerpt = DictionaryService.excerpt(f, 2, 201);
         String[] parts = excerpt.split("\n");
         assertEquals(parts[0].indexOf('!'), parts[1].indexOf('^'), excerpt);
         assertTrue(parts[0].startsWith("…") && parts[0].endsWith("…"));
