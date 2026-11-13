@@ -1,6 +1,14 @@
-# Create native installers (jlink + jpackage) on push of semantic tags (e.g., v1.0.0).
-# Each OS builds in parallel and attaches its binaries to the GitHub release of the tag.
-# The installers take their version from the tag (v1.2.3 -> 1.2.3).
+# On push of a version tag (e.g., v1.0.0), with the version of the tag (v1.2.3 -> 1.2.3):
+# - package: the native installers of DictionaryEditor (jlink + jpackage, module lift-gui).
+#   Each OS builds in parallel and attaches its binaries to the GitHub release of the tag.
+# - publish: the lift-fx library, with the parent POM, to Maven Central. The poms keep
+#   their -SNAPSHOT version in the repository.
+#
+# Repository secrets the publish job needs (Settings > Secrets and variables > Actions):
+#   CENTRAL_TOKEN_USERNAME, CENTRAL_TOKEN_PASSWORD  the user token generated on
+#                                                   https://central.sonatype.com/account
+#   GPG_PRIVATE_KEY   the armored private key: gpg --armor --export-secret-keys KEY_ID
+#   GPG_PASSPHRASE    its passphrase
 
 name: Release
 
@@ -17,6 +25,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  publish:
+    name: lift-fx to Maven Central
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java 25, the Central credentials and the signing key
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+          # Writes a settings.xml whose server "central" reads these two variables.
+          server-id: central
+          server-username: CENTRAL_TOKEN_USERNAME
+          server-password: CENTRAL_TOKEN_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      - name: Set the version from the tag
+        shell: bash
+        run: mvn -B -ntp versions:set -DnewVersion="${GITHUB_REF_NAME#v}" -DgenerateBackupPoms=false
+
+      # The parent and lift-fx only (-pl lift-fx -am): lift-gui is not published. The UI
+      # tests of lift-fx run headless (Monocle), as configured in the parent POM.
+      - name: Test, sign and publish
+        run: mvn -B -ntp -P release -pl lift-fx -am deploy
+        env:
+          CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
   package:
     name: ${{ matrix.runner }} (${{ matrix.javafx }})
     strategy:
@@ -68,7 +109,7 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          mvn -B -ntp clean package -Pdist -DskipTests \
+          mvn -B -ntp clean install -Pdist -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=DEB -Djpackage.destSuffix=-deb
@@ -77,7 +118,7 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          mvn -B -ntp -Pdist jpackage:jpackage -DskipTests \
+          mvn -B -ntp -f lift-gui -Pdist jpackage:jpackage -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=APP_IMAGE -Djpackage.destSuffix=-appimage
@@ -94,11 +135,11 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
-          APPDIR=target/DictionaryEditor.AppDir
+          APPDIR=lift-gui/target/DictionaryEditor.AppDir
 
           # Move the jpackage image out of target/jpackage-appimage so that the
-          # release glob (target/jpackage*/**/*) only uploads the .AppImage file.
-          mv target/jpackage-appimage/DictionaryEditor "$APPDIR"
+          # release glob (lift-gui/target/jpackage*/**/*) only uploads the .AppImage file.
+          mv lift-gui/target/jpackage-appimage/DictionaryEditor "$APPDIR"
 
           cat > "$APPDIR/AppRun" <<'EOF'
           #!/bin/sh
@@ -118,7 +159,7 @@ jobs:
           Terminal=false
           EOF
 
-          cp src/main/jpackage/DictionaryEditor.png "$APPDIR/DictionaryEditor.png"
+          cp lift-gui/src/main/jpackage/DictionaryEditor.png "$APPDIR/DictionaryEditor.png"
           ln -s DictionaryEditor.png "$APPDIR/.DirIcon"
 
           curl -fsSL -o /tmp/appimagetool \
@@ -126,13 +167,13 @@ jobs:
           echo "${APPIMAGETOOL_SHA256}  /tmp/appimagetool" | sha256sum -c -
           chmod +x /tmp/appimagetool
           /tmp/appimagetool "$APPDIR" \
-            "target/jpackage-appimage/DictionaryEditor-${VERSION}-${ARCH}.AppImage"
+            "lift-gui/target/jpackage-appimage/DictionaryEditor-${VERSION}-${ARCH}.AppImage"
 
       - name: Image jlink + installer MSI (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          mvn -B -ntp clean package -Pdist -DskipTests \
+          mvn -B -ntp clean install -Pdist -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=MSI -Djpackage.destSuffix=-msi
@@ -141,7 +182,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          mvn -B -ntp -Pdist jpackage:jpackage -DskipTests \
+          mvn -B -ntp -f lift-gui -Pdist jpackage:jpackage -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=EXE -Djpackage.destSuffix=-exe
@@ -150,7 +191,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          mvn -B -ntp clean package -Pdist -DskipTests \
+          mvn -B -ntp clean install -Pdist -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=DMG
@@ -159,7 +200,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          for f in target/jpackage/*.dmg; do
+          for f in lift-gui/target/jpackage/*.dmg; do
             mv "$f" "${f%.dmg}-${{ matrix.mac_label }}.dmg"
           done
 
@@ -169,4 +210,4 @@ jobs:
           fail_on_unmatched_files: false
           generate_release_notes: true
           files: |
-            target/jpackage*/**/*
+            lift-gui/target/jpackage*/**/*

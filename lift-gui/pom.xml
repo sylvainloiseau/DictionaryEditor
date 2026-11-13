@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- The DictionaryEditor application. -->
+<project
+    xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+>
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.sylvainloiseau</groupId>
+    <artifactId>DictionaryEditor</artifactId>
+    <version>0.1-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>lift-gui</artifactId>
+
+  <name>lift-gui</name>
+
+  <properties>
+    <jpackage.type>DEB</jpackage.type>
+    <jpackage.destSuffix />
+    <app.jpackage.name>DictionaryEditor</app.jpackage.name>
+    <!-- Installer version; the release workflow passes the tag (-Dapp.version=1.2.3). -->
+    <app.version>1.0.0</app.version>
+    <!-- Installer icon; the os-mac and os-windows profiles switch to .icns and .ico. -->
+    <jpackage.icon>${project.basedir}/src/main/jpackage/DictionaryEditor.png</jpackage.icon>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.github.sylvainloiseau</groupId>
+      <artifactId>lift-fx</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.github.sylvainloiseau</groupId>
+      <artifactId>lift-api</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.openjfx</groupId>
+      <artifactId>javafx-base</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.openjfx</groupId>
+      <artifactId>javafx-controls</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.openjfx</groupId>
+      <artifactId>javafx-fxml</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.openjfx</groupId>
+      <artifactId>javafx-graphics</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testfx</groupId>
+      <artifactId>testfx-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testfx</groupId>
+      <artifactId>testfx-junit5</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Headless JavaFX for the UI tests (see the surefire configuration of the parent). -->
+    <dependency>
+      <groupId>org.testfx</groupId>
+      <artifactId>openjfx-monocle</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <configuration>
+            <systemPropertyVariables>
+              <!-- The tests never read or write the user's preferences (recent files…). -->
+              <java.util.prefs.PreferencesFactory>fr.cnrs.lacito.liftgui.testsupport.InMemoryPreferences$Factory</java.util.prefs.PreferencesFactory>
+            </systemPropertyVariables>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+
+    <plugins>
+      <plugin>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-maven-plugin</artifactId>
+        <configuration>
+          <mainClass
+                    >fr.cnrs.lacito.liftgui/fr.cnrs.lacito.liftgui.MainApp</mainClass>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+  <profiles>
+    <!--
+      The screenshots of the documentation: mvn -Pscreenshots verify
+      DocumentationScreenshotsIT (src/test/java, run as an integration test by failsafe) is a
+      headless TestFX program that opens src/main/resources/lift/20260302.lift, shows views
+      and saves the window in target/screenshots; post-integration-test copies the images to
+      src/site/resources/images. -DskipUnitTests skips the unit tests on the way.
+    -->
+    <profile>
+      <id>screenshots</id>
+      <properties>
+        <skipUnitTests>false</skipUnitTests>
+        <screenshots.dir>${project.build.directory}/screenshots</screenshots.dir>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <skipTests>${skipUnitTests}</skipTests>
+            </configuration>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <configuration>
+              <includes>
+                <include>**/DocumentationScreenshotsIT.java</include>
+              </includes>
+              <useModulePath>false</useModulePath>
+              <!-- The same headless set-up as the UI tests (surefire, above). -->
+              <systemPropertyVariables>
+                <java.util.prefs.PreferencesFactory>fr.cnrs.lacito.liftgui.testsupport.InMemoryPreferences$Factory</java.util.prefs.PreferencesFactory>
+                <testfx.robot>glass</testfx.robot>
+                <testfx.headless>${headless}</testfx.headless>
+                <glass.platform>${glass.platform}</glass.platform>
+                <monocle.platform>Headless</monocle.platform>
+                <headless.geometry>1920x1200-32</headless.geometry>
+                <prism.order>sw</prism.order>
+                <prism.text>t2k</prism.text>
+                <java.awt.headless>true</java.awt.headless>
+                <screenshots.dir>${screenshots.dir}</screenshots.dir>
+                <screenshots.dictionary>${project.basedir}/src/main/resources/lift/20260302.lift</screenshots.dictionary>
+              </systemPropertyVariables>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>integration-test</goal>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-resources-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>copy-screenshots</id>
+                <phase>post-integration-test</phase>
+                <goals>
+                  <goal>copy-resources</goal>
+                </goals>
+                <configuration>
+                  <outputDirectory>${project.basedir}/src/site/resources/images</outputDirectory>
+                  <overwrite>true</overwrite>
+                  <resources>
+                    <resource>
+                      <directory>${screenshots.dir}</directory>
+                      <includes>
+                        <include>*.png</include>
+                      </includes>
+                      <filtering>false</filtering>
+                    </resource>
+                  </resources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <!-- The installer icon in the format each system expects (see jpackage.icon). -->
+    <profile>
+      <id>os-mac</id>
+      <activation><os><family>mac</family></os></activation>
+      <properties>
+        <jpackage.icon>${project.basedir}/src/main/jpackage/DictionaryEditor.icns</jpackage.icon>
+      </properties>
+    </profile>
+    <profile>
+      <id>os-windows</id>
+      <activation><os><family>windows</family></os></activation>
+      <properties>
+        <jpackage.icon>${project.basedir}/src/main/jpackage/DictionaryEditor.ico</jpackage.icon>
+      </properties>
+    </profile>
+    <!-- Menu entry of the Linux installers (DEB, RPM). jpackage rejects these options
+         for an app image, so -Djpackage.type=APP_IMAGE turns this profile off. -->
+    <profile>
+      <id>linux-installer</id>
+      <activation>
+        <property>
+          <name>jpackage.type</name>
+          <value>!APP_IMAGE</value>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.panteleyev</groupId>
+            <artifactId>jpackage-maven-plugin</artifactId>
+            <configuration>
+              <linuxShortcut>true</linuxShortcut>
+              <linuxMenuGroup>${app.jpackage.name}</linuxMenuGroup>
+              <linuxAppCategory>Office</linuxAppCategory>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>dist</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-jlink-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>custom-runtime</id>
+                <goals>
+                  <goal>jlink</goal>
+                </goals>
+                <configuration>
+                  <attach>false</attach>
+                  <stripDebug>true</stripDebug>
+                  <noHeaderFiles>true</noHeaderFiles>
+                  <noManPages>true</noManPages>
+                  <compress>zip-6</compress>
+                  <outputDirectoryImage
+                                    >${project.build.directory}/maven-jlink</outputDirectoryImage>
+                  <includeLocales>
+                    <includeLocale>en</includeLocale>
+                    <includeLocale>fr</includeLocale>
+                  </includeLocales>
+                  <addModules>
+                    <addModule>fr.cnrs.lacito.liftgui</addModule>
+                    <addModule>jdk.localedata</addModule>
+                  </addModules>
+                  <launchers>
+                    <launcher
+                                        >${app.jpackage.name}=fr.cnrs.lacito.liftgui/fr.cnrs.lacito.liftgui.MainApp</launcher>
+                  </launchers>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.panteleyev</groupId>
+            <artifactId>jpackage-maven-plugin</artifactId>
+            <configuration>
+              <name>${app.jpackage.name}</name>
+              <appVersion>${app.version}</appVersion>
+              <vendor>CNRS LACITO</vendor>
+              <icon>${jpackage.icon}</icon>
+              <destination
+                            >${project.build.directory}/jpackage${jpackage.destSuffix}</destination>
+              <removeDestination>true</removeDestination>
+              <module
+                            >fr.cnrs.lacito.liftgui/fr.cnrs.lacito.liftgui.MainApp</module>
+              <runtimeImage
+                            >${project.build.directory}/maven-jlink/default</runtimeImage>
+              <type>${jpackage.type}</type>
+              <winMenu>true</winMenu>
+              <winMenuGroup>${app.jpackage.name}</winMenuGroup>
+            </configuration>
+            <executions>
+              <execution>
+                <id>jpackage-installer</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>jpackage</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

@@ -1,0 +1,122 @@
+/*
+ * The styles of the lift-fx editors. LiftComponentEditor adds this stylesheet itself; an
+ * application that shows the editors of fr.cnrs.lacito.liftfx.controls directly adds
+ * LiftFx.stylesheet() to its scene.
+ *
+ * The colours derive from -fx-base, -fx-text-base-color and -fx-focus-color, so that the
+ * editors follow the theme of the application (light or dark).
+ */
+
+/* Section titles in right panel editors (between collapsible groups) */
+.editor-section-title {
+  -fx-font-size: 12px;
+  -fx-font-weight: bold;
+  -fx-text-fill: #4c6f76;
+  -fx-padding: 8 0 4 0;
+}
+
+/* ─── Component sections of the editors (count badge, [+]) and item cards ─── */
+.section-pane > .title {
+  -fx-padding: 2 6 2 6;
+}
+.section-count {
+  -fx-background-color: derive(-fx-base, -12%);
+  -fx-background-radius: 8;
+  -fx-padding: 0 6 0 6;
+  -fx-font-size: 0.85em;
+  -fx-text-fill: -fx-text-base-color;
+}
+.section-count:empty {
+  -fx-opacity: 0.55;
+}
+.section-add,
+.section-add.menu-button {
+  -fx-background-color: transparent;
+  -fx-background-radius: 4;
+  -fx-padding: 0 6 0 6;
+  -fx-font-weight: bold;
+  -fx-text-fill: derive(-fx-text-base-color, 45%);
+  -fx-cursor: hand;
+}
+.section-add.menu-button > .label {
+  -fx-text-fill: derive(-fx-text-base-color, 45%);
+  -fx-padding: 0;
+}
+.section-add.menu-button > .arrow-button {
+  -fx-padding: 0;
+}
+.section-add.menu-button > .arrow-button > .arrow {
+  -fx-padding: 0;
+  -fx-shape: null;
+}
+.section-add:hover,
+.section-add:focused {
+  -fx-background-color: derive(-fx-base, -10%);
+  -fx-text-fill: -fx-text-base-color;
+}
+.section-add.menu-button:hover > .label,
+.section-add.menu-button:focused > .label {
+  -fx-text-fill: -fx-text-base-color;
+}
+.section-add:disabled {
+  -fx-opacity: 0.35;
+}
+
+/* A component in a section: a header row, and a left border per level of nesting. */
+.item-card {
+  -fx-border-color: transparent transparent transparent #9fb9be;
+  -fx-border-width: 0 0 0 2;
+  -fx-padding: 2 0 4 8;
+}
+.item-card .item-card {
+  -fx-border-color: transparent transparent transparent #c6a87e;
+}
+.item-card .item-card .item-card {
+  -fx-border-color: transparent transparent transparent #a99cc4;
+}
+.item-card .item-card .item-card .item-card {
+  -fx-border-color: transparent transparent transparent #9cc4a3;
+}
+.item-card-header {
+  -fx-padding: 1 2 1 2;
+  -fx-background-radius: 3;
+}
+.item-card-header:focused {
+  -fx-background-color: derive(-fx-focus-color, 75%);
+}
+.item-card-title {
+  -fx-font-weight: bold;
+  -fx-text-fill: derive(-fx-text-base-color, 20%);
+}
+.item-empty > .item-card-header > .item-card-title {
+  -fx-font-style: italic;
+  -fx-font-weight: normal;
+  -fx-opacity: 0.6;
+}
+.item-card-toggle {
+  -fx-background-color: transparent;
+  -fx-padding: 0 4 0 0;
+  -fx-text-fill: derive(-fx-text-base-color, 30%);
+}
+.item-delete {
+  -fx-background-color: transparent;
+  -fx-padding: 0 6 0 6;
+  -fx-text-fill: derive(-fx-text-base-color, 50%);
+  -fx-cursor: hand;
+}
+.item-delete:hover,
+.item-delete:focused {
+  -fx-text-fill: #c0392b;
+  -fx-background-color: rgba(192, 57, 43, 0.12);
+}
+.item-card-new {
+  -fx-background-color: rgba(76, 111, 118, 0.15);
+}
+.identity-block {
+  -fx-background-color: derive(-fx-base, -6%);
+  -fx-padding: 8;
+  -fx-background-radius: 4;
+}
+.delete-menu-item > .label {
+  -fx-text-fill: #c0392b;
+}

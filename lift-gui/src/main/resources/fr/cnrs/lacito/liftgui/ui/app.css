@@ -1,0 +1,651 @@
+.root {
+  -fx-font-family: "System";
+  -fx-background-color: #f4f6f7;
+}
+
+/* ─── Top menu bar ─── */
+.top-menu {
+  -fx-background-color: #4c6f76;
+}
+.top-menu .label {
+  -fx-text-fill: white;
+  -fx-font-size: 15px;
+}
+.top-menu .menu-button {
+  -fx-background-color: transparent;
+  -fx-padding: 4 12 4 12;
+}
+.top-menu .menu-button:hover,
+.top-menu .menu-button:focused,
+.top-menu .menu-button:showing {
+  -fx-background-color: rgba(255,255,255,0.18);
+  -fx-cursor: hand;
+}
+.top-menu .context-menu .label {
+  -fx-text-fill: black;
+}
+
+/* ─── Navigation panel ─── */
+/* Colour tokens: the dark theme redefines them only (see .root.dark). */
+.root {
+  -nav-bg: #eef2f3;
+  -nav-fg: #1f2d30;
+  -nav-muted: #5a6a6e;
+  -nav-icon: #4f6468;
+  -nav-hover: rgba(76, 111, 118, 0.08);
+  -nav-selected-bg: rgba(76, 111, 118, 0.13);
+  -nav-selected-focused-bg: rgba(76, 111, 118, 0.20);
+  -nav-accent: #4c6f76;
+  -nav-border: #d5dee0;
+  -nav-count-bg: rgba(31, 45, 48, 0.06);
+  -nav-input-bg: #ffffff;
+}
+.root.dark {
+  -nav-bg: #26292b;
+  -nav-fg: #e3e8e9;
+  -nav-muted: #9aa8ab;
+  -nav-icon: #a9b9bc;
+  -nav-hover: rgba(255, 255, 255, 0.06);
+  -nav-selected-bg: rgba(127, 176, 184, 0.18);
+  -nav-selected-focused-bg: rgba(127, 176, 184, 0.28);
+  -nav-accent: #7fb0b8;
+  -nav-border: #3a3f41;
+  -nav-count-bg: rgba(255, 255, 255, 0.08);
+  -nav-input-bg: #1d2021;
+}
+
+.nav-split {
+  -fx-background-color: -nav-bg;
+  -fx-background-insets: 0;
+  -fx-padding: 0;
+}
+.nav-split > .split-pane-divider {
+  -fx-background-color: -nav-border;
+  -fx-padding: 0 0.5 0 0.5;
+}
+.nav-panel {
+  -fx-background-color: -nav-bg;
+  -fx-padding: 10 6 8 6;
+  -fx-spacing: 8;
+}
+
+.nav-filter {
+  -fx-background-color: -nav-border, -nav-input-bg;
+  -fx-background-insets: 0, 1;
+  -fx-background-radius: 7, 6;
+  -fx-padding: 5 9 5 9;
+  -fx-text-fill: -nav-fg;
+  -fx-prompt-text-fill: -nav-muted;
+}
+.nav-filter:focused {
+  -fx-background-color: -nav-accent, -nav-input-bg;
+  -fx-background-insets: 0, 1.5;
+}
+
+.nav-tree,
+.nav-tree:focused {
+  -fx-background-color: transparent;
+  -fx-background-insets: 0;
+  -fx-padding: 0;
+}
+.nav-tree .tree-cell {
+  -fx-background-color: transparent;
+  -fx-padding: 1 7 1 7;
+  -fx-indent: 0;
+}
+/* The groups draw their own chevron, on the right. */
+.nav-tree .tree-cell > .tree-disclosure-node,
+.nav-tree .tree-cell > .tree-disclosure-node > .arrow {
+  -fx-padding: 0;
+  -fx-min-width: 0;
+  -fx-pref-width: 0;
+  -fx-shape: null;
+  -fx-background-color: transparent;
+}
+.nav-tree > .virtual-flow > .scroll-bar {
+  -fx-background-color: transparent;
+  -fx-padding: 0 1 0 1;
+}
+.nav-tree > .virtual-flow > .scroll-bar > .increment-button,
+.nav-tree > .virtual-flow > .scroll-bar > .decrement-button {
+  -fx-padding: 0;
+}
+.nav-tree > .virtual-flow > .scroll-bar > .increment-button > .increment-arrow,
+.nav-tree > .virtual-flow > .scroll-bar > .decrement-button > .decrement-arrow {
+  -fx-shape: null;
+  -fx-padding: 0;
+}
+.nav-tree > .virtual-flow > .scroll-bar > .track {
+  -fx-background-color: transparent;
+  -fx-border-color: transparent;
+}
+.nav-tree > .virtual-flow > .scroll-bar > .thumb {
+  -fx-background-color: -nav-border;
+  -fx-background-insets: 0 1 0 1;
+  -fx-background-radius: 4;
+}
+.nav-tree > .virtual-flow > .scroll-bar > .thumb:hover {
+  -fx-background-color: -nav-muted;
+}
+.nav-tree > .virtual-flow > .corner {
+  -fx-background-color: transparent;
+}
+
+.nav-row {
+  -fx-padding: 4 8 4 4;
+  -fx-min-height: 28px;
+  -fx-background-radius: 6;
+}
+.nav-tree .tree-cell:hover .nav-row {
+  -fx-background-color: -nav-hover;
+}
+.nav-tree .tree-cell:selected .nav-row {
+  -fx-background-color: -nav-selected-bg;
+}
+.nav-tree:focused .tree-cell:selected .nav-row {
+  -fx-background-color: -nav-selected-focused-bg;
+}
+.nav-bar {
+  -fx-min-width: 3px;
+  -fx-pref-width: 3px;
+  -fx-max-width: 3px;
+  -fx-min-height: 16px;
+  -fx-background-radius: 2;
+  -fx-background-color: transparent;
+}
+.nav-tree .tree-cell:selected .nav-bar {
+  -fx-background-color: -nav-accent;
+}
+.nav-icon {
+  -fx-min-width: 16px;
+  -fx-pref-width: 16px;
+  -fx-max-width: 16px;
+  -fx-min-height: 16px;
+  -fx-pref-height: 16px;
+  -fx-max-height: 16px;
+  -fx-scale-shape: true;
+  -fx-background-color: -nav-icon;
+}
+.nav-tree .tree-cell:selected .nav-icon {
+  -fx-background-color: -nav-accent;
+}
+.nav-label {
+  -fx-text-fill: -nav-fg;
+}
+.nav-tree .tree-cell:selected .nav-label {
+  -fx-font-weight: bold;
+}
+.nav-label-text {
+  -fx-fill: -nav-fg;
+}
+.nav-match {
+  -fx-fill: -nav-accent;
+  -fx-font-weight: bold;
+  -fx-underline: true;
+}
+.nav-count {
+  -fx-text-fill: -nav-muted;
+  -fx-font-size: 0.85em;
+  -fx-padding: 0 6 0 6;
+  -fx-background-color: -nav-count-bg;
+  -fx-background-radius: 8;
+}
+.nav-chevron {
+  -fx-min-width: 12px;
+  -fx-pref-width: 12px;
+  -fx-max-width: 12px;
+  -fx-min-height: 12px;
+  -fx-pref-height: 12px;
+  -fx-max-height: 12px;
+  -fx-scale-shape: true;
+  -fx-background-color: -nav-muted;
+  -fx-opacity: 0;
+}
+.nav-tree .tree-cell:hover .nav-chevron,
+.nav-tree .tree-cell:folded .nav-chevron,
+.nav-tree .tree-cell:nested-group .nav-chevron {
+  -fx-opacity: 1;
+}
+.nav-tree .tree-cell:folded .nav-chevron {
+  -fx-rotate: -90;
+}
+
+/* Section headings: small, muted, not selectable. */
+.nav-tree .tree-cell:heading .nav-row {
+  -fx-padding: 12 8 3 4;
+  -fx-min-height: 0;
+  -fx-background-color: transparent;
+}
+.nav-tree .tree-cell:heading .nav-label {
+  -fx-text-fill: -nav-muted;
+  -fx-font-size: 0.78em;
+  -fx-font-weight: bold;
+}
+
+/* The ranges, under their group. */
+.nav-tree .tree-cell:range .nav-row {
+  -fx-padding: 3 8 3 28;
+  -fx-min-height: 24px;
+}
+.nav-tree .tree-cell:undeclared .nav-label {
+  -fx-text-fill: -nav-muted;
+  -fx-font-style: italic;
+}
+.nav-tree .tree-cell:undeclared .nav-label-text {
+  -fx-fill: -nav-muted;
+  -fx-font-style: italic;
+}
+
+/* Quick entry: an action, apart from the lists. */
+.nav-tree .tree-cell:action {
+  -fx-border-color: -nav-border transparent transparent transparent;
+  -fx-border-width: 1 0 0 0;
+  -fx-border-insets: 8 4 0 4;
+  -fx-padding: 13 7 1 7;
+}
+
+/* ─── Center panel ─── */
+.panel-title {
+  -fx-font-size: 22px;
+  -fx-text-fill: #4c6f76;
+  -fx-font-weight: bold;
+}
+
+.search-input {
+  -fx-font-size: 14px;
+  -fx-background-radius: 6;
+  -fx-border-radius: 6;
+  -fx-border-color: rgba(0, 0, 0, 0.12);
+  -fx-padding: 8 12 8 12;
+}
+
+.note-button {
+  -fx-background-color: #4c6f76;
+  -fx-text-fill: white;
+  -fx-font-size: 13px;
+  -fx-background-radius: 6;
+  -fx-padding: 8 12 8 12;
+  -fx-min-width: 100;
+}
+.note-button:hover {
+  -fx-background-color: #43646a;
+}
+
+.table-footer-text {
+  -fx-text-fill: #66767a;
+  -fx-font-size: 13px;
+}
+
+/* ─── Column filters: in the column headers ─── */
+/* The header's label holds the title and the filter, at the bottom of the header, so that
+   the filters of single columns and of language sub-columns share one baseline. */
+.table-view .column-header.filter-column > .label {
+  -fx-alignment: bottom-left;
+  -fx-content-display: graphic-only;
+  -fx-padding: 2 3 4 3;
+}
+.filter-header .filter-title {
+  -fx-padding: 0 2 0 2;
+}
+.filter-text-box {
+  -fx-background-color: -fx-text-box-border, -fx-control-inner-background;
+  -fx-background-insets: 0, 1;
+  -fx-background-radius: 4, 3;
+  -fx-alignment: center-left;
+  -fx-pref-height: 26;
+  -fx-min-height: 26;
+  -fx-max-height: 26;
+}
+.filter-text-box:active {
+  -fx-background-color: #4c6f76, derive(#d3e8eb, 40%);
+}
+.filter-text-box:error {
+  -fx-background-color: #c0392b, #fdecea;
+}
+.filter-text-box .filter-text,
+.filter-text-box .filter-text:focused {
+  -fx-background-color: transparent;
+  -fx-font-size: 11px;
+  -fx-padding: 3 4 3 6;
+}
+.filter-toggle {
+  -fx-font-size: 10px;
+  -fx-padding: 1 4 1 4;
+  -fx-background-color: transparent;
+  -fx-background-radius: 3;
+  -fx-text-fill: #66767a;
+}
+.filter-toggle:selected {
+  -fx-background-color: #4c6f76;
+  -fx-text-fill: white;
+}
+.filter-menu {
+  -fx-background-color: transparent;
+  -fx-padding: 0 2 0 0;
+}
+.filter-menu > .arrow-button {
+  -fx-padding: 4 4 4 2;
+}
+.filter-button {
+  -fx-font-size: 11px;
+  -fx-font-weight: normal;
+  -fx-alignment: center-left;
+  -fx-padding: 4 6 4 6;
+  -fx-pref-height: 26;
+  -fx-min-height: 26;
+  -fx-background-radius: 4;
+}
+.filter-button:active {
+  -fx-background-color: #4c6f76, derive(#d3e8eb, 40%);
+  -fx-background-insets: 0, 1;
+  -fx-text-fill: #2a3a3e;
+}
+
+/* Popovers of the options and range filters */
+.filter-popover {
+  -fx-background-color: -fx-box-border, -fx-control-inner-background;
+  -fx-background-insets: 0, 1;
+  -fx-background-radius: 6, 5;
+  -fx-padding: 10;
+  -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 12, 0, 0, 3);
+}
+/* A popover takes the styles of its owner, here a column header: its labels must not look
+   like header titles. */
+.filter-popover .label,
+.table-view .column-header .filter-popover .label {
+  -fx-font-size: 12px;
+  -fx-font-weight: normal;
+  -fx-text-fill: -fx-text-base-color;
+}
+.table-view .column-header .filter-popover .filter-popover-title,
+.filter-popover-title {
+  -fx-font-weight: bold;
+  -fx-text-fill: #4c6f76;
+}
+.filter-options-list .list-cell {
+  -fx-padding: 2 6 2 4;
+}
+.filter-options-list .list-cell:zero .check-box {
+  -fx-opacity: 0.5;
+}
+.table-view .column-header .filter-popover .filter-count,
+.table-view .column-header .filter-popover .filter-hint,
+.filter-count, .filter-hint {
+  -fx-text-fill: #66767a;
+  -fx-font-size: 11px;
+}
+.filter-only {
+  -fx-font-size: 11px;
+  -fx-padding: 0 2 0 2;
+}
+.filter-histogram {
+  -fx-padding: 0 0 2 0;
+  -fx-border-color: transparent transparent #c9d3d5 transparent;
+  -fx-cursor: crosshair;
+}
+.filter-bar {
+  -fx-background-color: #b5c7cb;
+  -fx-background-radius: 2 2 0 0;
+}
+.filter-bar:hover {
+  -fx-background-color: #8fa9af;
+}
+.filter-bar:selected {
+  -fx-background-color: #4c6f76;
+}
+.filter-range-field:error {
+  -fx-text-box-border: #c0392b;
+  -fx-focus-color: #c0392b;
+}
+.filter-date-picker {
+  -fx-background-color: transparent;
+  -fx-padding: 0;
+}
+.filter-date-picker > .arrow-button {
+  -fx-padding: 5 7 5 7;
+  -fx-background-radius: 4;
+}
+
+/* Column chooser */
+.column-chooser-heading {
+  -fx-text-fill: #66767a;
+  -fx-font-size: 11px;
+  -fx-font-weight: bold;
+}
+.column-chooser-handle {
+  -fx-text-fill: #9aa8ab;
+  -fx-cursor: move;
+}
+.column-chooser-editable {
+  -fx-text-fill: #9aa8ab;
+}
+.language-chip {
+  -fx-font-size: 11px;
+  -fx-padding: 1 7 1 7;
+  -fx-background-radius: 10;
+  -fx-background-color: -fx-box-border, -fx-control-inner-background;
+  -fx-background-insets: 0, 1;
+  -fx-text-fill: #9aa8ab;
+}
+.language-chip:selected {
+  -fx-background-color: #4c6f76;
+  -fx-background-insets: 0;
+  -fx-text-fill: white;
+}
+.column-chooser-add {
+  -fx-font-size: 11px;
+  -fx-padding: 2 8 2 8;
+  -fx-background-radius: 10;
+}
+.columns-button:custom {
+  -fx-background-color: #4c6f76, derive(#d3e8eb, 40%);
+  -fx-background-insets: 0, 1;
+}
+
+/* Toolbar above a table: Columns button, filter chips, Clear all */
+.table-toolbar {
+  -fx-min-height: 30;
+}
+.filter-chips-label {
+  -fx-text-fill: #66767a;
+  -fx-font-size: 12px;
+}
+.filter-chip {
+  -fx-background-color: #d3e8eb;
+  -fx-background-radius: 12;
+  -fx-padding: 0 2 0 8;
+}
+.filter-chip-text {
+  -fx-text-fill: #2a3a3e;
+  -fx-font-size: 12px;
+  -fx-padding: 2 0 2 0;
+  -fx-border-color: transparent;
+}
+.filter-chip-remove {
+  -fx-background-color: transparent;
+  -fx-font-size: 10px;
+  -fx-padding: 2 6 2 6;
+  -fx-text-fill: #4c6f76;
+}
+.filter-chip-remove:hover {
+  -fx-background-color: rgba(76,111,118,0.2);
+  -fx-background-radius: 10;
+}
+.filter-notice {
+  -fx-background-color: #fff4d6;
+  -fx-background-radius: 4;
+  -fx-padding: 1 6 1 6;
+}
+.filter-count-label {
+  -fx-text-fill: #66767a;
+  -fx-font-size: 12px;
+}
+
+/* Cells */
+.table-view .number-cell {
+  -fx-alignment: center-right;
+}
+/* Empty cells of text columns (View ▸ Mark empty cells) */
+.table-view .table-cell:empty-value {
+  -fx-background-color: linear-gradient(from 0px 0px to 6px 6px, repeat, rgba(76,111,118,0.10) 0%, rgba(76,111,118,0.10) 30%, transparent 30%, transparent 100%);
+}
+.table-view .table-row-cell:selected .table-cell:empty-value {
+  -fx-background-color: transparent;
+}
+
+/* ─── Table views ─── */
+.table-view .column-header-background {
+  -fx-background-color: white;
+}
+.table-view .column-header .label {
+  -fx-text-fill: #4c6f76;
+  -fx-font-size: 13px;
+  -fx-font-weight: bold;
+}
+.table-view .table-row-cell:selected {
+  -fx-background-color: #d3e8eb;
+}
+.table-view .table-row-cell:selected .text {
+  -fx-fill: #2a3a3e;
+}
+
+/* ─── Right panel ─── */
+.right-panel {
+  -fx-background-color: #eef2f3;
+  -fx-min-width: 260;
+  -fx-pref-width: 320;
+}
+
+.edit-entry-title {
+  -fx-font-size: 18px;
+  -fx-font-weight: bold;
+  -fx-text-fill: black;
+}
+
+.edit-entry-code {
+  -fx-font-size: 13px;
+  -fx-text-fill: #66767a;
+}
+
+.panel-nav-button {
+  -fx-background-color: #4c6f76;
+  -fx-text-fill: white;
+  -fx-font-size: 13px;
+  -fx-background-radius: 6;
+  -fx-padding: 7 12 7 12;
+  -fx-max-width: infinity;
+}
+.panel-nav-button:hover {
+  -fx-background-color: #43646a;
+}
+
+.delete-btn {
+  -fx-background-color: #e74c3c;
+  -fx-text-fill: white;
+  -fx-background-radius: 6;
+  -fx-padding: 7 12 7 12;
+}
+
+/* Boutons Supprimer et Retour - même longueur, taille réduite */
+.delete-btn,
+.back-btn {
+  -fx-min-width: 175px;
+  -fx-max-width: 175px;
+}
+
+
+/* ─── Configuration pages ─── */
+.page-title {
+  -fx-font-size: 15px;
+  -fx-font-weight: bold;
+  -fx-text-fill: #4c6f76;
+}
+.page-subtitle {
+  -fx-font-size: 13px;
+  -fx-font-weight: bold;
+  -fx-text-fill: #4c6f76;
+}
+.field-title {
+  -fx-font-size: 12px;
+  -fx-font-weight: bold;
+}
+.muted-label {
+  -fx-font-size: 12px;
+  -fx-text-fill: #66767a;
+}
+
+/* ─── Misc ─── */
+.primary-button {
+  -fx-background-color: #2f7eea;
+  -fx-text-fill: white;
+  -fx-font-size: 14px;
+  -fx-background-radius: 18;
+  -fx-padding: 8 14 8 14;
+}
+.primary-button:hover {
+  -fx-background-color: #2a72d1;
+}
+.form-label {
+  -fx-text-fill: #324a50;
+  -fx-font-size: 13px;
+}
+.bullet {
+  -fx-font-size: 16px;
+  -fx-text-fill: #4c6f76;
+}
+
+.read-only-meta-field {
+  -fx-control-inner-background: #e7ecee;
+  -fx-background-color: #e7ecee;
+  -fx-text-fill: #56666b;
+  -fx-border-color: #c5d0d4;
+}
+
+.read-only-meta-picker {
+  -fx-opacity: 1;
+}
+
+.read-only-meta-picker .text-field {
+  -fx-control-inner-background: #e7ecee;
+  -fx-background-color: #e7ecee;
+  -fx-text-fill: #56666b;
+  -fx-border-color: #c5d0d4;
+}
+
+/* Curseur main (clic) sur tous les boutons au survol */
+.button,
+.button:hover,
+.button:focused {
+  -fx-cursor: hand;
+}
+
+/* What its range or the file does not declare (read-only, not saved): in grey. */
+.tree-cell.undeclared,
+.table-row-cell.undeclared .table-cell {
+  -fx-text-fill: #9aa5a8;
+}
+/* On the dark selection of a focused list; an unfocused selection is light: the grey stays. */
+.tree-view:focused .tree-cell.undeclared:selected,
+.table-view:focused .table-row-cell.undeclared:selected .table-cell {
+  -fx-text-fill: #d9dfe0;
+}
+
+/* ─── The error shown when a file cannot be opened ─── */
+.open-error-position {
+    -fx-font-weight: bold;
+}
+.open-error-excerpt {
+    -fx-font-family: "Menlo", "Consolas", "DejaVu Sans Mono", monospace;
+    -fx-padding: 6 8;
+    -fx-background-color: derive(-fx-control-inner-background, -4%);
+    -fx-border-color: derive(-fx-control-inner-background, -20%);
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+}
+.open-error-path {
+    -fx-text-fill: derive(-fx-text-base-color, 40%);
+    -fx-font-size: 0.9em;
+}
+.open-error-details {
+    -fx-font-family: "Menlo", "Consolas", "DejaVu Sans Mono", monospace;
+}

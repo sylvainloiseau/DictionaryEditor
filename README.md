@@ -1,7 +1,7 @@
 # Dictionary editor for descriptive linguistics
 
 <p align="center">
-  <img src="https://github.com/sylvainloiseau/DictionaryEditor/blob/main/src/main/resources/fr/cnrs/lacito/liftgui/ui/icons/app/icon-256.png?raw=true" />
+  <img src="https://github.com/sylvainloiseau/DictionaryEditor/blob/main/lift-gui/src/main/resources/fr/cnrs/lacito/liftgui/ui/icons/app/icon-256.png?raw=true" />
 </p>
 
 Application for editing dictionaries compatible with the [Lexicon Interchange FormaT - LIFT](https://github.com/sillsdev/lift-standard) data format (format is used by [SIL Fieldworks](https://software.sil.org/fr/fieldworks/) and [ELAN](https://archive.mpi.nl/tla/elan)).
@@ -22,23 +22,23 @@ Pick an installer for your plateform from the [github release page](https://gith
 
 ### Listing entries
 
-![Listing entity](src/site/resources/images/entries.png)
+![Listing entity](lift-gui/src/site/resources/images/entries.png)
 
 ### Listing Senses
 
-![Listing sense](src/site/resources/images/Sense.png)
+![Listing sense](lift-gui/src/site/resources/images/Sense.png)
 
 ### Listing all metalanguage forms
 
-![Listing metalanguage](src/site/resources/images/MetaLanguages.png)
+![Listing metalanguage](lift-gui/src/site/resources/images/MetaLanguages.png)
 
 ### Browse note type
 
-![Browse note type](src/site/resources/images/BrowseNoteType.png)
+![Browse note type](lift-gui/src/site/resources/images/BrowseNoteType.png)
 
 ### Managing part of speech
 
-![Managing part of speech](src/site/resources/images/GramInfo.png)
+![Managing part of speech](lift-gui/src/site/resources/images/GramInfo.png)
 
 ## Installation from sources
 
@@ -48,10 +48,10 @@ cd DictionaryEditor
 mvn install -DskipTests
 ```
 
-Run :
+Run (after `mvn install`):
 
 ```bash
-mvn javafx:run
+mvn -f lift-gui javafx:run
 ```
 
 Tests :
@@ -60,7 +60,7 @@ Tests :
 mvn test
 ```
 
-Documentation (the Markdown pages of `src/site/markdown`, built into `target/site`):
+Documentation (the Markdown pages of `lift-gui/src/site/markdown`, built into `lift-gui/target/site`):
 
 ```bash
 mvn site
@@ -80,7 +80,7 @@ The packaged standalone app will include a lighweight java runtime.
 On the repository root:
 
 ```bash
-mvn clean package -Pdist -DskipTests \
+mvn clean install -Pdist -DskipTests \
   -Djavafx.platform=<plateforme> \
   -Djpackage.type=<type>
 ```
@@ -102,45 +102,45 @@ See the next sections for the values for `jpackage.type`.
 
 **[WiX Toolset](https://wixtoolset.org/)** should be installed and in the `PATH`.
 
-Files are in `target/jpackage/` (or `jpackage-msi` / `jpackage-exe` if you use suffixes as in the CI).
+Files are in `lift-gui/target/jpackage/` (or `jpackage-msi` / `jpackage-exe` if you use suffixes as in the CI).
 
 ```bash
-mvn clean package -Pdist -DskipTests \
+mvn clean install -Pdist -DskipTests \
   -Djavafx.platform=win \
   -Djpackage.type=MSI
 ```
 
-**2/ Without WiX — app image** : the POM activates Windows options (`--win-menu`) incompatible with `app-image`. After a build that produced the jlink runtime (`target/maven-jlink/default/`), run **jpackage** once manually.
+**2/ Without WiX — app image** : the POM activates Windows options (`--win-menu`) incompatible with `app-image`. After a build that produced the jlink runtime (`lift-gui/target/maven-jlink/default/`), run **jpackage** once manually.
 
 ```bash
 "%JAVA_HOME%\bin\jpackage.exe" ^
   --name DictionaryEditor ^
-  --dest target\jpackage-app ^
+  --dest lift-gui\target\jpackage-app ^
   --type app-image ^
   --app-version 1.0.0 ^
-  --runtime-image target\maven-jlink\default ^
+  --runtime-image lift-gui\target\maven-jlink\default ^
   --vendor "CNRS LACITO" ^
   --module fr.cnrs.lacito.liftgui/fr.cnrs.lacito.liftgui.MainApp
 ```
 
-Then run **`target\jpackage-app\DictionaryEditor\DictionaryEditor.exe`**.
+Then run **`lift-gui\target\jpackage-app\DictionaryEditor\DictionaryEditor.exe`**.
 
-If `mvn package … -Pdist` fails only on **jpackage** (WiX missing) but the **`target/maven-jlink/default`** folder has been created, the `jpackage` command above is sufficient to obtain the portable image. Otherwise, install **WiX** and use `-Djpackage.type=MSI` or `EXE`.
+If `mvn install … -Pdist` fails only on **jpackage** (WiX missing) but the **`lift-gui/target/maven-jlink/default`** folder has been created, the `jpackage` command above is sufficient to obtain the portable image. Otherwise, install **WiX** and use `-Djpackage.type=MSI` or `EXE`.
 
 ### Linux
 
 Create deb package (default `jpackage.type` value)
 
 ```bash
-mvn clean package -Pdist -DskipTests \
+mvn clean install -Pdist -DskipTests \
   -Djavafx.platform=linux \
   -Djpackage.type=DEB
 ```
 
-On Debian/Ubuntu, `fakeroot` tools may be needed; the CI also installs `rpm` for some steps. The `.deb` is generated under `target/jpackage/`. Installation :
+On Debian/Ubuntu, `fakeroot` tools may be needed; the CI also installs `rpm` for some steps. The `.deb` is generated under `lift-gui/target/jpackage/`. Installation :
 
 ```bash
-sudo dpkg -i target/jpackage/*.deb
+sudo dpkg -i lift-gui/target/jpackage/*.deb
 ```
 
 Then run the application from the applications menu or the command installed by the package.
@@ -150,12 +150,12 @@ Then run the application from the applications menu or the command installed by 
 Create a disk imaege (`.dmg`) (select the correct value for `javafx.platform` : `mac-aarch64` or `mac`, see above) :
 
 ```bash
-mvn clean package -Pdist -DskipTests \
+mvn clean install -Pdist -DskipTests \
   -Djavafx.platform=mac-aarch64 \
   -Djpackage.type=DMG
 ```
 
-On Mac M1, try `-Djavafx.platform=mac` if your JDK/OpenJFX provides it. The `.dmg` is generated under `target/jpackage/`. Open the DMG and drag the application into **Applications**, then run it from the Launchpad or the Applications folder.
+On Mac M1, try `-Djavafx.platform=mac` if your JDK/OpenJFX provides it. The `.dmg` is generated under `lift-gui/target/jpackage/`. Open the DMG and drag the application into **Applications**, then run it from the Launchpad or the Applications folder.
 
 ### Releases GitHub
 
@@ -167,6 +167,31 @@ git push origin v1.0.0
 ```
 
 The artifacts are attached to the corresponding **Release** on GitHub (`.deb`, `.msi`, `.exe`, `.dmg` files according to the successful jobs).
+
+The same tag publishes the `lift-fx` library on Maven Central, with the version of the tag (see below).
+
+## The lift-fx library
+
+The project has two Maven modules: `lift-gui`, the application, and `lift-fx`, the JavaFX editors of the LIFT components, which any JavaFX application can use:
+
+```xml
+<dependency>
+  <groupId>io.github.sylvainloiseau</groupId>
+  <artifactId>lift-fx</artifactId>
+  <version>1.0.0</version>
+</dependency>
+```
+
+```java
+// module-info.java: requires fr.cnrs.lacito.liftfx; (brings lift-api and javafx.controls)
+LiftComponentEditor editor = new LiftComponentEditor(dictionary); // a lift-api LiftDictionary
+editor.setComponent(entry);                                       // an entry, a sense, an example, a note…
+pane.getChildren().add(editor);
+```
+
+The dictionary gives the languages offered (object languages, metalanguages), the types and the ranges. `LiftFx.setLocale` sets the language of the editors (English or French). `lift-fx` needs Java 25, like `lift-api`.
+
+To publish it by hand: `mvn -P release -pl lift-fx -am deploy` (the credentials of the server `central` in `settings.xml`, and a GPG key). `-DskipUpload -Dgpg.skip` builds the bundle in `target/central-publishing` without uploading it.
 
 ## Icon
 
