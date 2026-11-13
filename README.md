@@ -168,6 +168,31 @@ git push origin v1.0.0
 
 The artifacts are attached to the corresponding **Release** on GitHub (`.deb`, `.msi`, `.exe`, `.dmg` files according to the successful jobs).
 
+The same tag publishes the `lift-fx` library on Maven Central, with the version of the tag (see below).
+
+## The lift-fx library
+
+The project has two Maven modules: `lift-gui`, the application, and `lift-fx`, the JavaFX editors of the LIFT components, which any JavaFX application can use:
+
+```xml
+<dependency>
+  <groupId>io.github.sylvainloiseau</groupId>
+  <artifactId>lift-fx</artifactId>
+  <version>1.0.0</version>
+</dependency>
+```
+
+```java
+// module-info.java: requires fr.cnrs.lacito.liftfx; (brings lift-api and javafx.controls)
+LiftComponentEditor editor = new LiftComponentEditor(dictionary); // a lift-api LiftDictionary
+editor.setComponent(entry);                                       // an entry, a sense, an example, a note…
+pane.getChildren().add(editor);
+```
+
+The dictionary gives the languages offered (object languages, metalanguages), the types and the ranges. `LiftFx.setLocale` sets the language of the editors (English or French). `lift-fx` needs Java 25, like `lift-api`.
+
+To publish it by hand: `mvn -P release -pl lift-fx -am deploy` (the credentials of the server `central` in `settings.xml`, and a GPG key). `-DskipUpload -Dgpg.skip` builds the bundle in `target/central-publishing` without uploading it.
+
 ## Icon
 
 The application icon is plate 16 of:

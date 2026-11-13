@@ -58,4 +58,17 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <!-- The javadoc documents the API only: the internal package is shared with lift-gui. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <configuration>
+          <excludePackageNames>fr.cnrs.lacito.liftfx.internal</excludePackageNames>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>

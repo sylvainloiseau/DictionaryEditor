@@ -6,6 +6,7 @@
   It holds the versions of the dependencies and plugins, and the headless set-up of the UI tests.
 -->
 <project
+    child.project.url.inherit.append.path="false"
     xmlns="http://maven.apache.org/POM/4.0.0"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
@@ -18,6 +19,31 @@
   <packaging>pom</packaging>
 
   <name>DictionaryEditor</name>
+  <description>An editor of LIFT dictionaries (lift-gui), and its JavaFX editors of the LIFT components as a library (lift-fx).</description>
+  <url>https://github.com/sylvainloiseau/DictionaryEditor</url>
+  <!-- Required by Maven Central (and inherited by the modules): the licence, the developers,
+       and where the sources are. -->
+  <licenses>
+    <license>
+      <name>Academic Free License v. 3.0</name>
+      <url>https://opensource.org/license/AFL-3.0</url>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>sylvainloiseau</id>
+      <name>Sylvain Loiseau</name>
+      <url>https://github.com/sylvainloiseau</url>
+    </developer>
+  </developers>
+  <scm child.scm.connection.inherit.append.path="false"
+       child.scm.developerConnection.inherit.append.path="false"
+       child.scm.url.inherit.append.path="false">
+    <connection>scm:git:https://github.com/sylvainloiseau/DictionaryEditor.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/sylvainloiseau/DictionaryEditor.git</developerConnection>
+    <url>https://github.com/sylvainloiseau/DictionaryEditor</url>
+    <tag>HEAD</tag>
+  </scm>
 
   <modules>
     <module>lift-fx</module>
@@ -139,6 +165,11 @@
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-javadoc-plugin</artifactId>
+          <version>3.11.2</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-jlink-plugin</artifactId>
           <version>3.3.0</version>
         </plugin>
@@ -166,4 +197,85 @@
       </plugins>
     </pluginManagement>
   </build>
+
+  <profiles>
+    <!--
+      Publishing to Maven Central: mvn -P release deploy (see .github/workflows/release.yml).
+      The parent POM and lift-fx are published; lift-gui, distributed as installers, is left
+      out (excludeArtifacts). Central requires a sources jar, a javadoc jar and a GPG
+      signature of every file; the central-publishing plugin replaces the deploy phase and
+      uploads them to the Central Portal, with the credentials of the server "central" in
+      settings.xml. -DskipUpload builds the bundle (target/central-publishing) without
+      uploading it, and -Dgpg.skip leaves out the signatures.
+    -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>3.3.1</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar-no-fork</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.2.7</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+                <configuration>
+                  <!-- The passphrase comes from MAVEN_GPG_PASSPHRASE, without a prompt. -->
+                  <gpgArguments>
+                    <arg>--pinentry-mode</arg>
+                    <arg>loopback</arg>
+                  </gpgArguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>0.12.0</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <excludeArtifacts>
+                <excludeArtifact>lift-gui</excludeArtifact>
+              </excludeArtifacts>
+              <!-- Released as soon as Central has validated the upload, and the build waits
+                   for it, so that a failure shows in the workflow. -->
+              <autoPublish>true</autoPublish>
+              <waitUntil>published</waitUntil>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

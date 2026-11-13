@@ -1,6 +1,14 @@
-# Create native installers (jlink + jpackage) on push of semantic tags (e.g., v1.0.0).
-# Each OS builds in parallel and attaches its binaries to the GitHub release of the tag.
-# The installers take their version from the tag (v1.2.3 -> 1.2.3).
+# On push of a version tag (e.g., v1.0.0), with the version of the tag (v1.2.3 -> 1.2.3):
+# - package: the native installers of DictionaryEditor (jlink + jpackage, module lift-gui).
+#   Each OS builds in parallel and attaches its binaries to the GitHub release of the tag.
+# - publish: the lift-fx library, with the parent POM, to Maven Central. The poms keep
+#   their -SNAPSHOT version in the repository.
+#
+# Repository secrets the publish job needs (Settings > Secrets and variables > Actions):
+#   CENTRAL_TOKEN_USERNAME, CENTRAL_TOKEN_PASSWORD  the user token generated on
+#                                                   https://central.sonatype.com/account
+#   GPG_PRIVATE_KEY   the armored private key: gpg --armor --export-secret-keys KEY_ID
+#   GPG_PASSPHRASE    its passphrase
 
 name: Release
 
@@ -17,6 +25,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  publish:
+    name: lift-fx to Maven Central
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java 25, the Central credentials and the signing key
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+          # Writes a settings.xml whose server "central" reads these two variables.
+          server-id: central
+          server-username: CENTRAL_TOKEN_USERNAME
+          server-password: CENTRAL_TOKEN_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      - name: Set the version from the tag
+        shell: bash
+        run: mvn -B -ntp versions:set -DnewVersion="${GITHUB_REF_NAME#v}" -DgenerateBackupPoms=false
+
+      # The parent and lift-fx only (-pl lift-fx -am): lift-gui is not published. The UI
+      # tests of lift-fx run headless (Monocle), as configured in the parent POM.
+      - name: Test, sign and publish
+        run: mvn -B -ntp -P release -pl lift-fx -am deploy
+        env:
+          CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
   package:
     name: ${{ matrix.runner }} (${{ matrix.javafx }})
     strategy:
