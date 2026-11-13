@@ -68,7 +68,7 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          mvn -B -ntp clean package -Pdist -DskipTests \
+          mvn -B -ntp clean install -Pdist -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=DEB -Djpackage.destSuffix=-deb
@@ -77,7 +77,7 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          mvn -B -ntp -Pdist jpackage:jpackage -DskipTests \
+          mvn -B -ntp -f lift-gui -Pdist jpackage:jpackage -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=APP_IMAGE -Djpackage.destSuffix=-appimage
@@ -94,11 +94,11 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
-          APPDIR=target/DictionaryEditor.AppDir
+          APPDIR=lift-gui/target/DictionaryEditor.AppDir
 
           # Move the jpackage image out of target/jpackage-appimage so that the
-          # release glob (target/jpackage*/**/*) only uploads the .AppImage file.
-          mv target/jpackage-appimage/DictionaryEditor "$APPDIR"
+          # release glob (lift-gui/target/jpackage*/**/*) only uploads the .AppImage file.
+          mv lift-gui/target/jpackage-appimage/DictionaryEditor "$APPDIR"
 
           cat > "$APPDIR/AppRun" <<'EOF'
           #!/bin/sh
@@ -118,7 +118,7 @@ jobs:
           Terminal=false
           EOF
 
-          cp src/main/jpackage/DictionaryEditor.png "$APPDIR/DictionaryEditor.png"
+          cp lift-gui/src/main/jpackage/DictionaryEditor.png "$APPDIR/DictionaryEditor.png"
           ln -s DictionaryEditor.png "$APPDIR/.DirIcon"
 
           curl -fsSL -o /tmp/appimagetool \
@@ -126,13 +126,13 @@ jobs:
           echo "${APPIMAGETOOL_SHA256}  /tmp/appimagetool" | sha256sum -c -
           chmod +x /tmp/appimagetool
           /tmp/appimagetool "$APPDIR" \
-            "target/jpackage-appimage/DictionaryEditor-${VERSION}-${ARCH}.AppImage"
+            "lift-gui/target/jpackage-appimage/DictionaryEditor-${VERSION}-${ARCH}.AppImage"
 
       - name: Image jlink + installer MSI (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          mvn -B -ntp clean package -Pdist -DskipTests \
+          mvn -B -ntp clean install -Pdist -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=MSI -Djpackage.destSuffix=-msi
@@ -141,7 +141,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          mvn -B -ntp -Pdist jpackage:jpackage -DskipTests \
+          mvn -B -ntp -f lift-gui -Pdist jpackage:jpackage -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=EXE -Djpackage.destSuffix=-exe
@@ -150,7 +150,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          mvn -B -ntp clean package -Pdist -DskipTests \
+          mvn -B -ntp clean install -Pdist -DskipTests \
             "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=DMG
@@ -159,7 +159,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          for f in target/jpackage/*.dmg; do
+          for f in lift-gui/target/jpackage/*.dmg; do
             mv "$f" "${f%.dmg}-${{ matrix.mac_label }}.dmg"
           done
 
@@ -169,4 +169,4 @@ jobs:
           fail_on_unmatched_files: false
           generate_release_notes: true
           files: |
-            target/jpackage*/**/*
+            lift-gui/target/jpackage*/**/*
