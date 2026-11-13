@@ -1,13 +1,11 @@
 package fr.cnrs.lacito.liftgui.ui.fx;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import fr.cnrs.lacito.liftapi.model.FeatureSet;
 import fr.cnrs.lacito.liftapi.model.Form;
 import fr.cnrs.lacito.liftapi.model.LiftEntry;
+import fr.cnrs.lacito.liftfx.ComponentKind;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.app.AppPreferences;
-import fr.cnrs.lacito.liftgui.ui.controls.ComponentKind;
 import fr.cnrs.lacito.liftgui.ui.nav.NavNode;
 import java.text.Collator;
 import java.util.List;
@@ -23,6 +21,7 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.VBox;
 import org.junit.jupiter.api.Test;
 import org.testfx.util.WaitForAsyncUtils;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** The navigation panel: its items, the sorted ranges, the counts, the filter, folding, hiding. */
 class NavigationPanelTest extends MainWindowTest {

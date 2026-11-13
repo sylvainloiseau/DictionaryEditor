@@ -1,15 +1,13 @@
 package fr.cnrs.lacito.liftgui.ui.fx;
 
-import fr.cnrs.lacito.liftgui.ui.controls.ComponentKind;
-import javafx.scene.control.TextField;
-
-import static org.junit.jupiter.api.Assertions.*;
-
 import fr.cnrs.lacito.liftapi.model.LiftEntry;
 import fr.cnrs.lacito.liftapi.model.LiftSense;
+import fr.cnrs.lacito.liftfx.ComponentKind;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.TextField;
 import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** Creating entries, senses, examples… from the toolbar and the editors. */
 class CreationTest extends MainWindowTest {

@@ -1,15 +1,10 @@
 package fr.cnrs.lacito.liftgui.ui.fx;
 
-import fr.cnrs.lacito.liftgui.ui.controls.ComponentKind;
-import fr.cnrs.lacito.liftgui.ui.controls.ComponentSection;
-import fr.cnrs.lacito.liftgui.ui.controls.ItemCard;
-import javafx.scene.control.ButtonBase;
-import javafx.scene.control.CustomMenuItem;
-import javafx.scene.control.MenuButton;
-import javafx.scene.control.SeparatorMenuItem;
-
-import fr.cnrs.lacito.liftgui.testsupport.InMemoryPreferences;
 import fr.cnrs.lacito.liftapi.LiftDictionary;
+import fr.cnrs.lacito.liftfx.ComponentKind;
+import fr.cnrs.lacito.liftfx.internal.ComponentSection;
+import fr.cnrs.lacito.liftfx.internal.ItemCard;
+import fr.cnrs.lacito.liftgui.testsupport.InMemoryPreferences;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.app.DictionaryDocument;
 import fr.cnrs.lacito.liftgui.ui.nav.NavNode;
@@ -25,6 +20,10 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.control.ButtonBase;
+import javafx.scene.control.CustomMenuItem;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import org.junit.jupiter.api.AfterEach;

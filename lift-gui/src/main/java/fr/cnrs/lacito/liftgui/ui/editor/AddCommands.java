@@ -1,10 +1,10 @@
 package fr.cnrs.lacito.liftgui.ui.editor;
 
 import fr.cnrs.lacito.liftapi.model.AbstractLiftRoot;
+import fr.cnrs.lacito.liftfx.ComponentKind;
+import fr.cnrs.lacito.liftfx.internal.ComponentSection;
+import fr.cnrs.lacito.liftfx.internal.ItemCard;
 import fr.cnrs.lacito.liftgui.ui.I18n;
-import fr.cnrs.lacito.liftgui.ui.controls.ComponentKind;
-import fr.cnrs.lacito.liftgui.ui.controls.ComponentSection;
-import fr.cnrs.lacito.liftgui.ui.controls.ItemCard;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;

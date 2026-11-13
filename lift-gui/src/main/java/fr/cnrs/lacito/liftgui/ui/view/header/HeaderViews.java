@@ -2,13 +2,12 @@ package fr.cnrs.lacito.liftgui.ui.view.header;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.Feature;
-import fr.cnrs.lacito.liftapi.model.Feature;
 import fr.cnrs.lacito.liftapi.model.FeatureSet;
 import fr.cnrs.lacito.liftapi.model.LiftHeader;
 import fr.cnrs.lacito.liftapi.model.MultiText;
+import fr.cnrs.lacito.liftfx.controls.MultiTextEditor;
 import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
-import fr.cnrs.lacito.liftgui.ui.controls.MultiTextEditor;
 import fr.cnrs.lacito.liftgui.ui.editor.EditorContext;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;

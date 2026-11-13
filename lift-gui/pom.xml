@@ -30,6 +30,10 @@
   <dependencies>
     <dependency>
       <groupId>io.github.sylvainloiseau</groupId>
+      <artifactId>lift-fx</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.github.sylvainloiseau</groupId>
       <artifactId>lift-api</artifactId>
     </dependency>
 

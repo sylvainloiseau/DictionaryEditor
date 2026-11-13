@@ -97,7 +97,7 @@ public final class ObjectLabels {
     public static String shortLabel(Object component) {
         String label = switch (component) {
             case LiftEntry e -> entryLabel(e);
-            case LiftSense s -> fr.cnrs.lacito.liftgui.ui.controls.LiftEntryEditor.senseDisplayText(s);
+            case LiftSense s -> fr.cnrs.lacito.liftfx.controls.LiftEntryEditor.senseDisplayText(s);
             case LiftExample x -> firstForm(x.getExample());
             case LiftTranslation t -> firstForm(t.getTranslation());
             case LiftNote n -> join(featureId(n.getType()), firstForm(n.getText()));

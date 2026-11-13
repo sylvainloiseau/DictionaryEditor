@@ -1,18 +1,18 @@
 package fr.cnrs.lacito.liftgui.ui.editor;
 
+import fr.cnrs.lacito.liftfx.internal.ComponentSection;
+import fr.cnrs.lacito.liftfx.internal.EditorSupport;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
-import fr.cnrs.lacito.liftgui.ui.controls.EditorSupport;
-import java.util.Map;
-import fr.cnrs.lacito.liftgui.ui.controls.ComponentSection;
 import java.util.List;
+import java.util.Map;
 import javafx.beans.property.ReadOnlyIntegerProperty;
 import javafx.beans.property.ReadOnlyIntegerWrapper;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.Label;
 import javafx.scene.control.MenuButton;
 import javafx.scene.control.MenuItem;
-import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
 import javafx.scene.layout.GridPane;

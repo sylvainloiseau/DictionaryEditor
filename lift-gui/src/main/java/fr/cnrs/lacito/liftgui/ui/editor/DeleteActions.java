@@ -4,12 +4,12 @@ import fr.cnrs.lacito.liftapi.model.HasSense;
 import fr.cnrs.lacito.liftapi.model.LiftEntry;
 import fr.cnrs.lacito.liftapi.model.LiftExample;
 import fr.cnrs.lacito.liftapi.model.LiftSense;
+import fr.cnrs.lacito.liftfx.controls.LiftEntryEditor;
+import fr.cnrs.lacito.liftfx.internal.ComponentDeletion;
 import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
 import fr.cnrs.lacito.liftgui.ui.ObjectLabels;
-import fr.cnrs.lacito.liftgui.ui.controls.ComponentDeletion;
-import fr.cnrs.lacito.liftgui.ui.controls.LiftEntryEditor;
 import javafx.scene.control.Button;
 
 /**

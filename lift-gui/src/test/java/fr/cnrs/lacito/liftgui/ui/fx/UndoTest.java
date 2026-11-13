@@ -1,7 +1,5 @@
 package fr.cnrs.lacito.liftgui.ui.fx;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import fr.cnrs.lacito.liftapi.model.LiftEntry;
 import fr.cnrs.lacito.liftapi.model.LiftSense;
 import fr.cnrs.lacito.liftgui.ui.I18n;
@@ -14,6 +12,7 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** The undo history, seen from the window: typing, shortcuts, labels, the save point. */
 class UndoTest extends MainWindowTest {
@@ -97,7 +96,7 @@ class UndoTest extends MainWindowTest {
         LiftSense sense = (LiftSense) table().getSelectionModel().getSelectedItem();
         int notes = sense.getNotes().size();
         int steps = history().cursor();
-        addTyped(sense, fr.cnrs.lacito.liftgui.ui.controls.ComponentKind.NOTE, null);
+        addTyped(sense, fr.cnrs.lacito.liftfx.ComponentKind.NOTE, null);
         assertEquals(notes + 1, sense.getNotes().size());
         assertEquals(steps + 1, history().cursor());
         undo();
@@ -110,7 +109,7 @@ class UndoTest extends MainWindowTest {
         openView("nav.senses");
         selectRow(0);
         LiftSense sense = (LiftSense) table().getSelectionModel().getSelectedItem();
-        typeMenu(sense, fr.cnrs.lacito.liftgui.ui.controls.ComponentKind.NOTE);
+        typeMenu(sense, fr.cnrs.lacito.liftfx.ComponentKind.NOTE);
         assertEquals(0, history().entries().size());
         assertFalse(history().canUndoProperty().get());
     }

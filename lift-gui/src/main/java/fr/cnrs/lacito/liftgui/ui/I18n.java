@@ -1,5 +1,6 @@
 package fr.cnrs.lacito.liftgui.ui;
 
+import fr.cnrs.lacito.liftfx.LiftFx;
 import java.text.MessageFormat;
 import java.util.Locale;
 import java.util.ResourceBundle;
@@ -7,7 +8,8 @@ import java.util.prefs.Preferences;
 
 /**
  * Singleton managing the current locale and ResourceBundle for UI strings.
- * Persists the user's language choice via java.util.prefs.
+ * Persists the user's language choice via java.util.prefs, and passes it on to the editors of
+ * lift-fx ({@link LiftFx#setLocale}).
  */
 public final class I18n {
 
@@ -26,6 +28,7 @@ public final class I18n {
         }
         currentLocale = Locale.of(saved);
         bundle = ResourceBundle.getBundle(BUNDLE_BASE, currentLocale);
+        LiftFx.setLocale(currentLocale);
     }
 
     private I18n() {}
@@ -51,6 +54,7 @@ public final class I18n {
     public static void setLocale(Locale locale) {
         currentLocale = locale;
         bundle = ResourceBundle.getBundle(BUNDLE_BASE, currentLocale);
+        LiftFx.setLocale(locale);
         PREFS.put(PREF_KEY, locale.getLanguage());
     }
 

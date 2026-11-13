@@ -2,10 +2,10 @@ package fr.cnrs.lacito.liftgui.ui.view.header;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.*;
+import fr.cnrs.lacito.liftfx.internal.EditorSupport;
 import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
-import fr.cnrs.lacito.liftgui.ui.controls.EditorSupport;
 import fr.cnrs.lacito.liftgui.ui.editor.EditorContext;
 import fr.cnrs.lacito.liftgui.ui.editor.EditorPanel;
 import fr.cnrs.lacito.liftgui.ui.table.ColumnSpec;

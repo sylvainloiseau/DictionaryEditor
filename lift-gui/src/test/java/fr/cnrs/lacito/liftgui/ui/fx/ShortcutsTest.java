@@ -1,15 +1,13 @@
 package fr.cnrs.lacito.liftgui.ui.fx;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import fr.cnrs.lacito.liftapi.model.LiftEntry;
 import fr.cnrs.lacito.liftapi.model.LiftSense;
+import fr.cnrs.lacito.liftfx.ComponentKind;
+import fr.cnrs.lacito.liftfx.internal.ItemCard;
+import fr.cnrs.lacito.liftfx.internal.Reveal;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.app.AppPreferences;
 import fr.cnrs.lacito.liftgui.ui.app.Commands;
-import fr.cnrs.lacito.liftgui.ui.controls.ComponentKind;
-import fr.cnrs.lacito.liftgui.ui.controls.ItemCard;
-import fr.cnrs.lacito.liftgui.ui.controls.Reveal;
 import javafx.application.Platform;
 import javafx.event.Event;
 import javafx.scene.Node;
@@ -29,6 +27,7 @@ import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
 import org.junit.jupiter.api.Test;
 import org.testfx.util.WaitForAsyncUtils;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** The Add menu and its shortcuts, the shortcuts of the menus, and the shortcuts dialog. */
 class ShortcutsTest extends MainWindowTest {

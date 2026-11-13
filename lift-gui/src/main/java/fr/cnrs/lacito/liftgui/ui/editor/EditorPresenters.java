@@ -2,11 +2,13 @@ package fr.cnrs.lacito.liftgui.ui.editor;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.*;
+import fr.cnrs.lacito.liftfx.*;
+import fr.cnrs.lacito.liftfx.controls.*;
+import fr.cnrs.lacito.liftfx.internal.*;
 import fr.cnrs.lacito.liftgui.core.DictionaryQueries;
 import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.ObjectLabels;
-import fr.cnrs.lacito.liftgui.ui.controls.*;
 import fr.cnrs.lacito.liftgui.ui.nav.ViewKey;
 import fr.cnrs.lacito.liftgui.ui.nav.ViewRequest;
 import fr.cnrs.lacito.liftgui.ui.view.ComponentKinds;

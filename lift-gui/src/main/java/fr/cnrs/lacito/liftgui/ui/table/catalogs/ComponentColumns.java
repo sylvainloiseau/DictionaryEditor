@@ -2,11 +2,11 @@ package fr.cnrs.lacito.liftgui.ui.table.catalogs;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.*;
+import fr.cnrs.lacito.liftfx.internal.EditorSupport;
 import fr.cnrs.lacito.liftgui.core.DictionaryQueries;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import fr.cnrs.lacito.liftgui.ui.Keys;
 import fr.cnrs.lacito.liftgui.ui.ObjectLabels;
-import fr.cnrs.lacito.liftgui.ui.controls.EditorSupport;
 import fr.cnrs.lacito.liftgui.ui.table.ColumnSpec;
 import fr.cnrs.lacito.liftgui.ui.table.Columns;
 import java.util.HashMap;

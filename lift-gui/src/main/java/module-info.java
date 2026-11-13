@@ -1,5 +1,6 @@
 module fr.cnrs.lacito.liftgui {
     requires fr.cnrs.lacito.liftapi;
+    requires fr.cnrs.lacito.liftfx;
     requires javafx.controls;
     requires javafx.fxml;
     requires transitive javafx.graphics;

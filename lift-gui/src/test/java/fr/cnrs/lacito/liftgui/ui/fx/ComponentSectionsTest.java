@@ -1,14 +1,12 @@
 package fr.cnrs.lacito.liftgui.ui.fx;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.*;
+import fr.cnrs.lacito.liftfx.ComponentKind;
+import fr.cnrs.lacito.liftfx.internal.ComponentSection;
+import fr.cnrs.lacito.liftfx.internal.ItemCard;
+import fr.cnrs.lacito.liftfx.internal.SectionPane;
 import fr.cnrs.lacito.liftgui.ui.I18n;
-import fr.cnrs.lacito.liftgui.ui.controls.ComponentKind;
-import fr.cnrs.lacito.liftgui.ui.controls.ComponentSection;
-import fr.cnrs.lacito.liftgui.ui.controls.ItemCard;
-import fr.cnrs.lacito.liftgui.ui.controls.SectionPane;
 import java.util.List;
 import javafx.event.Event;
 import javafx.geometry.Point2D;
@@ -24,6 +22,7 @@ import javafx.stage.Window;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.testfx.util.WaitForAsyncUtils;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * The sections of the editors: their count, their [+] in the title bar, the cards with
@@ -99,7 +98,7 @@ class ComponentSectionsTest extends MainWindowTest {
         ComponentSection relations = section(entry, ComponentKind.RELATION);
         interact(() -> {
             relations.setExpanded(false);
-            fr.cnrs.lacito.liftgui.ui.controls.Reveal.scrollTo(relations);
+            fr.cnrs.lacito.liftfx.internal.Reveal.scrollTo(relations);
         });
         MenuButton plus = (MenuButton) relations.addButton();
         clickOn(plus);
@@ -205,7 +204,7 @@ class ComponentSectionsTest extends MainWindowTest {
     void theInSectionCommandAddsToTheInnermostSection() {
         ComponentSection annotations = section(trait, ComponentKind.ANNOTATION);
         interact(() -> {
-            fr.cnrs.lacito.liftgui.ui.controls.Reveal.expandAncestors(annotations);
+            fr.cnrs.lacito.liftfx.internal.Reveal.expandAncestors(annotations);
             annotations.requestFocus();
         });
         assertEquals(new javafx.scene.input.KeyCodeCombination(KeyCode.N, javafx.scene.input.KeyCombination.SHORTCUT_DOWN,
@@ -243,7 +242,7 @@ class ComponentSectionsTest extends MainWindowTest {
     void deleteOnAFocusedCardHeaderDeletesTheComponent() {
         ItemCard card = card(trait);
         interact(() -> {
-            fr.cnrs.lacito.liftgui.ui.controls.Reveal.expandAncestors(card);
+            fr.cnrs.lacito.liftfx.internal.Reveal.expandAncestors(card);
             card.header().requestFocus();
         });
         type(KeyCode.DELETE);
