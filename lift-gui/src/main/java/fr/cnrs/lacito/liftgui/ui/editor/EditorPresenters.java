@@ -2,9 +2,10 @@ package fr.cnrs.lacito.liftgui.ui.editor;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftapi.model.*;
-import fr.cnrs.lacito.liftfx.*;
-import fr.cnrs.lacito.liftfx.controls.*;
-import fr.cnrs.lacito.liftfx.internal.*;
+import fr.cnrs.lacito.liftfx.LiftComponentEditor;
+import fr.cnrs.lacito.liftfx.controls.LiftEntryEditor;
+import fr.cnrs.lacito.liftfx.controls.MultiTextEditor;
+import fr.cnrs.lacito.liftfx.internal.EditorSupport;
 import fr.cnrs.lacito.liftgui.core.DictionaryQueries;
 import fr.cnrs.lacito.liftgui.ui.Dialogs;
 import fr.cnrs.lacito.liftgui.ui.I18n;
@@ -50,14 +51,18 @@ public final class EditorPresenters {
     }
 
     /**
-     * The edit actions of the editor shown in the panel: an addition or a deletion shows the
-     * object again, and redraws the table.
+     * The editor of a component, for the panel: an addition or a deletion shows the object
+     * again (the header and the links count the components), and any change redraws the
+     * table.
      */
-    private EditActions actions() {
-        return EditActions.of(dictionary(), () -> ctx.document().file(), () -> {
-            redisplay();
-            ctx.refreshTable();
-        });
+    private LiftComponentEditor editorOf(Object component) {
+        LiftComponentEditor editor = new LiftComponentEditor(dictionary());
+        editor.setDictionaryFile(() -> ctx.document().file());
+        editor.setOnOpenSense(ctx.navigator()::goToSenseAmongEntrySenses);
+        editor.setOnStructureChanged(this::redisplay);
+        editor.setOnChanged(ctx::refreshTable);
+        editor.setComponent(component);
+        return editor;
     }
 
     /** Shows again the object currently shown (e.g. after a component was added to it). */
@@ -95,10 +100,7 @@ public final class EditorPresenters {
         );
         try {
             panel().add(delete.entry(entry));
-            LiftEntryEditor entryEditor = new LiftEntryEditor(dictionary());
-            entryEditor.setOnOpenSense(ctx.navigator()::goToSenseAmongEntrySenses);
-            entryEditor.setOnChanged(ctx::refreshTable);
-            entryEditor.setEntry(entry, actions());
+            LiftComponentEditor entryEditor = editorOf(entry);
             addChildrenLinks(entry,
                 new Children(ViewKey.PRONUNCIATIONS, entry.getPronunciations()),
                 new Children(ViewKey.VARIANTS, entry.getVariants()),
@@ -140,11 +142,7 @@ public final class EditorPresenters {
             panel().add(exLink);
         }
 
-        SenseEditor se = new SenseEditor(dictionary());
-        se.setGrammaticalInfoValues(EditorSupport.sortedFeatureIds(dictionary().getHeader().getGrammaticalInfoManager()));
-        se.setOnGramInfoChanged(ctx::refreshTable);
-        se.setSense(sense, actions());
-        panel().add(se);
+        panel().add(editorOf(sense));
     }
 
     public void showExample(LiftExample ex) {
@@ -153,9 +151,7 @@ public final class EditorPresenters {
         panel().add(delete.example(ex));
         addParentLink(ex);
         addChildrenLinks(ex, new Children(ViewKey.TRANSLATIONS, List.copyOf(ex.getTranslationComponents())));
-        ExampleEditor ee = new ExampleEditor(dictionary());
-        ee.setExample(ex, actions());
-        panel().add(ee);
+        panel().add(editorOf(ex));
     }
 
     public void showNote(LiftNote note) {
@@ -164,9 +160,7 @@ public final class EditorPresenters {
         AbstractNotable parent = note.getParent();
         if (parent != null) panel().add(delete.component(note, () -> parent.deleteNote(note)));
         addParentLink(note);
-        NoteEditor ne = new NoteEditor(dictionary());
-        ne.setNote(note, actions());
-        panel().add(ne);
+        panel().add(editorOf(note));
     }
 
     public void showVariant(LiftVariant v) {
@@ -175,9 +169,7 @@ public final class EditorPresenters {
         LiftEntry parent = v.getParent();
         if (parent != null) panel().add(delete.component(v, () -> parent.deleteVariant(v)));
         addParentLink(v);
-        VariantEditor ve = new VariantEditor(dictionary());
-        ve.setVariant(v, actions());
-        panel().add(ve);
+        panel().add(editorOf(v));
     }
 
     public void showRelation(LiftRelation relation) {
@@ -192,9 +184,7 @@ public final class EditorPresenters {
             panel().add(delete.component(relation, () -> parent.deleteRelation(relation)));
         }
         addParentLink(relation);
-        RelationEditor re = new RelationEditor(dictionary());
-        re.setRelation(relation, actions());
-        panel().add(re);
+        panel().add(editorOf(relation));
     }
 
     public void showEtymology(LiftEtymology et) {
@@ -207,9 +197,7 @@ public final class EditorPresenters {
         LiftEntry parent = et.getParent();
         if (parent != null) panel().add(delete.component(et, () -> parent.deleteEtymology(et)));
         addParentLink(et);
-        EtymologyEditor ee = new EtymologyEditor(dictionary());
-        ee.setEtymology(et, actions());
-        panel().add(ee);
+        panel().add(editorOf(et));
     }
 
     public void showAnnotation(LiftAnnotation annotation) {
@@ -219,9 +207,7 @@ public final class EditorPresenters {
         HasAnnotation parent = annotation.getParent();
         if (parent != null) panel().add(delete.component(annotation, () -> parent.deleteAnnotation(annotation)));
         addParentLink(annotation);
-        AnnotationEditor ae = new AnnotationEditor(dictionary());
-        ae.setAnnotation(annotation);
-        panel().add(ae);
+        panel().add(editorOf(annotation));
     }
 
     public void showField(LiftField field) {
@@ -230,9 +216,7 @@ public final class EditorPresenters {
         AbstractExtensibleWithField parent = field.getParent();
         if (parent != null) panel().add(delete.component(field, () -> parent.deleteField(field)));
         addParentLink(field);
-        FieldEditor fe = new FieldEditor(dictionary());
-        fe.setField(field, actions());
-        panel().add(fe);
+        panel().add(editorOf(field));
     }
 
     public void showTranslation(LiftTranslation translation) {
@@ -241,9 +225,7 @@ public final class EditorPresenters {
         LiftExample parent = translation.getParent();
         if (parent != null) panel().add(delete.component(translation, () -> parent.deleteTranslation(translation)));
         addParentLink(translation);
-        TranslationEditor te = new TranslationEditor(dictionary());
-        te.setTranslation(translation, actions());
-        panel().add(te);
+        panel().add(editorOf(translation));
     }
 
     public void showPronunciation(LiftPronunciation pronunciation) {
@@ -254,9 +236,7 @@ public final class EditorPresenters {
         if (parent != null) panel().add(delete.component(pronunciation, () -> parent.deletePronunciation(pronunciation)));
         addParentLink(pronunciation);
         addChildrenLinks(pronunciation, new Children(ViewKey.MEDIA, pronunciation.getMedias()));
-        PronunciationEditor pe = new PronunciationEditor(dictionary());
-        pe.setPronunciation(pronunciation, actions());
-        panel().add(pe);
+        panel().add(editorOf(pronunciation));
     }
 
     public void showMedia(LiftMedia media) {
@@ -265,9 +245,7 @@ public final class EditorPresenters {
         LiftPronunciation parent = media.getParent();
         if (parent != null) panel().add(delete.component(media, () -> parent.deleteMedia(media)));
         addParentLink(media);
-        ExternalDocumentEditor ede = new ExternalDocumentEditor(dictionary(), () -> ctx.document().file());
-        ede.setDocument(media, actions());
-        panel().add(ede);
+        panel().add(editorOf(media));
     }
 
     public void showIllustration(LiftIllustration illustration) {
@@ -276,9 +254,7 @@ public final class EditorPresenters {
         LiftSense parent = illustration.getParent();
         if (parent != null) panel().add(delete.component(illustration, () -> parent.deleteIllustration(illustration)));
         addParentLink(illustration);
-        ExternalDocumentEditor ede = new ExternalDocumentEditor(dictionary(), () -> ctx.document().file());
-        ede.setDocument(illustration, actions());
-        panel().add(ede);
+        panel().add(editorOf(illustration));
     }
 
     public void showReversal(LiftReversal reversal) {
@@ -292,9 +268,7 @@ public final class EditorPresenters {
             panel().add(delete.component(reversal, () -> parent.deleteReversal(reversal)));
         }
         addParentLink(reversal);
-        ReversalEditor re = new ReversalEditor(dictionary());
-        re.setReversal(reversal, actions());
-        panel().add(re);
+        panel().add(editorOf(reversal));
     }
 
     public void showTrait(LiftTrait trait) {
@@ -304,9 +278,7 @@ public final class EditorPresenters {
         HasTrait parent = trait.getParent();
         if (parent != null) panel().add(delete.component(trait, () -> parent.deleteTrait(trait)));
         addParentLink(trait);
-        TraitEditor te = new TraitEditor(dictionary());
-        te.setTrait(trait, EditorSupport.targetOf(parent), actions());
-        panel().add(te);
+        panel().add(editorOf(trait));
     }
 
     /* ─── Other views ─── */
