@@ -210,3 +210,7 @@ The scan is from the Smithsonian Libraries copy, digitised by the [Biodiversity 
   - Ayman JARI
   - Erij MAZOUZ
 - Sylvain Loiseau, Sorbonne Paris Nord University / Lacito-CNRS laboratory
+
+## Licence
+
+Licensed under the [Academic Free License version 3.0](https://opensource.org/license/AFL-3.0) (see [LICENSE](LICENSE)), like [lift-api](https://github.com/sylvainloiseau/lift-api). This covers the application (`lift-gui`) and the `lift-fx` library.
