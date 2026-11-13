@@ -9,6 +9,7 @@
 **/
 package fr.cnrs.lacito.liftgui;
 
+import fr.cnrs.lacito.liftfx.LiftFx;
 import fr.cnrs.lacito.liftgui.ui.I18n;
 import javafx.application.Application;
 import javafx.application.HostServices;
@@ -104,7 +105,9 @@ public final class MainApp extends Application {
         double w = primaryStage.getScene() != null ? primaryStage.getScene().getWidth() : 1200;
         double h = primaryStage.getScene() != null ? primaryStage.getScene().getHeight() : 720;
         Scene scene = new Scene(loader.load(), w, h);
-        scene.getStylesheets().add(MainApp.class.getResource("/fr/cnrs/lacito/liftgui/ui/app.css").toExternalForm());
+        // The editors' styles first: app.css comes after them, and can override them.
+        scene.getStylesheets().addAll(LiftFx.stylesheet(),
+            MainApp.class.getResource("/fr/cnrs/lacito/liftgui/ui/app.css").toExternalForm());
         // The controller of the new scene binds the title to its document.
         primaryStage.titleProperty().unbind();
         primaryStage.setScene(scene);

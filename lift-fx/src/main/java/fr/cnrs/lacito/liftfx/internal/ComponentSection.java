@@ -2,6 +2,7 @@ package fr.cnrs.lacito.liftfx.internal;
 
 import fr.cnrs.lacito.liftfx.ComponentKind;
 import fr.cnrs.lacito.liftfx.EditActions;
+import fr.cnrs.lacito.liftfx.LiftFx;
 import fr.cnrs.lacito.liftfx.TypeChoices;
 import java.io.File;
 import java.util.ArrayList;
@@ -37,9 +38,6 @@ import javafx.stage.FileChooser;
  */
 public final class ComponentSection extends SectionPane {
 
-    /** Whether the sections without any component are hidden (View ▸ Hide Empty Sections). */
-    public static final BooleanProperty HIDE_EMPTY = new SimpleBooleanProperty(false);
-
     private final ComponentKind kind;
     private final VBox itemsBox = new VBox(6);
     private final StackPane addSlot = new StackPane();
@@ -61,8 +59,8 @@ public final class ComponentSection extends SectionPane {
         header.getChildren().add(addSlot);
 
         visibleProperty().bind(Bindings.createBooleanBinding(
-            () -> !HIDE_EMPTY.get() || getCount() > 0 || forcedShown.get(),
-            HIDE_EMPTY, countProperty(), forcedShown));
+            () -> !LiftFx.hideEmptySectionsProperty().get() || getCount() > 0 || forcedShown.get(),
+            LiftFx.hideEmptySectionsProperty(), countProperty(), forcedShown));
         managedProperty().bind(visibleProperty());
 
         header.setOnContextMenuRequested(this::showContextMenu);

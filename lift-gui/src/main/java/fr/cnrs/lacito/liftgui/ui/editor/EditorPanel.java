@@ -1,5 +1,6 @@
 package fr.cnrs.lacito.liftgui.ui.editor;
 
+import fr.cnrs.lacito.liftfx.LiftFx;
 import fr.cnrs.lacito.liftfx.internal.ComponentSection;
 import fr.cnrs.lacito.liftfx.internal.EditorSupport;
 import fr.cnrs.lacito.liftgui.ui.I18n;
@@ -44,7 +45,7 @@ public final class EditorPanel {
         addHidden.getStyleClass().add("add-hidden-sections");
         addHidden.getItems().add(new MenuItem());
         addHidden.setOnShowing(e -> addHidden.getItems().setAll(hiddenSectionItems()));
-        addHidden.visibleProperty().bind(ComponentSection.HIDE_EMPTY);
+        addHidden.visibleProperty().bind(LiftFx.hideEmptySectionsProperty());
         addHidden.managedProperty().bind(addHidden.visibleProperty());
     }
 

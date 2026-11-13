@@ -2,6 +2,7 @@ package fr.cnrs.lacito.liftgui.ui.fx;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
 import fr.cnrs.lacito.liftfx.ComponentKind;
+import fr.cnrs.lacito.liftfx.LiftFx;
 import fr.cnrs.lacito.liftfx.internal.ComponentSection;
 import fr.cnrs.lacito.liftfx.internal.ItemCard;
 import fr.cnrs.lacito.liftgui.testsupport.InMemoryPreferences;
@@ -57,7 +58,8 @@ public abstract class MainWindowTest extends ApplicationTest {
         Parent root = loader.load();
         controller = loader.getController();
         Scene scene = new Scene(root, 1400, 900);
-        scene.getStylesheets().add(MainWindowTest.class.getResource("/fr/cnrs/lacito/liftgui/ui/app.css").toExternalForm());
+        scene.getStylesheets().addAll(LiftFx.stylesheet(),
+            MainWindowTest.class.getResource("/fr/cnrs/lacito/liftgui/ui/app.css").toExternalForm());
         stage.setScene(scene);
         stage.show();
     }

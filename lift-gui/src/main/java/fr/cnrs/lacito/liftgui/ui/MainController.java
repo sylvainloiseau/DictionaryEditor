@@ -10,7 +10,7 @@
 package fr.cnrs.lacito.liftgui.ui;
 
 import fr.cnrs.lacito.liftapi.LiftDictionary;
-import fr.cnrs.lacito.liftfx.internal.ComponentSection;
+import fr.cnrs.lacito.liftfx.LiftFx;
 import fr.cnrs.lacito.liftgui.MainApp;
 import fr.cnrs.lacito.liftgui.core.CsvExporter;
 import fr.cnrs.lacito.liftgui.core.DictionaryQueries;
@@ -164,10 +164,10 @@ public final class MainController {
         // View ▸ Hide empty sections, remembered.
         hideEmptySectionsItem.setId("view.hideEmptySections");
         hideEmptySectionsItem.setSelected(prefs.hideEmptySections());
-        ComponentSection.HIDE_EMPTY.set(prefs.hideEmptySections());
+        LiftFx.hideEmptySectionsProperty().set(prefs.hideEmptySections());
         hideEmptySectionsItem.selectedProperty().addListener((obs, o, hide) -> {
             prefs.setHideEmptySections(hide);
-            ComponentSection.HIDE_EMPTY.set(hide);
+            LiftFx.hideEmptySectionsProperty().set(hide);
         });
 
         // View ▸ Mark empty cells, remembered.
