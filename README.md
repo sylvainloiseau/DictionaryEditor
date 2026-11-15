@@ -80,19 +80,13 @@ The packaged standalone app will include a lighweight java runtime.
 On the repository root:
 
 ```bash
-mvn clean install -Pdist -DskipTests \
-  -Djavafx.platform=<plateforme> \
-  -Djpackage.type=<type>
+mvn clean install -Pdist -DskipTests -Djpackage.type=<type>
 ```
 
-- Set the option `-Djavafx.platform` to the system on which you compile :
-
-| target OS (build)   | Valeur de `-Djavafx.platform` |
-|---------------------|-------------------------------|
-| Linux x86_64        | `linux`                       |
-| Windows x86_64      | `win`                         |
-| macOS Apple Silicon | `mac-aarch64`                 |
-| macOS Intel         | `mac`                         |
+The JavaFX jars of the system on which you build are chosen automatically (Linux, Windows,
+macOS Intel or Apple Silicon). An installer can only be built for that same system, so don't
+set `-Djavafx.platform`: with Maven 3.10 and later, the OpenJFX POMs make this option fail
+with "recursive expression cycle in 'javafx.platform'", then "module not found: javafx.controls".
 
 See the next sections for the values for `jpackage.type`.
 
@@ -105,9 +99,7 @@ See the next sections for the values for `jpackage.type`.
 Files are in `lift-gui/target/jpackage/` (or `jpackage-msi` / `jpackage-exe` if you use suffixes as in the CI).
 
 ```bash
-mvn clean install -Pdist -DskipTests \
-  -Djavafx.platform=win \
-  -Djpackage.type=MSI
+mvn clean install -Pdist -DskipTests -Djpackage.type=MSI
 ```
 
 **2/ Without WiX — app image** : the POM activates Windows options (`--win-menu`) incompatible with `app-image`. After a build that produced the jlink runtime (`lift-gui/target/maven-jlink/default/`), run **jpackage** once manually.
@@ -132,9 +124,7 @@ If `mvn install … -Pdist` fails only on **jpackage** (WiX missing) but the **`
 Create deb package (default `jpackage.type` value)
 
 ```bash
-mvn clean install -Pdist -DskipTests \
-  -Djavafx.platform=linux \
-  -Djpackage.type=DEB
+mvn clean install -Pdist -DskipTests -Djpackage.type=DEB
 ```
 
 On Debian/Ubuntu, `fakeroot` tools may be needed; the CI also installs `rpm` for some steps. The `.deb` is generated under `lift-gui/target/jpackage/`. Installation :
@@ -147,15 +137,13 @@ Then run the application from the applications menu or the command installed by 
 
 ### macOS
 
-Create a disk imaege (`.dmg`) (select the correct value for `javafx.platform` : `mac-aarch64` or `mac`, see above) :
+Create a disk image (`.dmg`), for the processor of the Mac on which you build (Apple Silicon or Intel):
 
 ```bash
-mvn clean install -Pdist -DskipTests \
-  -Djavafx.platform=mac-aarch64 \
-  -Djpackage.type=DMG
+mvn clean install -Pdist -DskipTests -Djpackage.type=DMG
 ```
 
-On Mac M1, try `-Djavafx.platform=mac` if your JDK/OpenJFX provides it. The `.dmg` is generated under `lift-gui/target/jpackage/`. Open the DMG and drag the application into **Applications**, then run it from the Launchpad or the Applications folder.
+The `.dmg` is generated under `lift-gui/target/jpackage/`. Open the DMG and drag the application into **Applications**, then run it from the Launchpad or the Applications folder.
 
 ### Releases GitHub
 
