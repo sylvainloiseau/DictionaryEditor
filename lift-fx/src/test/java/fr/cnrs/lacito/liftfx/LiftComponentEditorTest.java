@@ -104,6 +104,39 @@ class LiftComponentEditorTest extends ApplicationTest {
         WaitForAsyncUtils.waitForFxEvents();
     }
 
+    /* ─── Read-only ─── */
+
+    @Test
+    void aReadOnlyEditorChangesNothing() {
+        interact(() -> editor.setReadOnly(true));
+        show(entry);
+        assertTrue(editor.isReadOnly());
+        assertTrue(editor.getPseudoClassStates().contains(javafx.css.PseudoClass.getPseudoClass("read-only")));
+        var texts = lookup((Node n) -> n instanceof javafx.scene.control.TextInputControl).queryAllAs(javafx.scene.control.TextInputControl.class);
+        assertFalse(texts.isEmpty());
+        for (var t : texts) {
+            assertFalse(t.isEditable(), "editable: " + t);
+        }
+        var buttons = lookup((Node n) -> n instanceof javafx.scene.control.ButtonBase
+            && !(n instanceof javafx.scene.control.Hyperlink)).queryAllAs(javafx.scene.control.ButtonBase.class);
+        for (var b : buttons) {
+            assertTrue(b.isDisabled(), "enabled: " + b);
+        }
+        String before = entry.getForms().getForm("xx").orElseThrow().toPlainText();
+        TextField form = lookup((Node n) -> n instanceof TextField tf && before.equals(tf.getText())).queryAs(TextField.class);
+        clickOn(form).write("zz");
+        WaitForAsyncUtils.waitForFxEvents();
+        assertEquals(before, entry.getForms().getForm("xx").orElseThrow().toPlainText());
+    }
+
+    @Test
+    void anEditorIsNotReadOnlyByDefault() {
+        show(entry);
+        assertFalse(editor.isReadOnly());
+        assertTrue(lookup((Node n) -> n instanceof javafx.scene.control.TextInputControl t && t.isEditable())
+            .tryQuery().isPresent());
+    }
+
     /* ─── Which components ─── */
 
     @Test

@@ -70,6 +70,7 @@ public class LiftComponentEditor extends VBox {
     private Object component;
     private Supplier<File> dictionaryFile = () -> null;
     private boolean addDeleteEnabled = true;
+    private boolean readOnly;
     private Consumer<LiftSense> onOpenSense;
     private Runnable onChanged;
     private Runnable onStructureChanged;
@@ -129,8 +130,32 @@ public class LiftComponentEditor extends VBox {
 
     /** Builds the editor of the component again, e.g. after a change made elsewhere. */
     public void refresh() {
-        if (component == null) getChildren().clear();
-        else getChildren().setAll(editorOf(component));
+        if (component == null) {
+            getChildren().clear();
+            return;
+        }
+        Node node = editorOf(component);
+        if (readOnly) {
+            fr.cnrs.lacito.liftfx.internal.ReadOnly.install(node);
+        }
+        getChildren().setAll(node);
+    }
+
+    /**
+     * Shows the component without letting the user change it: the texts can be selected
+     * and copied but not edited, nothing can be added or deleted, and the choices (types,
+     * grammatical info, values) are disabled; links that only navigate (to a sense, a file)
+     * still work. For a component the application owns, such as a state of a dictionary's
+     * history. The editor's root gets the {@code :read-only} pseudo-class. False by default.
+     * Takes effect at the next {@link #setComponent} or {@link #refresh}.
+     */
+    public void setReadOnly(boolean readOnly) {
+        this.readOnly = readOnly;
+        pseudoClassStateChanged(fr.cnrs.lacito.liftfx.internal.ReadOnly.READ_ONLY, readOnly);
+    }
+
+    public boolean isReadOnly() {
+        return readOnly;
     }
 
     /**
@@ -196,7 +221,7 @@ public class LiftComponentEditor extends VBox {
 
     /** What the editors need to add and delete components; null when it is not allowed. */
     private EditActions actions() {
-        return addDeleteEnabled ? EditActions.of(dictionary, dictionaryFile, this::structureChanged) : null;
+        return addDeleteEnabled && !readOnly ? EditActions.of(dictionary, dictionaryFile, this::structureChanged) : null;
     }
 
     private Node editorOf(Object component) {
