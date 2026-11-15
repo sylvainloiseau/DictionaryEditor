@@ -110,7 +110,6 @@ jobs:
         shell: bash
         run: |
           mvn -B -ntp clean install -Pdist -DskipTests \
-            "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=DEB -Djpackage.destSuffix=-deb
 
@@ -119,7 +118,6 @@ jobs:
         shell: bash
         run: |
           mvn -B -ntp -f lift-gui -Pdist jpackage:jpackage -DskipTests \
-            "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=APP_IMAGE -Djpackage.destSuffix=-appimage
 
@@ -174,7 +172,6 @@ jobs:
         shell: bash
         run: |
           mvn -B -ntp clean install -Pdist -DskipTests \
-            "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=MSI -Djpackage.destSuffix=-msi
 
@@ -183,7 +180,6 @@ jobs:
         shell: bash
         run: |
           mvn -B -ntp -f lift-gui -Pdist jpackage:jpackage -DskipTests \
-            "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=EXE -Djpackage.destSuffix=-exe
 
@@ -192,7 +188,6 @@ jobs:
         shell: bash
         run: |
           mvn -B -ntp clean install -Pdist -DskipTests \
-            "-Djavafx.platform=${{ matrix.javafx }}" \
             "-Dapp.version=${GITHUB_REF_NAME#v}" \
             -Djpackage.type=DMG
 
