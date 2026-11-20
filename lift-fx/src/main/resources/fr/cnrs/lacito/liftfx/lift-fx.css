@@ -95,8 +95,23 @@
 }
 .item-card-toggle {
   -fx-background-color: transparent;
-  -fx-padding: 0 4 0 0;
-  -fx-text-fill: derive(-fx-text-base-color, 30%);
+  -fx-padding: 4;
+  -fx-cursor: hand;
+  -fx-background-radius: 3;
+}
+.item-card-arrow {
+  -fx-shape: "M 0 0 h 7 l -3.5 4 z";
+  -fx-scale-shape: true;
+  -fx-min-width: 11;
+  -fx-pref-width: 11;
+  -fx-max-width: 11;
+  -fx-min-height: 7;
+  -fx-pref-height: 7;
+  -fx-max-height: 7;
+  -fx-background-color: derive(-fx-text-base-color, 30%);
+}
+.item-card-toggle:hover {
+  -fx-background-color: derive(-fx-base, -8%);
 }
 .item-delete {
   -fx-background-color: transparent;

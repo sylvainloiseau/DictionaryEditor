@@ -82,21 +82,23 @@ public final class ItemCard extends VBox {
         content.managedProperty().bind(expanded);
         expanded.addListener((obs, o, n) -> {
             pseudoClassStateChanged(COLLAPSED, !n);
-            if (toggle != null) toggle.setText(n ? "▾" : "▸");
+            if (toggle != null) toggle.getGraphic().setRotate(n ? 0 : -90);
         });
         getChildren().addAll(header, content);
     }
 
     /** Makes the card foldable, with an arrow before its label. */
     public ItemCard collapsible(boolean expandedAtFirst) {
-        toggle = new Button();
+        Region arrow = new Region();
+        arrow.getStyleClass().add("item-card-arrow");
+        toggle = new Button(null, arrow);
         toggle.getStyleClass().add("item-card-toggle");
         toggle.setFocusTraversable(false);
         toggle.setOnAction(e -> setExpanded(!isExpanded()));
         ReadOnly.keepEnabled(toggle); // folding changes only the view
         header.getChildren().addFirst(toggle);
         setExpanded(expandedAtFirst);
-        toggle.setText(expandedAtFirst ? "▾" : "▸");
+        toggle.getGraphic().setRotate(expandedAtFirst ? 0 : -90);
         return this;
     }
 
