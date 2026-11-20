@@ -93,6 +93,7 @@ public final class ItemCard extends VBox {
         toggle.getStyleClass().add("item-card-toggle");
         toggle.setFocusTraversable(false);
         toggle.setOnAction(e -> setExpanded(!isExpanded()));
+        ReadOnly.keepEnabled(toggle); // folding changes only the view
         header.getChildren().addFirst(toggle);
         setExpanded(expandedAtFirst);
         toggle.setText(expandedAtFirst ? "▾" : "▸");

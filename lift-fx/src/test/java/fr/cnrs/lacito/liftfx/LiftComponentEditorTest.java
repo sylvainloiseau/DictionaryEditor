@@ -118,7 +118,8 @@ class LiftComponentEditorTest extends ApplicationTest {
             assertFalse(t.isEditable(), "editable: " + t);
         }
         var buttons = lookup((Node n) -> n instanceof javafx.scene.control.ButtonBase
-            && !(n instanceof javafx.scene.control.Hyperlink)).queryAllAs(javafx.scene.control.ButtonBase.class);
+            && !(n instanceof javafx.scene.control.Hyperlink)
+            && !n.getStyleClass().contains("item-card-toggle")).queryAllAs(javafx.scene.control.ButtonBase.class);
         for (var b : buttons) {
             assertTrue(b.isDisabled(), "enabled: " + b);
         }
@@ -127,6 +128,23 @@ class LiftComponentEditorTest extends ApplicationTest {
         clickOn(form).write("zz");
         WaitForAsyncUtils.waitForFxEvents();
         assertEquals(before, entry.getForms().getForm("xx").orElseThrow().toPlainText());
+    }
+
+    @Test
+    void aSenseCanBeFoldedInAReadOnlyEditor() {
+        interact(() -> editor.setReadOnly(true));
+        show(entry);
+        var card = lookup((Node n) -> n instanceof fr.cnrs.lacito.liftfx.internal.ItemCard c && c.component() == sense)
+            .queryAs(fr.cnrs.lacito.liftfx.internal.ItemCard.class);
+        var toggle = from(card.header()).lookup(".item-card-toggle").queryAs(javafx.scene.control.Button.class);
+        assertFalse(toggle.isDisabled(), "the fold arrow of a sense stays enabled");
+        boolean before = card.isExpanded();
+        clickOn(toggle);
+        WaitForAsyncUtils.waitForFxEvents();
+        assertEquals(!before, card.isExpanded());
+        clickOn(toggle);
+        WaitForAsyncUtils.waitForFxEvents();
+        assertEquals(before, card.isExpanded());
     }
 
     @Test
